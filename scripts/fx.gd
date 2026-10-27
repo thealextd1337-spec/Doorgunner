@@ -7,8 +7,7 @@ var sprite: Sprite2D
 
 func _ready() -> void:
 	z_index = 11
-	sprite = Sprite2D.new()
-	sprite.texture = load("res://assets/sprites/explosion.png")
+	sprite = Art.sprite("explosion")
 	sprite.hframes = 6
 	add_child(sprite)
 

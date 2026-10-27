@@ -10,11 +10,9 @@ var ui: CanvasLayer
 
 
 func _ready() -> void:
-	var pad := Sprite2D.new()
-	pad.texture = load("res://assets/sprites/helipad.png")
+	var pad := Art.sprite("helipad")
 	add_child(pad)
-	var hangar := Sprite2D.new()
-	hangar.texture = load("res://assets/sprites/hangar.png")
+	var hangar := Art.sprite("hangar")
 	hangar.position = Vector2(-70, -40)
 	add_child(hangar)
 	walls = Node2D.new()
@@ -37,8 +35,7 @@ func rebuild() -> void:
 		n.free()
 	var wall_count: int = 13 * Game.base_level.get("walls", 0)
 	for i in wall_count:
-		var w := Sprite2D.new()
-		w.texture = load("res://assets/sprites/wall.png")
+		var w := Art.sprite("wall")
 		var a := i * TAU / wall_count
 		w.position = Vector2(100, 0).rotated(a)
 		w.rotation = a + PI / 2

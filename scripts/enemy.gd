@@ -52,12 +52,10 @@ func setup(kind_name: String, pos: Vector2, danger: float, base_target := false)
 func _ready() -> void:
 	add_to_group("enemies")
 	z_index = 2 if cfg["ground"] else 8
-	sprite = Sprite2D.new()
-	sprite.texture = load("res://assets/sprites/%s.png" % kind)
+	sprite = Art.sprite(kind)
 	add_child(sprite)
 	if not cfg["ground"]:
-		var sh := Sprite2D.new()
-		sh.texture = sprite.texture
+		var sh := Art.sprite(kind)
 		sh.modulate = Color(0, 0, 0, 0.3)
 		sh.position = Vector2(6, 9)
 		add_child(sh)

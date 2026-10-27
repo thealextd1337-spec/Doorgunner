@@ -16,7 +16,7 @@ build the base up, and hold it when the hive assaults every third night.
   across runs unlock permanent seats, fuel and ammo capacity (saved in `user://meta.json`).
 
 ## Dev
-- `python tools/gen_sprites.py` regenerates all pixel art in `assets/sprites/`.
+- `python tools/gen_sprites.py` regenerates the three art variants in `assets/sprites/{a,b,c}/` (pick one on the title screen with 1/2/3; `ART=b` env overrides it for a session). Previews: `docs/art_a.png`, `docs/art_b.png`, `docs/art_c.png`.
 - `python tools/gen_sfx.py` regenerates all sound effects in `assets/sfx/`. **M** mutes in game.
 - Headless checks (bash): `SMOKE=1 godot --headless --path . --quit-after 3000` prints `SMOKE OK`. Other values: `poi`, `base`, `ui`.
 - `SMOKE=shot godot --path .` saves three screenshots into the project folder.

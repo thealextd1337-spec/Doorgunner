@@ -13,14 +13,15 @@ var town_centers := [] # world positions, used by the spawner
 
 func _ready() -> void:
 	var ts := TileSet.new()
-	ts.tile_size = Vector2i(TILE, TILE)
+	ts.tile_size = Vector2i(64, 64) # 4x art; the layer scale below keeps cells TILE world px apart
 	var src := TileSetAtlasSource.new()
-	src.texture = load("res://assets/sprites/tiles.png")
-	src.texture_region_size = Vector2i(TILE, TILE)
+	src.texture = Art.tex("tiles")
+	src.texture_region_size = Vector2i(64, 64)
 	for i in 8:
 		src.create_tile(Vector2i(i, 0))
 	ts.add_source(src, 0)
 	tile_set = ts
+	scale = Vector2(Art.SCALE, Art.SCALE)
 	noise.seed = Game.seed
 	noise.frequency = 0.012
 	noise.fractal_octaves = 3
