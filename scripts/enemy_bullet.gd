@@ -17,8 +17,7 @@ func setup(pos: Vector2, d: Vector2, dmg: float, t: Node2D) -> void:
 
 func _ready() -> void:
 	z_index = 9
-	var s := Sprite2D.new()
-	s.texture = load("res://assets/sprites/enemy_bullet.png")
+	var s := Art.sprite("enemy_bullet")
 	add_child(s)
 
 

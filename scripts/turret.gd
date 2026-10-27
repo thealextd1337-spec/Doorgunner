@@ -10,8 +10,7 @@ var sprite: Sprite2D
 
 
 func _ready() -> void:
-	sprite = Sprite2D.new()
-	sprite.texture = load("res://assets/sprites/turret.png")
+	sprite = Art.sprite("turret")
 	add_child(sprite)
 
 

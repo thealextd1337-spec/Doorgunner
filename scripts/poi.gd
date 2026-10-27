@@ -52,12 +52,11 @@ func _ready() -> void:
 			add_child(s)
 			survivors.append(s)
 		return
-	sprite = Sprite2D.new()
-	sprite.texture = load("res://assets/sprites/%s.png" % ("crate" if kind == "upgrade" else kind))
+	sprite = Art.sprite("crate" if kind == "upgrade" else kind)
 	add_child(sprite)
 	match kind:
 		"upgrade": sprite.modulate = Color(0.6, 0.8, 1.0)
-		"radio_tower": sprite.offset = Vector2(0, -16)
+		"radio_tower": sprite.offset = Vector2(0, -16) / Art.SCALE # offset is in texture px
 		"nest": add_to_group("enemies")
 
 

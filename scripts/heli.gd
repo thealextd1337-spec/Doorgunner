@@ -24,19 +24,14 @@ var muzzle: Sprite2D
 func _ready() -> void:
 	add_to_group("player")
 	Game.heli = self
-	var tex := load("res://assets/sprites/heli.png")
-	shadow = Sprite2D.new()
-	shadow.texture = tex
+	shadow = Art.sprite("heli")
 	shadow.modulate = Color(0, 0, 0, 0.35)
 	add_child(shadow)
-	body = Sprite2D.new()
-	body.texture = tex
+	body = Art.sprite("heli")
 	add_child(body)
-	rotor = Sprite2D.new()
-	rotor.texture = load("res://assets/sprites/rotor.png")
+	rotor = Art.sprite("rotor")
 	add_child(rotor)
-	muzzle = Sprite2D.new()
-	muzzle.texture = load("res://assets/sprites/muzzle.png")
+	muzzle = Art.sprite("muzzle")
 	muzzle.visible = false
 	add_child(muzzle)
 
@@ -60,7 +55,7 @@ func _process(delta: float) -> void:
 	shadow.rotation = body.rotation
 	rotor.rotation += (25.0 if not landed else 4.0) * delta
 	rotor.position = body.position
-	body.scale = Vector2.ONE * (1.0 + 0.08 * h)
+	body.scale = Vector2.ONE * Art.SCALE * (1.0 + 0.08 * h)
 
 
 func _move(delta: float) -> void:

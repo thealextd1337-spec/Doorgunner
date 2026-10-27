@@ -21,8 +21,7 @@ func setup(pos: Vector2, d: Vector2, dmg: float, p: int, spd := 520.0, life_s :=
 
 
 func _ready() -> void:
-	var s := Sprite2D.new()
-	s.texture = load("res://assets/sprites/bullet.png")
+	var s := Art.sprite("bullet")
 	add_child(s)
 	rotation = dir.angle()
 

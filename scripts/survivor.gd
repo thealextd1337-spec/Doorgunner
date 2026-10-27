@@ -9,8 +9,7 @@ var target: Node2D
 
 
 func _ready() -> void:
-	var s := Sprite2D.new()
-	s.texture = load("res://assets/sprites/survivor.png")
+	var s := Art.sprite("survivor")
 	add_child(s)
 
 
