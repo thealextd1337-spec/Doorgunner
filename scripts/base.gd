@@ -43,7 +43,7 @@ func rebuild() -> void:
 		w.position = Vector2(100, 0).rotated(a)
 		w.rotation = a + PI / 2
 		walls.add_child(w)
-	var turret_count: int = Game.base_level.get("turrets", 0)
+	var turret_count: int = Game.base_level.get("turrets", 0) + Game.workers["militia"] / 2
 	for i in turret_count:
 		var t := preload("res://scripts/turret.gd").new()
 		t.position = Vector2(70, 0).rotated(i * TAU / turret_count)
@@ -64,7 +64,7 @@ func _draw() -> void:
 func take_damage(amount: float) -> void:
 	if not Game.running:
 		return
-	Game.base_hp -= amount * (1.0 - 0.12 * Game.base_level.get("barracks", 0))
+	Game.base_hp -= amount * (1.0 - 0.12 * Game.base_level.get("barracks", 0)) * (1.0 - minf(0.3, 0.03 * Game.workers["militia"]))
 	Sfx.play("base_hit", global_position, -6.0)
 	modulate = Color(1, 0.5, 0.5)
 	get_tree().create_timer(0.1).timeout.connect(func(): modulate = Color.WHITE)
@@ -79,10 +79,15 @@ func _on_landed(landed: bool) -> void:
 		return
 	if Game.heli.position.distance_to(position) > PAD_REACH:
 		return
-	# shortcut: base stock is unlimited, add a stock model if balancing needs it
-	Game.fuel = Game.max_fuel
-	Game.ammo = Game.max_ammo
+	var f: float = minf(Game.max_fuel - Game.fuel, Game.base_fuel)
+	Game.fuel += f
+	Game.base_fuel -= f
+	var a: int = mini(Game.max_ammo - Game.ammo, int(Game.base_ammo))
+	Game.ammo += a
+	Game.base_ammo -= a
 	Game.hp = Game.max_hp
+	if Game.fuel < Game.max_fuel or Game.ammo < Game.max_ammo:
+		Game.radio("Base: stock is short, partial top-up only. Put people on fuel and ammo duty.")
 	Sfx.play("pickup")
 	var n: int = Game.passengers
 	if n > 0:

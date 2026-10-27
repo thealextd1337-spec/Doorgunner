@@ -30,7 +30,7 @@ func _ready() -> void:
 		bars[id] = _make_bar(root, Vector2(10, y))
 		y += 22
 	# logical canvas is fixed at 1280x720 (stretch mode canvas_items)
-	info = _label(root, Vector2(970, 10), 300, HORIZONTAL_ALIGNMENT_RIGHT)
+	info = _label(root, Vector2(870, 10), 400, HORIZONTAL_ALIGNMENT_RIGHT)
 	log_label = _label(root, Vector2(10, 600), 620)
 	log_label.modulate = Color(0.8, 1, 0.8)
 	hint = _label(root, Vector2(390, 690), 500, HORIZONTAL_ALIGNMENT_CENTER)
@@ -100,13 +100,16 @@ func _process(_delta: float) -> void:
 	var h := int(Game.time * 24.0)
 	var m := int(fmod(Game.time * 24.0, 1.0) * 60.0)
 	var next_attack := Game.ATTACK_EVERY_DAYS - (Game.day % Game.ATTACK_EVERY_DAYS)
-	info.text = "DAY %d  %02d:%02d %s\nSCRAP %d\nPASSENGERS %d/%d\nRESCUED %d   KILLS %d\nBASE HP %d/%d\nNext assault: %s" % [
+	var table: Dictionary = preload("res://scripts/weapons.gd").TABLE
+	var carried := " / ".join(Game.heli_weapons.map(func(id): return table[id]["name"].to_upper() if id == Game.weapon else table[id]["name"]))
+	info.text = "DAY %d  %02d:%02d %s\nSCRAP %d\nPASSENGERS %d/%d\nRESCUED %d   KILLS %d\nWEAPON %s\nBASE HP %d/%d   STOCK %d fuel  %d ammo\nNext assault: %s" % [
 		Game.day, h, m, "NIGHT" if Game.is_night() else "",
-		Game.scrap, Game.passengers, Game.seats, Game.rescued, Game.kills,
-		Game.base_hp, Game.max_base_hp,
+		Game.scrap, Game.passengers, Game.seats, Game.rescued, Game.kills, carried,
+		Game.base_hp, Game.max_base_hp, Game.base_fuel, Game.base_ammo,
 		"TONIGHT" if Game.attack_pending or Game.attack_active else "in %d day(s)" % next_attack]
+	info.visible = not Game.world.ui_open # base menu shows the same numbers
 	if Game.heli:
-		hint.text = "[SPACE] take off" if Game.heli.landed else "[SPACE] land   [LMB] fire"
+		hint.text = "[SPACE] take off" if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q] weapon"
 	alert.text = "BASE UNDER ATTACK" if Game.attack_active and fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0 else ""
 	if Game.fuel < Game.max_fuel * 0.2 and alert.text == "":
 		alert.text = "LOW FUEL"

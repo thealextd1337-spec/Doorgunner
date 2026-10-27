@@ -4,8 +4,10 @@ extends Node2D
 const LABELS := {"survivors": "settlement", "crate": "supply cache", "nest": "hive nest", "radio_tower": "relay tower", "wreck": "crash site", "upgrade": "weapons cache"}
 const DIRS := ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"]
 const LAND_DIST := 48.0
+const Weapons := preload("res://scripts/weapons.gd")
 
 var kind := ""
+var force_weapon := false # tests: weapons cache always yields a weapon
 var discovered := false
 var done := false
 var label := ""
@@ -23,6 +25,7 @@ var hp := 300.0
 var queen_called := false
 var spawn_cd := 8.0
 var spawned := []
+var raid_warned := 0.0
 
 
 ## "180 m north-east" as seen from `from` (10 px = 1 m).
@@ -97,7 +100,7 @@ func _on_landed(landed: bool) -> void:
 			loading = true
 			load_cd = 1.0
 			boarded = 0
-			Game.world.spawner.call_wave(position, 3)
+			Game.world.spawner.call_wave(position, 2)
 		"crate":
 			var a := rng.randi_range(30, 60)
 			var f := rng.randi_range(20, 40)
@@ -105,12 +108,18 @@ func _on_landed(landed: bool) -> void:
 			Game.ammo = mini(Game.max_ammo, Game.ammo + a)
 			Game.fuel = minf(Game.max_fuel, Game.fuel + f)
 			Game.scrap += s
-			Game.radio("Supply cache: +%d ammo, +%d fuel, +%d scrap." % [a, f, s])
+			Game.base_fuel = minf(Game.base_fuel_cap, Game.base_fuel + 50.0)
+			Game.base_ammo = minf(Game.base_ammo_cap, Game.base_ammo + 100.0)
+			Game.radio("Supply cache: +%d ammo, +%d fuel, +%d scrap. Base stock +50 fuel, +100 ammo." % [a, f, s])
 			_finish(true)
 		"upgrade":
 			Game.scrap += 10
 			_finish(true)
-			Game.world.offer_upgrades("Weapons cache")
+			var pool: Array = Weapons.unowned()
+			if pool.is_empty() or (not force_weapon and rng.randf() < 0.4):
+				Game.world.offer_upgrades("Weapons cache")
+			else:
+				Game.add_weapon(pool[rng.randi() % pool.size()])
 		"radio_tower":
 			var found: Array = Game.world.pois.filter(func(p): return p != self and not p.done and not p.discovered and position.distance_to(p.position) < 2500.0)
 			found.sort_custom(func(a, b): return position.distance_squared_to(a.position) < position.distance_squared_to(b.position))
@@ -125,18 +134,26 @@ func _on_landed(landed: bool) -> void:
 			var s := rng.randi_range(20, 40)
 			Game.scrap += s
 			var line := ""
-			match rng.randi_range(0, 2):
+			var pool: Array = Weapons.unowned()
+			var roll: int = 3 if not pool.is_empty() and rng.randf() < 0.3 else rng.randi_range(0, 2)
+			match roll:
 				0:
-					Game.max_ammo += 40
+					Game.base_max_ammo += 40
+					Game.recompute()
 					Game.ammo += 40
 					line = "salvaged an ammo feed"
 				1:
-					Game.max_fuel += 20.0
+					Game.base_max_fuel += 20.0
+					Game.recompute()
 					Game.fuel += 20.0
 					line = "patched in a spare fuel tank"
 				2:
 					Game.max_hp += 15.0
 					line = "stripped armour plates off the hull"
+				3:
+					var id: String = pool[rng.randi() % pool.size()]
+					Game.add_weapon(id)
+					line = "recovered a %s" % Weapons.TABLE[id]["name"]
 			Game.radio("Crash site: %s, +%d scrap." % [line, s])
 			_finish(false)
 
@@ -182,9 +199,28 @@ func _board(s: Node2D) -> void:
 	boarded += 1
 	if boarded == 3:
 		Game.radio("Pilot: LZ is hot, more incoming!")
-		Game.world.spawner.call_wave(position, 3)
+		Game.world.spawner.call_wave(position, 2)
 	if survivors.is_empty():
 		Game.radio("Pilot: all survivors aboard.")
+		_finish(false)
+
+
+## Ground aliens raiding the settlement kill one survivor at a time.
+func lose_survivor() -> void:
+	if kind != "survivors" or done or survivors.is_empty():
+		return
+	var s: Node2D = survivors.pop_back()
+	if s.target != null:
+		s.target = null
+	Game.world.spawn_fx(global_position + s.position, 0.5)
+	s.queue_free()
+	Sfx.play("survivor_lost", global_position, -6.0)
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - raid_warned > 20.0:
+		raid_warned = now
+		Game.radio("Radio: %s under attack, %d left, %s!" % [label, survivors.size(), where(Game.heli.position, position)])
+	if survivors.is_empty():
+		Game.radio("Radio: we lost the %s. No survivors." % label)
 		_finish(false)
 
 

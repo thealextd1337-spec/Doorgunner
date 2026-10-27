@@ -25,8 +25,10 @@ func _run() -> void:
 	Input.action_press("move_right")
 	Input.action_press("move_up")
 	var fuel0 := Game.fuel
-	for i in 240:
+	for i in 6000:
 		await process_frame
+		if Game.heli.position.x > main.BASE_POS.x + 600.0:
+			break
 	Input.action_release("move_right")
 	Input.action_release("move_up")
 	assert(Game.heli.position.x > main.BASE_POS.x + 100, "heli moved: %s" % Game.heli.position)

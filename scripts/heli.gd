@@ -3,12 +3,12 @@ extends Node2D
 
 signal landed_changed(landed: bool)
 
-const ACCEL := 700.0
-const MAX_SPEED := 260.0
+const ACCEL := 450.0
+const MAX_SPEED := 190.0
 const DRAG := 2.2
 const LAND_SPEED := 50.0
-const FIRE_INTERVAL := 0.12
 const RADIUS := 14.0
+const Weapons := preload("res://scripts/weapons.gd")
 
 var vel := Vector2.ZERO
 var landed := false
@@ -46,9 +46,11 @@ func _process(delta: float) -> void:
 	if not Game.running:
 		return
 	fire_cd -= delta
-	muzzle.visible = fire_cd > FIRE_INTERVAL / Game.stats["fire_rate"] - 0.04
+	muzzle.visible = fire_cd > _interval() - 0.04
 	if Input.is_action_just_pressed("land"):
 		_toggle_landing()
+	if Input.is_action_just_pressed("weapon_swap"):
+		Game.cycle_weapon()
 	_move(delta)
 	_fuel(delta)
 	if Input.is_action_pressed("fire") and not Game.world.ui_open:
@@ -68,7 +70,7 @@ func _move(delta: float) -> void:
 		return
 	vel += dir * ACCEL * delta
 	vel -= vel * DRAG * delta
-	var max_speed: float = MAX_SPEED * Game.stats["speed"]
+	var max_speed: float = MAX_SPEED * Game.stats["speed"] * Game.weight_factor
 	if vel.length() > max_speed:
 		vel = vel.normalized() * max_speed
 	position += vel * delta
@@ -100,19 +102,26 @@ func _toggle_landing() -> void:
 		Game.radio("Pilot: too fast or no clear ground to land.")
 
 
+func _interval() -> float:
+	return Weapons.TABLE[Game.weapon]["interval"] / Game.stats["fire_rate"]
+
+
 func _fire() -> void:
-	if fire_cd > 0.0 or Game.ammo <= 0:
+	var w: Dictionary = Weapons.TABLE[Game.weapon]
+	if fire_cd > 0.0 or Game.ammo < w["ammo_per_shot"]:
 		return
-	fire_cd = FIRE_INTERVAL / Game.stats["fire_rate"]
-	Game.ammo -= 1
+	fire_cd = _interval()
+	Game.ammo -= w["ammo_per_shot"]
 	Sfx.play("gun", null, -4.0)
 	var aim: Vector2 = (get_global_mouse_position() - global_position).normalized()
 	muzzle.position = aim * 18
-	var shots: int = Game.stats["shots"]
+	var shots: int = w["shots"] + Game.stats["shots"] - 1
+	var jitter: float = w["spread_deg"] / 2.0
 	for i in shots:
-		var spread := deg_to_rad((i - (shots - 1) / 2.0) * 6.0 + randf_range(-2, 2))
+		var spread := deg_to_rad((i - (shots - 1) / 2.0) * 6.0 + randf_range(-jitter, jitter))
 		var b := bullet_script.new()
-		b.setup(global_position + aim * 16, aim.rotated(spread), 10.0 * Game.stats["damage"], Game.stats["pierce"])
+		b.setup(global_position + aim * 16, aim.rotated(spread), w["damage"] * Game.stats["damage"], w["pierce"] + Game.stats["pierce"],
+			w["bullet_speed"], w.get("life", 1.3), w.get("splash", 0.0))
 		Game.world.add_child(b)
 
 
