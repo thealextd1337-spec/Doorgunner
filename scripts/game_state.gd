@@ -7,13 +7,14 @@ signal base_attack_started(day: int)
 signal run_ended(reason: String)
 signal radio_message(msg: String)
 
-const DAY_SECONDS := 360.0
+const DAY_SECONDS := 600.0
 const ATTACK_EVERY_DAYS := 3
 const META_PATH := "user://meta.json"
 const Weapons := preload("res://scripts/weapons.gd")
 const HELI_SLOTS := 2
 const LOADOUT_COST := {"seats": 1, "fuel_tank": 2, "ammo_feed": 2, "armor": 2} # weight points per level
-const WORKER_RATE := {"fuel": 20.0, "ammo": 40.0, "repair": 40.0} # per worker per day
+const WORKER_RATE := {"fuel": 20.0, "ammo": 40.0, "repair": 40.0, "farm": 6.0} # per worker per day
+const FOOD_PER_PERSON := 1.0 # per day
 
 var heli: Node2D
 var world: Node2D
@@ -59,7 +60,11 @@ var base_fuel := 400.0
 var base_ammo := 800.0
 var base_fuel_cap := 600.0
 var base_ammo_cap := 1200.0
-var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0}
+var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0}
+var base_food := 60.0
+# noise: gunfire and the rotor draw ground aliens (Project Zomboid style)
+var noise_pos := Vector2.ZERO
+var noise_level := 0.0
 
 # multipliers / flat stats changed by upgrades
 var stats := {
@@ -93,7 +98,8 @@ func new_run() -> void:
 	base_seats = 0; base_max_fuel = 75.0; base_max_ammo = 140; base_armor = 1.0
 	loadout = {"seats": 4, "fuel_tank": 1, "ammo_feed": 1, "armor": 0}; loadout_budget = 10
 	base_fuel = 400.0; base_ammo = 800.0; base_fuel_cap = 600.0; base_ammo_cap = 1200.0
-	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0}
+	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0}
+	base_food = 60.0; noise_level = 0.0
 	_apply_meta_bonus()
 	recompute()
 	fuel = max_fuel; ammo = max_ammo; hp = max_hp
@@ -166,11 +172,20 @@ func _process(delta: float) -> void:
 	base_fuel = minf(base_fuel_cap, base_fuel + workers["fuel"] * WORKER_RATE["fuel"] * d)
 	base_ammo = minf(base_ammo_cap, base_ammo + workers["ammo"] * WORKER_RATE["ammo"] * d)
 	base_hp = minf(max_base_hp, base_hp + workers["repair"] * WORKER_RATE["repair"] * d)
+	base_food = maxf(0.0, base_food + (workers["farm"] * WORKER_RATE["farm"] - rescued * FOOD_PER_PERSON) * d)
+	noise_level = maxf(0.0, noise_level - delta * 0.35)
 	time += d
 	if time >= 1.0:
 		time -= 1.0
 		day += 1
 		day_changed.emit(day)
+		if base_food <= 0.0 and rescued > 0:
+			rescued -= 1
+			for k in workers:
+				workers[k] = mini(workers[k], rescued)
+			radio("Base: no food left. One of the survivors walked out in the night.")
+		elif base_food < rescued * FOOD_PER_PERSON * 2.0:
+			radio("Base: food is running low, %d rations left." % int(base_food))
 		if day % ATTACK_EVERY_DAYS == 0:
 			attack_pending = true
 			radio("Intel: hive activity rising. Expect an assault on the base tonight.")
@@ -179,6 +194,13 @@ func _process(delta: float) -> void:
 		attack_active = true
 		base_attack_started.emit(day)
 		radio("ALERT: base under attack! Return and defend!")
+
+
+## Louder noise wins; ground aliens within 200 + 500 * level px investigate.
+func make_noise(pos: Vector2, amount: float) -> void:
+	if amount >= noise_level:
+		noise_pos = pos
+		noise_level = amount
 
 
 func is_night() -> bool:

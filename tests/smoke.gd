@@ -20,8 +20,11 @@ func _run() -> void:
 	Input.action_press("land")
 	await process_frame
 	Input.action_release("land")
-	await process_frame
-	assert(not Game.heli.landed, "took off")
+	for i in 20000:
+		await process_frame
+		if not Game.heli.landed:
+			break
+	assert(not Game.heli.landed, "took off after spool")
 	Input.action_press("move_right")
 	Input.action_press("move_up")
 	var fuel0 := Game.fuel

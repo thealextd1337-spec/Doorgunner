@@ -45,6 +45,7 @@ func _ready() -> void:
 	add_child(choice_ui)
 	add_child(preload("res://scripts/game_over_ui.gd").new())
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
+	Game.day_changed.connect(_settlements_decline)
 	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot"}.get(OS.get_environment("SMOKE"), "")
 	if test != "":
 		add_child(load("res://tests/%s.gd" % test).new())
@@ -71,6 +72,18 @@ func _show_title() -> void:
 func _process(_delta: float) -> void:
 	var d := Game.darkness()
 	night.color = Color(1, 1, 1).lerp(Color(0.2, 0.22, 0.45), d)
+
+
+## Off-screen settlements slowly fall to the hive: rescue early or lose them.
+func _settlements_decline(_day: int) -> void:
+	var lost := 0
+	for p in pois:
+		if is_instance_valid(p) and p.kind == "survivors" and not p.done and randf() < 0.3:
+			p.lose_survivor(true)
+			if p.done:
+				lost += 1
+	if lost > 0:
+		Game.radio("Command: contact lost with %d settlement(s) overnight." % lost)
 
 
 func _unhandled_input(event: InputEvent) -> void:

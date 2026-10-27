@@ -37,7 +37,7 @@ func _process(_delta: float) -> void:
 		Input.action_press("land")
 	if frames == 252:
 		Input.action_release("land")
-	if frames == 290:
+	if frames == 400:
 		_save("shot_base.png")
 		get_tree().quit()
 

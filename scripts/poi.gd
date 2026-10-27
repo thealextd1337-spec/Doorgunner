@@ -76,7 +76,7 @@ func _process(delta: float) -> void:
 	elif loading:
 		load_cd -= delta
 		if load_cd <= 0.0:
-			load_cd = 1.0
+			load_cd = 2.5
 			_dispatch()
 
 
@@ -98,7 +98,7 @@ func _on_landed(landed: bool) -> void:
 	match kind:
 		"survivors":
 			loading = true
-			load_cd = 1.0
+			load_cd = 2.5
 			boarded = 0
 			Game.world.spawner.call_wave(position, 2)
 		"crate":
@@ -107,6 +107,7 @@ func _on_landed(landed: bool) -> void:
 			var s := rng.randi_range(5, 15)
 			Game.ammo = mini(Game.max_ammo, Game.ammo + a)
 			Game.fuel = minf(Game.max_fuel, Game.fuel + f)
+			Game.base_food += 15.0 # rations go straight to the base larder
 			Game.scrap += s
 			Game.base_fuel = minf(Game.base_fuel_cap, Game.base_fuel + 50.0)
 			Game.base_ammo = minf(Game.base_ammo_cap, Game.base_ammo + 100.0)
@@ -206,17 +207,18 @@ func _board(s: Node2D) -> void:
 
 
 ## Ground aliens raiding the settlement kill one survivor at a time.
-func lose_survivor() -> void:
+func lose_survivor(silent := false) -> void:
 	if kind != "survivors" or done or survivors.is_empty():
 		return
 	var s: Node2D = survivors.pop_back()
 	if s.target != null:
 		s.target = null
-	Game.world.spawn_fx(global_position + s.position, 0.5)
 	s.queue_free()
-	Sfx.play("survivor_lost", global_position, -6.0)
+	if not silent:
+		Game.world.spawn_fx(global_position + s.position, 0.5)
+		Sfx.play("survivor_lost", global_position, -6.0)
 	var now := Time.get_ticks_msec() / 1000.0
-	if now - raid_warned > 20.0:
+	if not silent and now - raid_warned > 20.0:
 		raid_warned = now
 		Game.radio("Radio: %s under attack, %d left, %s!" % [label, survivors.size(), where(Game.heli.position, position)])
 	if survivors.is_empty():

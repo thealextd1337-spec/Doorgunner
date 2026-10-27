@@ -3,16 +3,19 @@ extends Node2D
 
 signal landed_changed(landed: bool)
 
-const ACCEL := 450.0
-const MAX_SPEED := 190.0
+const ACCEL := 320.0
+const MAX_SPEED := 160.0
 const DRAG := 2.2
 const LAND_SPEED := 50.0
 const RADIUS := 14.0
+const SPOOL := 1.5 # seconds to land or take off
 const Weapons := preload("res://scripts/weapons.gd")
 
 var vel := Vector2.ZERO
 var landed := false
 var fire_cd := 0.0
+var transition := 0.0 # time left in the current land/takeoff
+var pending := 0 # 1 landing, -1 taking off
 var body: Sprite2D
 var rotor: Sprite2D
 var shadow: Sprite2D
@@ -47,12 +50,19 @@ func _process(delta: float) -> void:
 		return
 	fire_cd -= delta
 	muzzle.visible = fire_cd > _interval() - 0.04
-	if Input.is_action_just_pressed("land"):
+	if Input.is_action_just_pressed("land") and pending == 0:
 		_toggle_landing()
+	if pending != 0:
+		transition -= delta
+		if transition <= 0.0:
+			landed = pending == 1
+			pending = 0
+			landed_changed.emit(landed)
 	if Input.is_action_just_pressed("weapon_swap"):
 		Game.cycle_weapon()
 	_move(delta)
 	_fuel(delta)
+	Game.make_noise(global_position, 0.05 if landed else 0.25 + vel.length() / MAX_SPEED * 0.2)
 	if Input.is_action_pressed("fire") and not Game.world.ui_open:
 		_fire()
 	var h := 0.0 if landed else 1.0
@@ -65,8 +75,9 @@ func _process(delta: float) -> void:
 
 func _move(delta: float) -> void:
 	var dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	if landed:
-		vel = Vector2.ZERO
+	if landed or pending == 1:
+		vel = vel.lerp(Vector2.ZERO, 4.0 * delta)
+		position += vel * delta
 		return
 	vel += dir * ACCEL * delta
 	vel -= vel * DRAG * delta
@@ -90,13 +101,12 @@ func _fuel(delta: float) -> void:
 func _toggle_landing() -> void:
 	if landed:
 		if Game.fuel > 0.0:
-			landed = false
-			landed_changed.emit(false)
+			pending = -1
+			transition = SPOOL
 			Sfx.play("takeoff")
 	elif vel.length() <= LAND_SPEED and Game.world.is_landable(position):
-		landed = true
-		vel = Vector2.ZERO
-		landed_changed.emit(true)
+		pending = 1
+		transition = SPOOL
 		Sfx.play("land")
 	else:
 		Game.radio("Pilot: too fast or no clear ground to land.")
@@ -113,6 +123,7 @@ func _fire() -> void:
 	fire_cd = _interval()
 	Game.ammo -= w["ammo_per_shot"]
 	Sfx.play("gun", null, -4.0)
+	Game.make_noise(global_position, 1.0)
 	var aim: Vector2 = (get_global_mouse_position() - global_position).normalized()
 	muzzle.position = aim * 18
 	var shots: int = w["shots"] + Game.stats["shots"] - 1

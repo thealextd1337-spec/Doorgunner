@@ -1,8 +1,8 @@
 extends Node
 ## Enemy spawning: ground packs near settlements, rare flyers, and the base assault waves.
 
-const GROUND_INTERVAL := 3.0
-const FLYER_INTERVAL := 14.0
+const GROUND_INTERVAL := 4.0
+const FLYER_INTERVAL := 20.0
 
 var ground_cd := 3.0
 var flyer_cd := 20.0
@@ -49,7 +49,7 @@ func _count(ground: bool) -> int:
 func _ground_pack() -> void:
 	var heli: Node2D = Game.heli
 	var danger := Game.danger_at(heli.position)
-	if _count(true) >= int(6 + danger * 3):
+	if _count(true) >= int(8 + danger * 4):
 		return
 	var towns: Array = Game.world.chunks.town_centers.filter(func(t):
 		var d: float = heli.position.distance_to(t)
@@ -62,7 +62,7 @@ func _ground_pack() -> void:
 	if pos.distance_to(Game.world.base.global_position) < 450.0 or not Game.world.chunks.is_landable(pos):
 		return
 	var kind := _pick_ground(danger)
-	for i in randi_range(2, 4):
+	for i in randi_range(3, 5):
 		Game.world.spawn_enemy(kind, pos + Vector2(randf_range(-20, 20), randf_range(-20, 20)))
 
 

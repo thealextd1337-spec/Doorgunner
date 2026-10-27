@@ -114,6 +114,14 @@ func _ground_ai(delta: float, heli: Node2D, to_heli: Vector2) -> void:
 			attack_cd = MELEE_INTERVAL
 			heli.take_damage(dmg)
 		return
+	# 2b. investigate noise (gunfire, rotor)
+	if Game.noise_level > 0.15:
+		var to_noise: Vector2 = Game.noise_pos - global_position
+		var nd := to_noise.length()
+		if nd > 24.0 and nd < 200.0 + 500.0 * Game.noise_level:
+			_face(to_noise)
+			position += to_noise.normalized() * speed * 0.8 * delta
+			return
 	# 3. raid the nearest settlement
 	goal_cd -= delta
 	if (goal == null or not is_instance_valid(goal) or goal.done) and goal_cd <= 0.0:

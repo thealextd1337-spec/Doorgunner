@@ -85,7 +85,13 @@ func _on_landed(landed: bool) -> void:
 	var a: int = mini(Game.max_ammo - Game.ammo, int(Game.base_ammo))
 	Game.ammo += a
 	Game.base_ammo -= a
-	Game.hp = Game.max_hp
+	var repair := int(ceil((Game.max_hp - Game.hp) / 5.0)) # 1 scrap per 5 hull
+	if repair > 0 and Game.scrap >= repair:
+		Game.scrap -= repair
+		Game.hp = Game.max_hp
+		Game.radio("Base: hull patched for %d scrap." % repair)
+	elif repair > 0:
+		Game.radio("Base: not enough scrap for hull repairs, %d needed." % repair)
 	if Game.fuel < Game.max_fuel or Game.ammo < Game.max_ammo:
 		Game.radio("Base: stock is short, partial top-up only. Put people on fuel and ammo duty.")
 	Sfx.play("pickup")

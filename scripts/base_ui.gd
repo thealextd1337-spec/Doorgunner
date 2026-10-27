@@ -19,7 +19,7 @@ const LOADOUT := {
 	"ammo_feed": ["Ammo feed +60 ammo/lv (2 pt)", 0, 3],
 	"armor": ["Armour +15 %/lv (2 pt)", 0, 3],
 }
-const JOBS := {"fuel": "Fuel +20/day", "ammo": "Ammo +40/day", "repair": "Repair +40 hp/day", "militia": "Militia -3 % dmg, 2 = turret"}
+const JOBS := {"fuel": "Fuel +20/day", "ammo": "Ammo +40/day", "repair": "Repair +40 hp/day", "militia": "Militia -3 % dmg, 2 = turret", "farm": "Farm +6 food/day"}
 const Weapons := preload("res://scripts/weapons.gd")
 
 var header: Label
@@ -147,8 +147,8 @@ func can_buy(id: String) -> bool:
 
 
 func refresh() -> void:
-	header.text = "Scrap: %d   Rescued: %d   Idle: %d\nStock  fuel %d/%d   ammo %d/%d" % [
-		Game.scrap, Game.rescued, Game.idle_workers(), Game.base_fuel, Game.base_fuel_cap, Game.base_ammo, Game.base_ammo_cap]
+	header.text = "Scrap: %d   Rescued: %d   Idle: %d\nStock  fuel %d/%d   ammo %d/%d   food %d (eats %d/day)" % [
+		Game.scrap, Game.rescued, Game.idle_workers(), Game.base_fuel, Game.base_fuel_cap, Game.base_ammo, Game.base_ammo_cap, Game.base_food, Game.rescued]
 	for id in UPGRADES:
 		var u: Array = UPGRADES[id]
 		var lvl: int = Game.base_level.get(id, 0)
