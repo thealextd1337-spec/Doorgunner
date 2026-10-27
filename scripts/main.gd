@@ -48,8 +48,24 @@ func _ready() -> void:
 	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot"}.get(OS.get_environment("SMOKE"), "")
 	if test != "":
 		add_child(load("res://tests/%s.gd" % test).new())
+	else:
+		_show_title()
 	Game.radio("Command: you are cleared for takeoff. Rescue survivors, bring them home.")
 	Game.radio("Controls: WASD fly, mouse aim/fire, SPACE land or take off.")
+
+
+func _show_title() -> void:
+	var title: CanvasLayer = preload("res://scripts/title_ui.gd").new()
+	add_child(title)
+	Game.running = false
+	ui_open = true
+	hud.visible = false
+	title.start_pressed.connect(func():
+		Game.running = true
+		ui_open = false
+		hud.visible = true
+		Sfx.play("ui"))
+	title.open()
 
 
 func _process(_delta: float) -> void:

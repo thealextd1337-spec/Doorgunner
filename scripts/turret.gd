@@ -33,6 +33,7 @@ func _process(delta: float) -> void:
 		return
 	var dir: Vector2 = (best.global_position - global_position).normalized()
 	sprite.rotation = dir.angle() + PI / 2
+	Sfx.play("gun", global_position, -10.0)
 	var b := preload("res://scripts/bullet.gd").new()
 	b.setup(global_position + dir * 10, dir, DAMAGE, 0)
 	Game.world.add_child(b)

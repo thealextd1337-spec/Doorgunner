@@ -78,6 +78,7 @@ func call_wave(pos: Vector2, count: int) -> void:
 func _on_attack(day: int) -> void:
 	wave_left = 10 + day * 3
 	wave_cd = 0.0
+	Sfx.play("alarm")
 	if day % (Game.ATTACK_EVERY_DAYS * 2) == 0:
 		Game.world.spawn_enemy("boss", Game.world.base.global_position + Vector2(800, 0).rotated(randf() * TAU), true)
 

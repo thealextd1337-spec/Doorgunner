@@ -90,6 +90,8 @@ func _on_landed(landed: bool) -> void:
 		return
 	if done or position.distance_to(Game.heli.position) > LAND_DIST:
 		return
+	if kind != "survivors":
+		Sfx.play("pickup")
 	match kind:
 		"survivors":
 			loading = true
@@ -174,6 +176,7 @@ func _board(s: Node2D) -> void:
 		return
 	Game.passengers += 1
 	Game.add_xp(4)
+	Sfx.play("board")
 	survivors.erase(s)
 	s.queue_free()
 	boarded += 1
@@ -190,6 +193,7 @@ func _nest(delta: float, d2: float) -> void:
 		queen_called = true
 		Game.world.spawn_enemy("boss", position + Vector2(40, 0))
 		Game.radio("Gunner: hive queen sighted!")
+		Sfx.play("boss_roar", position)
 	if d2 > 700.0 * 700.0:
 		return
 	spawn_cd -= delta
@@ -210,5 +214,6 @@ func hit(amount: float) -> void:
 		Game.scrap += 30
 		Game.world.spawn_fx(position, 2.0)
 		Game.radio("Gunner: hive nest destroyed!")
+		Sfx.play("explosion", position)
 		remove_from_group("enemies")
 		_finish(true)

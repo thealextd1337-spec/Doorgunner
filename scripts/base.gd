@@ -65,6 +65,7 @@ func take_damage(amount: float) -> void:
 	if not Game.running:
 		return
 	Game.base_hp -= amount * (1.0 - 0.12 * Game.base_level.get("barracks", 0))
+	Sfx.play("base_hit", global_position, -6.0)
 	modulate = Color(1, 0.5, 0.5)
 	get_tree().create_timer(0.1).timeout.connect(func(): modulate = Color.WHITE)
 	if Game.base_hp <= 0.0:
@@ -82,6 +83,7 @@ func _on_landed(landed: bool) -> void:
 	Game.fuel = Game.max_fuel
 	Game.ammo = Game.max_ammo
 	Game.hp = Game.max_hp
+	Sfx.play("pickup")
 	var n: int = Game.passengers
 	if n > 0:
 		Game.passengers = 0

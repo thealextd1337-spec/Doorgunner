@@ -45,6 +45,7 @@ var stats := {
 }
 
 var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0}
+var radio_beep_ms := 0
 
 
 func _ready() -> void:
@@ -132,6 +133,7 @@ func xp_needed() -> int:
 
 
 func radio(msg: String) -> void:
+	if Time.get_ticks_msec() >= radio_beep_ms: radio_beep_ms = Time.get_ticks_msec() + 500; Sfx.play("radio", null, -8.0)
 	radio_message.emit(msg)
 
 

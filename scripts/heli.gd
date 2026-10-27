@@ -42,6 +42,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	Sfx.rotor(Game.running, vel.length() / MAX_SPEED)
 	if not Game.running:
 		return
 	fire_cd -= delta
@@ -89,10 +90,12 @@ func _toggle_landing() -> void:
 		if Game.fuel > 0.0:
 			landed = false
 			landed_changed.emit(false)
+			Sfx.play("takeoff")
 	elif vel.length() <= LAND_SPEED and Game.world.is_landable(position):
 		landed = true
 		vel = Vector2.ZERO
 		landed_changed.emit(true)
+		Sfx.play("land")
 	else:
 		Game.radio("Pilot: too fast or no clear ground to land.")
 
@@ -102,6 +105,7 @@ func _fire() -> void:
 		return
 	fire_cd = FIRE_INTERVAL / Game.stats["fire_rate"]
 	Game.ammo -= 1
+	Sfx.play("gun", null, -4.0)
 	var aim: Vector2 = (get_global_mouse_position() - global_position).normalized()
 	muzzle.position = aim * 18
 	var shots: int = Game.stats["shots"]
@@ -117,6 +121,7 @@ func take_damage(amount: float) -> void:
 	if not Game.running:
 		return
 	Game.hp -= amount / Game.stats["armor"]
+	Sfx.play("hit")
 	body.modulate = Color(1, 0.4, 0.4)
 	get_tree().create_timer(0.1).timeout.connect(func(): body.modulate = Color.WHITE)
 	if Game.hp <= 0.0:

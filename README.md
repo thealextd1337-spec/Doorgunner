@@ -16,5 +16,6 @@ build the base up, and hold it when the hive assaults every third night.
 
 ## Dev
 - `python tools/gen_sprites.py` regenerates all pixel art in `assets/sprites/`.
+- `python tools/gen_sfx.py` regenerates all sound effects in `assets/sfx/`. **M** mutes in game.
 - Headless checks (bash): `SMOKE=1 godot --headless --path . --quit-after 3000` prints `SMOKE OK`. Other values: `poi`, `base`, `ui`.
 - `SMOKE=shot godot --path .` saves three screenshots into the project folder.

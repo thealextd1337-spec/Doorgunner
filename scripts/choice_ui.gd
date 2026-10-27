@@ -50,6 +50,7 @@ func open(title: String, opts: Array) -> void:
 		row.add_child(_card(i, opts[i]))
 	visible = true
 	get_tree().paused = true
+	Sfx.play("levelup")
 	prev_ui_open = Game.world.ui_open # base menu may still be open underneath
 	Game.world.ui_open = true
 
@@ -58,6 +59,7 @@ func pick(i: int) -> void:
 	if not visible or i < 0 or i >= options.size():
 		return
 	options[i]["apply"].call()
+	Sfx.play("ui")
 	visible = false
 	get_tree().paused = false
 	Game.world.ui_open = prev_ui_open

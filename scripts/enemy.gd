@@ -126,6 +126,7 @@ func _ranged(_delta: float, target: Node2D, to_target: Vector2, dist: float) -> 
 
 func hit(amount: float) -> void:
 	hp -= amount
+	Sfx.play("hit", global_position, -14.0)
 	sprite.modulate = Color(1, 0.5, 0.5)
 	get_tree().create_timer(0.08).timeout.connect(func(): if is_instance_valid(self): sprite.modulate = Color.WHITE)
 	if hp <= 0.0:
@@ -138,6 +139,8 @@ func _die() -> void:
 	if randf() < 0.25 or cfg.get("boss", false):
 		Game.scrap += 2 + int(cfg["xp"] / 4)
 	Game.world.spawn_fx(global_position, 2.0 if cfg.get("boss", false) else 1.0)
+	Sfx.play("explosion" if cfg.get("boss", false) else "enemy_die", global_position)
 	if cfg.get("boss", false):
+		Sfx.play("boss_roar", global_position)
 		Game.radio("Hive queen down! Outstanding, gunner.")
 	queue_free()
