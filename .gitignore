@@ -2,3 +2,4 @@
 *.import.tmp
 shot_*.png
 build/
+.claude/
