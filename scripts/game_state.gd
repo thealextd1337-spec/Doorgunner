@@ -74,7 +74,7 @@ var stats := {
 }
 
 var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "a",
-	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 0}
+	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1} # sound off by default for now; M or ESC menu turns it on
 var radio_beep_ms := 0
 
 
