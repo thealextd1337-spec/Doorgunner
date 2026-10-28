@@ -178,8 +178,8 @@ func take_damage(amount: float) -> void:
 	if not Game.running:
 		return
 	Game.hp -= amount / Game.stats["armor"]
-	if Game.passengers > Game.passengers_injured and randf() < 0.1:
-		Game.passengers_injured += 1 # shortcut: no heli medic system blocks this yet, check it here once progression adds one
+	if Game.passengers > Game.passengers_injured and randf() < 0.1 and not Progression.owned("medic"):
+		Game.passengers_injured += 1 # the heli medic system keeps passengers safe
 	Sfx.play("hit")
 	body.modulate = Color(1, 0.4, 0.4)
 	get_tree().create_timer(0.1).timeout.connect(func(): body.modulate = Color.WHITE)
