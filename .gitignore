@@ -4,3 +4,5 @@ shot_*.png
 build/
 .claude/
 shot_*.png.import
+scripts/build_info.gd
+scripts/build_info.gd.uid

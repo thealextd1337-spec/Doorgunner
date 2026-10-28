@@ -77,5 +77,6 @@ func _run() -> void:
 	Game.time = 1.0
 	await process_frame
 	assert(Game.day == 2, "day rolled over")
+	assert(Game.version_text().begins_with("v%s (" % ProjectSettings.get_setting("application/config/version")), "version text: " + Game.version_text())
 	print("SMOKE OK  pois=%d enemies=%d xp=%d" % [main.pois.size(), get_tree().get_nodes_in_group("enemies").size(), Game.xp])
 	get_tree().quit(0)

@@ -179,7 +179,7 @@ func scrap_item(id: String) -> int:
 	return refund
 
 var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0,
-	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "tutorial_done": 0} # sound off by default for now; M or ESC menu turns it on
+	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "tutorial_done": 0, "version": ""} # sound off by default for now; M or ESC menu turns it on
 var radio_beep_ms := 0
 
 
@@ -489,7 +489,16 @@ func _load_meta() -> void:
 	meta["muted"] = 1 # always start silent for now, whatever was saved; M / ESC menu turns sound on for the session
 
 
+## "v0.5.0 (a3aaf6b 2026-10-28)": config/version in project.godot plus the commit and date tools/deploy_web.sh writes
+## into scripts/build_info.gd for the export; "dev" when running from the editor.
+func version_text() -> String:
+	var info := "res://scripts/build_info.gd"
+	return "v%s (%s)" % [ProjectSettings.get_setting("application/config/version", "0.0.0"), load(info).BUILD if ResourceLoader.exists(info) else "dev"]
+
+
+## meta["version"] holds the version that wrote the save until the next save (hook for migrating old saves).
 func _save_meta() -> void:
+	meta["version"] = ProjectSettings.get_setting("application/config/version", "0.0.0")
 	var f := FileAccess.open(META_PATH, FileAccess.WRITE)
 	f.store_string(JSON.stringify(meta))
 

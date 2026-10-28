@@ -46,6 +46,11 @@ func _ready() -> void:
 	call.position = Vector2(875, 540)
 	deco_call = call
 	add_child(call)
+	var ver := _label(Game.version_text(), 12, OLIVE.lightened(0.3), mono)
+	ver.position = Vector2(970, 694) # bottom-right corner of the 1280x720 canvas
+	ver.size = Vector2(300, 18)
+	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	add_child(ver)
 
 	var panel := PanelContainer.new()
 	panel.position = Vector2(80, 96)

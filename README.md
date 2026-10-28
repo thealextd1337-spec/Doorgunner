@@ -24,6 +24,7 @@ build the base up, and hold it when the horde assaults every third night.
   Heli level caps at 30, further XP turns into scrap. The base HANGAR tab scraps items; the title screen HANGAR (**H**) lists every item and its unlock condition.
 
 ## Dev
+- Version: `config/version` in `project.godot`, history in `CHANGELOG.md`. `bash tools/deploy_web.sh` exports the Web build to GitHub Pages, stamps it with commit and date and tags the commit `v<version>` (bump the version for a new release).
 - `python tools/gen_sprites.py` regenerates the art ("Field Map" style) in `assets/sprites/b/`. Previews: `docs/region_*.png`.
 - `python tools/gen_sfx.py` regenerates all sound effects in `assets/sfx/`. Sound starts muted for now: **M** or the ESC menu turns it on.
 - Headless checks (bash): `SMOKE=1 godot --headless --path . --quit-after 30000` prints `SMOKE OK`. Other values: `poi`, `base`, `ui`, `prog` (heli systems), `tut` (tutorial), `nav` (pathfinding), `found` (founding the base; the other tests start with a base founded at the start site), `town` (world gen: a city, towns joined by road, road bends).

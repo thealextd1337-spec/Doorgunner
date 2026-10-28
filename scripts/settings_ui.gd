@@ -55,6 +55,11 @@ func _ready() -> void:
 	hint.text = "[ESC] resume"
 	hint.modulate = Color(0.7, 0.7, 0.7)
 	box.add_child(hint)
+	var ver := Label.new()
+	ver.text = Game.version_text()
+	ver.modulate = Color(0.5, 0.5, 0.5)
+	ver.add_theme_font_size_override("font_size", 11)
+	box.add_child(ver)
 
 
 func _unhandled_input(event: InputEvent) -> void:
