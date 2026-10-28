@@ -270,12 +270,24 @@ func lose_survivor(silent := false) -> void:
 	if not healthy.is_empty() and randf() < 0.5:
 		healthy.back().injured = true
 		return
-	var s: Node2D = survivors.pop_back()
-	if s.target != null:
-		s.target = null
+	_kill(survivors.back(), silent)
+
+
+## A zombie strikes one survivor directly (no per-settlement cap): a healthy one is wounded, a wounded one dies.
+func lose_survivor_node(s: Node2D) -> void:
+	if done or not s in survivors:
+		return
+	if not s.injured:
+		s.injured = true
+	else:
+		_kill(s, false)
+
+
+func _kill(s: Node2D, silent: bool) -> void:
+	survivors.erase(s)
 	s.queue_free()
 	if not silent:
-		Game.world.spawn_fx(global_position + s.position, 0.5)
+		Game.world.spawn_fx(s.global_position, 0.5)
 		Sfx.play("survivor_lost", global_position, -6.0)
 	var now := Time.get_ticks_msec() / 1000.0
 	if not silent and now - raid_warned > 20.0:

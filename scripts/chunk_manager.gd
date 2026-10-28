@@ -273,6 +273,12 @@ func _put(cell: Vector2i, t: int, alt := 0) -> void:
 		_pending[c][cell] = Vector2i(t, alt)
 
 
+## Zombies chewed through a house wall (enemy.gd): the cell becomes rubble.
+func break_in(cell: Vector2i) -> void:
+	_put(cell, T.RUIN)
+	Game.world.spawn_fx(Vector2(cell) * TILE + Vector2(TILE, TILE) / 2.0, 0.5)
+
+
 ## Open ground a house or structure may take: not water, road, town or a prop, and clear of the base.
 func _free(cell: Vector2i) -> bool:
 	return (absi(cell.x - 16) > 9 or absi(cell.y - 16) > 9) and not _taken.has(cell) and _tile(cell) in BUILDABLE

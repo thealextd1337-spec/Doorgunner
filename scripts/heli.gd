@@ -3,12 +3,13 @@ extends Node2D
 
 signal landed_changed(landed: bool)
 
-const ACCEL := 320.0
+const ACCEL := 220.0
 const MAX_SPEED := 160.0
-const DRAG := 2.2
+const DRAG := 1.4 # low drag: the heli keeps gliding
 const LAND_SPEED := 50.0
 const RADIUS := 14.0
 const SPOOL := 1.5 # seconds to land or take off
+const ARC_DEG := 70.0 # door gun arcs: within this of the body's left or right side
 const Weapons := preload("res://scripts/weapons.gd")
 const DMG_PER_LEVEL := {"mg": 0.12, "autocannon": 0.15, "railgun": 0.2}
 
@@ -18,6 +19,8 @@ var fire_cd := 0.0
 var transition := 0.0 # time left in the current land/takeoff
 var pending := 0 # 1 landing, -1 taking off
 var heat := 0.0 # minigun spread growth 0..1, gone at Lv5
+var aim_override := Vector2.ZERO # tests: aim direction used instead of the mouse when non-zero
+var no_angle := 0.0 # seconds the HUD keeps showing "no firing angle"
 var body: Sprite2D
 var rotor: Sprite2D
 var shadow: Sprite2D
@@ -47,6 +50,7 @@ func _process(delta: float) -> void:
 		return
 	fire_cd -= delta
 	heat = maxf(0.0, heat - delta)
+	no_angle -= delta
 	muzzle.visible = fire_cd > _interval() - 0.04
 	if Input.is_action_just_pressed("land") and pending == 0:
 		_toggle_landing()
@@ -84,7 +88,7 @@ func _move(delta: float) -> void:
 		vel = vel.normalized() * max_speed
 	position += vel * delta
 	if vel.length() > 20.0:
-		body.rotation = lerp_angle(body.rotation, vel.angle() + PI / 2, 6 * delta)
+		body.rotation = lerp_angle(body.rotation, vel.angle() + PI / 2, 3 * delta)
 
 
 func _fuel(delta: float) -> void:
@@ -108,6 +112,16 @@ func _toggle_landing() -> void:
 		Sfx.play("land")
 	else:
 		Game.radio("Pilot: too fast or no clear ground to land.")
+
+
+## Unit aim direction: the mouse, or aim_override in tests.
+func aim_dir() -> Vector2:
+	return aim_override.normalized() if aim_override != Vector2.ZERO else (get_global_mouse_position() - global_position).normalized()
+
+
+## The door gunner fires out of the side doors: not within 90 - ARC_DEG degrees of the nose or tail.
+func in_arc(dir: Vector2) -> bool:
+	return absf(dir.dot(Vector2.UP.rotated(body.rotation))) < sin(deg_to_rad(ARC_DEG))
 
 
 ## Effective reach of the equipped gun in world px.
@@ -140,6 +154,10 @@ func _fire() -> void:
 	var w: Dictionary = Weapons.TABLE[id]
 	if fire_cd > 0.0 or Game.ammo < w["ammo_per_shot"]:
 		return
+	var aim := aim_dir()
+	if not in_arc(aim):
+		no_angle = 0.6
+		return
 	var lv := maxi(1, Progression.level(id))
 	var dmg: float = w["damage"] * Game.stats["damage"] * (1.0 + DMG_PER_LEVEL.get(id, 0.0) * (lv - 1))
 	if fire_cd < -1.0 and Progression.level("training") >= 5:
@@ -148,7 +166,6 @@ func _fire() -> void:
 	Game.ammo -= w["ammo_per_shot"]
 	Sfx.play("gun", null, -4.0)
 	Game.make_noise(global_position, 1.0)
-	var aim: Vector2 = (get_global_mouse_position() - global_position).normalized()
 	muzzle.position = aim * 18
 	var shots: int = w["shots"] + Game.stats["shots"] - 1 + (lv - 1 if id == "shotgun" else 0)
 	var splash: float = w.get("splash", 0.0) * (1.0 + 0.15 * (lv - 1) if id == "rockets" else 1.0)

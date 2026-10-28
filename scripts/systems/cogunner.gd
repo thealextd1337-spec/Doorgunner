@@ -1,14 +1,15 @@
 extends Node
-## Co-gunner system: shoots the nearest zombie with part of the equipped gun's damage, no ammo used; Lv5 the main gun at 80 %.
+## Co-gunner system: shoots the nearest zombie in any direction with part of the equipped gun's damage, 1 round per 3 shots; Lv5 the main gun at 80 %.
 
 const Weapons := preload("res://scripts/weapons.gd")
 
 var cd := 0.0
+var shots := 0 # every third shot costs a round
 
 
 func _process(delta: float) -> void:
 	cd -= delta
-	if cd > 0.0 or not Game.running:
+	if cd > 0.0 or not Game.running or Game.ammo < 1:
 		return
 	var heli: Node2D = get_parent()
 	var lv := Progression.level("cogunner")
@@ -24,6 +25,9 @@ func _process(delta: float) -> void:
 	if target == null:
 		return
 	cd = maxf(0.25, w["interval"])
+	shots += 1
+	if shots % 3 == 0:
+		Game.ammo -= 1
 	var dir: Vector2 = (target.global_position - heli.global_position).normalized()
 	var b: Node2D = preload("res://scripts/bullet.gd").new()
 	b.setup(heli.global_position + dir * 12, dir, w["damage"] * Game.stats["damage"] * (0.8 if lv >= 5 else 0.35 + 0.05 * lv),

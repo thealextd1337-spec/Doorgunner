@@ -1,7 +1,8 @@
 extends Node2D
 ## Zombies. All melee, all on the ground: flying is safe, landing is not.
 ## They roam, raid settlements, follow noise, and swarm a landed heli.
-## target_base = true during base assaults.
+## target_base = true during base assaults. They walk around houses, water and rock (chewing into a house after
+## CHEW_TIME of pushing against it), wade slowly through forest, and are hard to see there.
 
 const KINDS := {
 	"shambler": {"hp": 45.0, "speed": 16.0, "dmg": 8.0, "xp": 4, "radius": 8.0},
@@ -14,6 +15,11 @@ const RAID_INTERVAL := 5.0 # seconds per survivor killed at a settlement
 const AGGRO_DIST := 380.0 # landed heli closer than this gets swarmed
 const GOAL_DIST := 900.0 # how far zombies look for a settlement
 const DESPAWN_DIST := 2400.0
+const PREY_DIST := 90.0 # visible survivors closer than this get attacked
+const CHEW_TIME := 6.0 # seconds of pushing against a house before breaking in
+const T := preload("res://scripts/chunk_manager.gd").T
+
+static var break_in_ms := -100000 # last "broke into a house" radio line, shared by all zombies
 
 var kind := "shambler"
 var cfg := {}
@@ -35,6 +41,8 @@ var slowed := 0.0 # fraction of speed lost, set each frame by the searchlight
 var stun_left := 0.0
 var panic_left := 0.0
 var panic_from := Vector2.ZERO
+var chew_t := 0.0
+var concealed := false # standing in forest: faded sprite, off the minimap
 
 
 func setup(kind_name: String, pos: Vector2, danger: float, base_target := false) -> void:
@@ -79,19 +87,24 @@ func _process(delta: float) -> void:
 	if target_base:
 		_approach(delta, Game.world.base, radius + 50.0, Game.world.base.take_damage)
 		return
-	# 2. landed heli: everything nearby converges
+	# 2. waiting or boarding survivors close by
+	var prey := _find_prey()
+	if prey:
+		_approach(delta, prey, radius + 4.0, func(_d): prey.get_parent().lose_survivor_node(prey))
+		return
+	# 3. landed heli: everything nearby converges
 	if heli.landed and to_heli.length() < AGGRO_DIST:
 		_approach(delta, heli, radius + heli.RADIUS + 4.0, heli.take_damage)
 		return
-	# 3. investigate noise (gunfire, rotor): harmless in the air, deadly once you land
+	# 4. investigate noise (gunfire, rotor): harmless in the air, deadly once you land
 	if Game.noise_level > 0.15:
 		var to_noise: Vector2 = Game.noise_pos - global_position
 		var nd := to_noise.length()
 		if nd > 24.0 and nd < 120.0 + 300.0 * Game.noise_level:
 			_face(to_noise)
-			position += to_noise.normalized() * speed * 0.8 * delta
+			_step(to_noise, delta, 0.8)
 			return
-	# 4. raid the nearest settlement
+	# 5. raid the nearest settlement
 	goal_cd -= delta
 	if (goal == null or not is_instance_valid(goal) or goal.done) and goal_cd <= 0.0:
 		goal_cd = 5.0
@@ -99,13 +112,13 @@ func _process(delta: float) -> void:
 	if goal and is_instance_valid(goal) and not goal.done:
 		_approach(delta, goal, 40.0, func(_d): goal.lose_survivor(), RAID_INTERVAL)
 		return
-	# 5. wander
+	# 6. wander
 	wander_cd -= delta
 	if wander_cd <= 0.0:
 		wander_cd = randf_range(2.0, 6.0)
 		wander = Vector2.RIGHT.rotated(randf() * TAU) * (0.0 if randf() < 0.4 else 1.0)
 	_face(wander)
-	position += wander * speed * 0.5 * delta
+	_step(wander, delta, 0.5)
 
 
 func _face(dir: Vector2) -> void:
@@ -125,10 +138,40 @@ func _approach(delta: float, target: Node2D, reach: float, strike: Callable, int
 				attack_cd = interval
 				Game.world.base.damage_sandbag(cell, dmg)
 			return
-		position = next
+		_step(to_target, delta)
 	elif attack_cd <= 0.0:
 		attack_cd = interval
 		strike.call(dmg)
+
+
+## Move along `dir` at speed * factor: half speed in forest, sliding along solid cells (main.gd slide).
+func _step(dir: Vector2, delta: float, factor := 1.0) -> void:
+	var t: int = Game.world.chunks.tile_at(position)
+	concealed = t == T.FOREST or t == T.TREE_EDGE
+	sprite.modulate.a = 0.4 if concealed else 1.0
+	var v := dir.normalized() * speed * factor * delta * (0.5 if concealed else 1.0)
+	var move: Vector2 = Game.world.slide(position, v)
+	if move != v and Game.world.chunks.tile_at(position + v) == T.BUILDING:
+		chew_t += delta
+		if chew_t > CHEW_TIME:
+			chew_t = 0.0
+			Game.world.chunks.break_in(Vector2i(((position + v) / 16.0).floor()))
+			if Game.heli.global_position.distance_to(global_position) < 600.0 and Time.get_ticks_msec() - break_in_ms > 20000:
+				break_in_ms = Time.get_ticks_msec()
+				Game.radio("Zombies broke into a house")
+	position += move
+
+
+## Nearest visible survivor of an unfinished settlement within PREY_DIST (hideout people stay hidden until landing).
+func _find_prey() -> Node2D:
+	var best: Node2D
+	var best_d := PREY_DIST * PREY_DIST
+	for s in get_tree().get_nodes_in_group("survivors"):
+		var d: float = global_position.distance_squared_to(s.global_position)
+		if d < best_d and s.visible and not s.get_parent().done:
+			best_d = d
+			best = s
+	return best
 
 
 func _find_settlement() -> Node2D:
@@ -146,8 +189,8 @@ func _find_settlement() -> Node2D:
 
 func hit(amount: float) -> void:
 	hp -= amount
-	sprite.modulate = Color(1, 0.5, 0.5)
-	get_tree().create_timer(0.08).timeout.connect(func(): if is_instance_valid(self): sprite.modulate = Color.WHITE)
+	sprite.modulate = Color(1, 0.5, 0.5, sprite.modulate.a)
+	get_tree().create_timer(0.08).timeout.connect(func(): if is_instance_valid(self): sprite.modulate = Color(1, 1, 1, 0.4 if concealed else 1.0))
 	Sfx.play("hit", global_position, -14.0)
 	if hp <= 0.0:
 		_die()
@@ -192,7 +235,7 @@ func _system_hooks(delta: float) -> bool:
 	if panic_left > 0.0:
 		var away := global_position - panic_from
 		_face(away)
-		position += away.normalized() * speed * delta
+		_step(away, delta)
 		return true
 	var best: Node2D
 	var best_d := 400.0 * 400.0

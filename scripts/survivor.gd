@@ -14,6 +14,7 @@ var injured := false:
 
 
 func _ready() -> void:
+	add_to_group("survivors") # zombies close by attack them (enemy.gd)
 	var s := Art.sprite("survivor")
 	add_child(s)
 
@@ -21,6 +22,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if target == null:
 		return
-	global_position = global_position.move_toward(target.global_position, (INJURED_SPEED if injured else SPEED) * delta)
+	var step := global_position.move_toward(target.global_position, (INJURED_SPEED if injured else SPEED) * delta) - global_position
+	global_position += Game.world.slide(global_position, step)
 	if global_position.distance_to(target.global_position) < 6.0:
 		arrived.emit()

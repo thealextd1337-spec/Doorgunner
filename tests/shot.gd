@@ -31,12 +31,14 @@ func _process(delta: float) -> void:
 			Game.time = 0.9
 			for i in 8:
 				Game.world.spawn_enemy(["shambler", "runner", "brute", "shambler"][i % 4], Game.heli.position + Vector2(120, 0).rotated(i * TAU / 8))
+			Game.heli.aim_override = Vector2(0, 1) # nose east: aim out of the right door
 			Input.action_press("fire")
 			step = 4
 		4:
 			if t > 5.6:
 				_save("shot_night_combat.png")
 				Input.action_release("fire")
+				Game.heli.aim_override = Vector2.ZERO
 				Game.add_xp(100)
 				step = 5
 		5:
