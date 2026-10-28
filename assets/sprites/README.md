@@ -9,15 +9,17 @@ Sizes below are LOGICAL; the PNGs are 4x that (tile 64 px, heli 128 px). Load th
 - `heli.png` 32x32: olive helicopter body, cockpit at top, tail boom down, skids. No main rotor.
 - `rotor.png` 32x32: semi-transparent gray `+` blade pair, centered. Spin it over heli.
 - `bullet.png` 4x4: player tracer.
-- `enemy_bullet.png` 6x6: magenta blob.
-- `walker.png` 16x16: purple crawler, 4 legs.
-- `runner.png` 16x16: thin light-purple alien.
-- `spitter.png` 16x16: bulbous green/purple alien, dark mouth on top.
-- `flyer.png` 16x16: dark purple, wings spread horizontally.
-- `boss.png` 48x48: hive-queen, 6 legs, magenta glowing core.
+- `shambler.png` 16x16: grey-green zombie, torn dark clothes, slumped head, arms reaching forward.
+- `runner.png` 16x16: thinner reddish zombie leaning forward, arms swept back.
+- `brute.png` 24x24: bulky bloated zombie, wide shoulders, burst belly.
+- `boss.png` 48x48: abomination, two heads, six reaching arms, exposed flesh and ribs. No glow.
 - `survivor.png` 8x8: civilian, skin head, blue shirt.
-- `tiles.png` 128x16: 8 tiles of 16x16 in a row.
-  Index: 0 grass, 1 forest, 2 water, 3 sand, 4 road (vertical dashed line), 5 building, 6 ruin, 7 base_floor.
+- `tiles.png` 256x16: 16 tiles of 16x16 in a row, each tiles seamlessly with itself; the grass variants, tree edge
+  and grass share one ground so they also join each other. Index (= `T` enum in scripts/chunk_manager.gd):
+  0 grass, 1 forest, 2 water, 3 sand, 4 road (vertical dashed line), 5 building, 6 ruin, 7 base_floor,
+  8 grass2 (lusher), 9 grass3 (dry), 10 field (vertical crop rows), 11 dirt_road (vertical wheel tracks), 12 rock,
+  13 tree_edge (grass with a few trees), 14 house_yard (lawn, vertical path), 15 asphalt (plain, same ground as road).
+  Directional tiles are turned with the transposed alternative tile in chunk_manager.gd.
 - `helipad.png` 48x48: dark concrete disc, white ring and H.
 - `turret.png` 16x16: gray base, barrel up.
 - `hangar.png` 32x32: olive roof, dark door at bottom edge.
@@ -25,6 +27,6 @@ Sizes below are LOGICAL; the PNGs are 4x that (tile 64 px, heli 128 px). Load th
 - `crate.png` 16x16: green supply crate, tan cross strap.
 - `radio_tower.png` 16x32: gray lattice, red tip.
 - `wreck.png` 32x32: burnt helicopter wreck with orange embers.
-- `nest.png` 32x32: purple fleshy mound, 3 dark holes.
+- `den.png` 32x32: zombie den, caved-in house with bodies, rubble and blood.
 - `muzzle.png` 8x8: yellow flash star.
 - `explosion.png` 96x16: 6 frames of 16x16, left to right: orange, orange, red, gray, smoke, fade.

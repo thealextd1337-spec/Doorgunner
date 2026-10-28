@@ -25,12 +25,15 @@ STYLES = {
         "skylight": (126, 146, 152), "rubble": (126, 120, 110), "char": (48, 44, 40),
         "floor": ((126, 124, 116), (144, 142, 134)),
         "heli": (116, 124, 110), "glass": (48, 58, 64), "metal": (78, 78, 76), "rotor": (54, 54, 52, 150),
-        "alien": (120, 98, 124), "alien_dk": (78, 62, 86), "alien_lt": (150, 128, 152), "eye": (222, 214, 188),
-        "core": (184, 92, 150), "core_lt": (232, 176, 212), "goo": (124, 104, 128), "spit": (196, 100, 164),
+        "zskin": (126, 140, 110), "zcloth": (66, 64, 68), "zred": (150, 96, 84), "flesh": (178, 98, 94), "blood": (112, 32, 30),
+        "eye": (222, 214, 188),
+        "grass2": (70, 104, 52), "grass3": (152, 140, 82), "crop": (138, 156, 70), "dirt": ((122, 98, 70), (142, 118, 86)),
+        "rock": ((116, 114, 108), (142, 140, 132)), "crack": (74, 72, 68), "lawn": ((112, 126, 74), (136, 148, 92)),
+        "path": (190, 180, 156),
         "skin": (214, 172, 132), "shirt": (78, 102, 128), "hair": (72, 54, 40),
         "tan": (168, 148, 104), "crate": (102, 108, 72), "strap": (176, 160, 114),
         "pad": (92, 92, 88), "paint": (226, 220, 198), "red": (200, 64, 48), "fire": (236, 140, 60),
-        "shade": 0.74, "shadow": (0.38, 0.8, 1.1, 0.7), "edge": (26, 24, 20, 110), "grain": 5, "hatch": None, "contrast": 1.0, "alien_glow": None,
+        "shade": 0.74, "shadow": (0.38, 0.8, 1.1, 0.7), "edge": (26, 24, 20, 110), "grain": 5, "hatch": None, "contrast": 1.0,
     },
     "b": {  # Field Map
         "grass": ((184, 182, 138), (204, 200, 158)), "tuft": (150, 152, 106),
@@ -42,13 +45,16 @@ STYLES = {
         "skylight": (176, 200, 200), "rubble": (178, 170, 152), "char": (98, 90, 80),
         "floor": ((196, 192, 176), (210, 206, 190)),
         "heli": (116, 124, 86), "glass": (66, 82, 86), "metal": (96, 94, 88), "rotor": (64, 62, 56, 140),
-        "alien": (84, 56, 102), "alien_dk": (56, 36, 72), "alien_lt": (116, 86, 132), "eye": (236, 226, 200),
-        "core": (168, 72, 140), "core_lt": (222, 150, 200), "goo": (96, 70, 112), "spit": (128, 58, 132),
+        "zskin": (150, 164, 130), "zcloth": (96, 92, 92), "zred": (182, 126, 110), "flesh": (198, 126, 118), "blood": (140, 58, 52),
+        "eye": (236, 226, 200),
+        "grass2": (150, 172, 112), "grass3": (214, 198, 140), "crop": (150, 172, 96), "dirt": ((188, 164, 122), (204, 182, 140)),
+        "rock": ((172, 168, 156), (192, 188, 176)), "crack": (126, 120, 106), "lawn": ((198, 200, 152), (214, 214, 170)),
+        "path": (238, 230, 206),
         "skin": (220, 180, 140), "shirt": (70, 98, 126), "hair": (80, 60, 44),
         "tan": (196, 176, 128), "crate": (118, 124, 86), "strap": (206, 190, 140),
         "pad": (140, 138, 128), "paint": (244, 238, 220), "red": (196, 70, 52), "fire": (232, 140, 64),
         "shade": 0.82, "shadow": (0.22, 0.6, 0.8, 0.25), "edge": (52, 46, 36, 230), "grain": 3,
-        "hatch": (112, 104, 74, 60), "contrast": 0.7, "alien_glow": None,
+        "hatch": (112, 104, 74, 60), "contrast": 0.7,
     },
     "c": {  # Grim Overcast
         "grass": ((64, 72, 62), (86, 94, 78)), "tuft": (50, 58, 48),
@@ -60,12 +66,15 @@ STYLES = {
         "skylight": (78, 92, 96), "rubble": (82, 82, 78), "char": (28, 26, 24),
         "floor": ((80, 82, 80), (96, 98, 94)),
         "heli": (104, 110, 102), "glass": (34, 42, 46), "metal": (60, 60, 60), "rotor": (36, 36, 36, 160),
-        "alien": (52, 66, 44), "alien_dk": (24, 30, 22), "alien_lt": (84, 108, 62), "eye": (214, 236, 130),
-        "core": (118, 168, 58), "core_lt": (184, 222, 112), "goo": (36, 48, 30), "spit": (126, 176, 58),
+        "zskin": (102, 114, 94), "zcloth": (40, 40, 42), "zred": (128, 82, 72), "flesh": (150, 78, 74), "blood": (88, 24, 22),
+        "eye": (196, 200, 170),
+        "grass2": (52, 72, 48), "grass3": (98, 96, 72), "crop": (92, 108, 62), "dirt": ((80, 70, 58), (96, 86, 72)),
+        "rock": ((84, 86, 84), (102, 104, 100)), "crack": (44, 44, 44), "lawn": ((78, 88, 70), (96, 106, 86)),
+        "path": (126, 124, 114),
         "skin": (182, 152, 126), "shirt": (122, 92, 68), "hair": (40, 36, 32),
         "tan": (118, 110, 88), "crate": (72, 78, 62), "strap": (132, 124, 98),
         "pad": (58, 60, 60), "paint": (176, 174, 164), "red": (170, 50, 40), "fire": (226, 128, 52),
-        "shade": 0.68, "shadow": (0.6, 1.1, 1.5, 1.0), "edge": (12, 12, 10, 140), "grain": 9, "hatch": None, "contrast": 1.1, "alien_glow": (120, 170, 60),
+        "shade": 0.68, "shadow": (0.6, 1.1, 1.5, 1.0), "edge": (12, 12, 10, 140), "grain": 9, "hatch": None, "contrast": 1.1,
     },
 }
 P = STYLES["a"]  # current style, set by main loop
@@ -251,18 +260,135 @@ def grain(im, seed):
     return out
 
 
-def t_grass(seed=1):
+def grass_base():
     s = Spr(16, 16, True)
-    s.img = ground(P["grass"], 7, 0.6, ((4, 0.45), (8, 0.35), (16, 0.2)))
+    s.img = ground(P["grass"], 7, 0.45, ((4, 0.45), (8, 0.35), (16, 0.2)))
     hatch(s)
-    detail(s, seed + 1, P["grass"][1] + (90,), 26, 0.1, 0.3)
-    rnd = random.Random(seed)
-    tuft = s.m()
-    for _ in range(3):
-        x, y = rnd.uniform(0, 16), rnd.uniform(0, 16)
+    return s
+
+
+def tufts(s, rnd, n, col):
+    m = s.m()
+    for _ in range(n):  # kept off the edges so grass variants and tree edges tile with each other
+        x, y = rnd.uniform(2, 14), rnd.uniform(2.5, 14)
         for a in (-0.7, -0.25, 0.2, 0.65):
-            tuft.line([(x, y), (x + a * 1.3, y - 1.1 - abs(a) * -0.3)], 0.22)
-    fill(s.img, tuft.im, P["tuft"] + (170,))
+            m.line([(x, y), (x + a * 1.3, y - 1.1 - abs(a) * -0.3)], 0.22)
+    fill(s.img, m.im, col + (120,))
+
+
+def t_grass(seed=1, n=3, tint=None, flecks=None):
+    """Grass and its variants share one ground; the tint is a soft blob that fades out before the tile edge."""
+    s = grass_base()
+    if tint:
+        rnd = random.Random(seed * 7)
+        blob = s.m()
+        for _ in range(3):
+            blob.ell(rnd.uniform(7, 9), rnd.uniform(7, 9), rnd.uniform(3.5, 4.5), rnd.uniform(3.5, 4.5))
+        fill(s.img, blob.im.filter(ImageFilter.GaussianBlur(1.8 * SS)), tint + (70,))
+    detail(s, seed + 1, P["grass"][1] + (60,), 26, 0.1, 0.3)
+    if flecks:
+        detail(s, seed + 2, flecks + (130,), 18, 0.1, 0.25)
+    tufts(s, random.Random(seed), n, P["tuft"])
+    return s
+
+
+def t_tree_edge():
+    s = grass_base()
+    detail(s, 3, P["grass"][1] + (90,), 26, 0.1, 0.3)
+    tufts(s, random.Random(4), 2, P["tuft"])
+    trees = Spr(16, 16, True)
+    for x, y, r in ((5.2, 5.6, 3.0), (11.2, 9.4, 2.6), (6.4, 12.2, 1.9)):
+        trees.paint(trees.m().ell(x, y, r, r * 0.94), P["canopy"], sh=r * 0.45, edge=False)
+        trees.paint(trees.m().ell(x - r * 0.3, y - r * 0.35, r * 0.4), P["canopy_lt"], sh=0, edge=False)
+    trees.drop()
+    return trees.under(s.img)
+
+
+def t_field():
+    s = Spr(16, 16, True)
+    s.img = ground(P["soil"], 29, 0.5)
+    rnd = random.Random(8)
+    furrow = s.m()
+    for x in (3, 7, 11, 15):  # period 4 divides 16, so rows wrap
+        furrow.rect(x - 0.5, 0, x + 0.5, 16)
+    fill(s.img, furrow.im, dk(P["soil"][0], 0.78) + (150,))
+    for x in (1, 5, 9, 13):
+        plants = s.m()
+        for k in range(16):
+            plants.ell(x + rnd.uniform(-0.15, 0.15), k + 0.5, rnd.uniform(1.0, 1.3), rnd.uniform(0.6, 0.8))
+        fill(s.img, plants.im, P["crop"])
+        rim = ImageChops.subtract(plants.im, ImageChops.offset(plants.im, -SS // 6, -SS // 3))
+        fill(s.img, rim, dk(P["crop"]))
+    detail(s, 9, mix(P["crop"], (255, 255, 255), 0.2) + (120,), 30, 0.1, 0.2)
+    return s
+
+
+def t_dirt_road():
+    s = Spr(16, 16, True)
+    s.img = ground(P["dirt"], 37, 0.6)
+    detail(s, 43, dk(P["dirt"][0], 0.8) + (130,), 30, 0.1, 0.3)
+    detail(s, 44, P["dirt"][1] + (140,), 16, 0.08, 0.2)
+    tracks = s.m()
+    for x in (4.6, 11.4):
+        tracks.line([(x + 0.3 * math.sin(k / 16 * 6.283), k) for k in range(-1, 18)], 1.5)
+    fill(s.img, tracks.im.filter(ImageFilter.GaussianBlur(0.3 * SS)), dk(P["dirt"][0], 0.82) + (110,))
+    mid = s.m()
+    for k in range(5):
+        mid.ell(8 + (k % 2 - 0.5) * 0.6, k * 3.2 + 1, 0.5, 0.9)
+    fill(s.img, mid.im, P["tuft"] + (90,))  # faint grass between the tracks
+    return s
+
+
+def t_rock():
+    s = Spr(16, 16, True)
+    s.img = ground(P["rock"], 53, 0.9)
+    hatch(s)
+    detail(s, 55, dk(P["rock"][0], 0.8) + (130,), 30, 0.1, 0.3)
+    rnd = random.Random(14)
+    cracks = s.m()
+    for _ in range(5):
+        x, y = rnd.uniform(0, 16), rnd.uniform(0, 16)
+        pts = [(x, y)]
+        for _ in range(4):
+            x, y = x + rnd.uniform(-1.6, 1.6), y + rnd.uniform(0.4, 1.6)
+            pts.append((x, y))
+        cracks.line(pts, 0.28)
+    fill(s.img, cracks.im, P["crack"] + (190,))
+    b = Spr(16, 16, True)
+    for x, y, r in ((5, 5.5, 1.5), (11.5, 11.5, 1.1)):
+        b.paint(b.m().poly([(x - r, y + r * 0.2), (x - r * 0.4, y - r * 0.9), (x + r * 0.7, y - r * 0.7),
+                            (x + r, y + r * 0.3), (x + r * 0.2, y + r * 0.9), (x - r * 0.7, y + r * 0.8)]),
+                mix(P["rock"][1], (255, 255, 255), 0.08), sh=r * 0.5)
+    b.drop(0.5)
+    return b.under(s.img)
+
+
+def t_yard():
+    s = Spr(16, 16, True)
+    s.img = ground(P["lawn"], 7, 0.5, ((4, 0.45), (8, 0.35), (16, 0.2)))
+    hatch(s)
+    stripes = s.m()
+    for x in (0, 8):  # mowing stripes
+        stripes.rect(x, 0, x + 4, 16)
+    fill(s.img, stripes.im, P["lawn"][1] + (50,))
+    path = s.m().rect(6.4, -1, 9.6, 17)
+    s.paint(path, P["path"], sh=0, edge=False)
+    joints = s.m()
+    for y in (0, 4, 8, 12):
+        joints.rect(6.4, y - 0.1, 9.6, y + 0.1)
+    fill(s.img, joints.im, dk(P["path"], 0.75) + (120,))
+    b = Spr(16, 16, True)
+    for x, y, r in ((3.2, 4.0, 1.5), (12.6, 11.5, 1.3)):
+        b.paint(b.m().ell(x, y, r), P["canopy_lt"], sh=r * 0.4, edge=False)
+    b.drop(0.4)
+    return b.under(s.img)
+
+
+def t_asphalt():
+    s = Spr(16, 16, True)
+    s.img = ground(P["road"], 13, 0.6, ((4, 0.4), (8, 0.3), (16, 0.3)))  # same ground as the road, so they join
+    detail(s, 41, dk(P["road"][0], 0.8) + (140,), 30, 0.1, 0.3)
+    fill(s.img, s.m().ell(5, 10, 1.8, 1.2).im.filter(ImageFilter.GaussianBlur(0.6 * SS)), dk(P["road"][0], 0.6) + (110,))
     return s
 
 
@@ -291,6 +417,10 @@ def t_water():
         x, y, l = rnd.uniform(0, 16), rnd.uniform(0, 16), rnd.uniform(1.5, 3.5)
         m.line([(x, y), (x + l * 0.5, y - 0.25), (x + l, y)], 0.22)
     fill(s.img, m.im, P["ripple"] + (110,))
+    wave = s.m()
+    for y0 in (2.5, 6.5, 10.5, 14.5):  # wavy highlight, one period per tile so it wraps
+        wave.line([(k, y0 + 0.5 * math.sin((k + y0 * 2) / 16 * 12.566)) for k in range(-1, 18)], 0.32)
+    fill(s.img, wave.im.filter(ImageFilter.GaussianBlur(0.25 * SS)), mix(P["ripple"], (255, 255, 255), 0.15) + (70,))
     return s
 
 
@@ -356,9 +486,16 @@ def t_floor():
     return s
 
 
+TILES = (  # index = chunk_manager.gd T enum
+    t_grass, t_forest, t_water, t_sand, t_road, t_building, t_ruin, t_floor,
+    lambda: t_grass(11, 6, P["grass2"]), lambda: t_grass(21, 1, P["grass3"], P["grass3"]),
+    t_field, t_dirt_road, t_rock, t_tree_edge, t_yard, t_asphalt,
+)
+
+
 def tiles():
-    strip = Image.new("RGBA", (128 * OUT, 16 * OUT))
-    for i, f in enumerate((t_grass, t_forest, t_water, t_sand, t_road, t_building, t_ruin, t_floor)):
+    strip = Image.new("RGBA", (len(TILES) * 16 * OUT, 16 * OUT))
+    for i, f in enumerate(TILES):
         strip.paste(grain(f().out(), 100 + i), (i * 16 * OUT, 0))
     return strip
 
@@ -398,18 +535,6 @@ def bullet():
     return s.glow((255, 200, 80), 0.4, 0.8)
 
 
-def enemy_bullet():
-    s = Spr(6, 6)
-    s.paint(s.m().ell(3, 3, 1.9), P["spit"], sh=0.6)
-    s.paint(s.m().ell(2.5, 2.4, 0.6), mix(P["spit"], (255, 255, 255), 0.5), sh=0)
-    return s.glow(P["spit"], 0.45, 0.7)
-
-
-def alien(s):
-    """Grim style: faint goo glow so dark aliens still read at night."""
-    return s.glow(P["alien_glow"], 0.7, 0.4) if P["alien_glow"] else s
-
-
 def eyes(s, pts, r):
     m = s.m()
     for x, y in pts:
@@ -417,68 +542,87 @@ def eyes(s, pts, r):
     s.paint(m, P["eye"], sh=0)
 
 
-def walker():
+def gore(s, pts):
+    """Dark blood stains on clothes/skin, soft edged."""
+    m = s.m()
+    for x, y, r in pts:
+        m.ell(x, y, r, r * 0.8)
+    fill(s.img, m.im.filter(ImageFilter.GaussianBlur(0.25 * SS)), P["blood"] + (190,))
+
+
+def zombie(s, skin, cloth, body, head, arms, tears=(), blood=()):
+    """Top-down pawn like the survivor, facing up: arms first, then torso (two-tone), torn spots, head."""
+    s.paint(arms, skin, sh=0.3)
+    s.paint(s.m().ell(*body), cloth)
+    m = s.m()
+    for x, y, r in tears:  # skin showing through torn clothes
+        m.poly([(x - r, y), (x - r * 0.2, y - r * 0.8), (x + r, y - r * 0.2), (x + r * 0.3, y + r * 0.7)])
+    s.paint(m, skin, sh=0, edge=False)
+    gore(s, blood)
+    s.paint(s.m().ell(*head), skin, sh=head[2] * 0.4)
+    return s
+
+
+def shambler():
     s = Spr(16, 16)
-    legs = s.m()
-    for y in (6.0, 10.0):
-        legs.line([(6, y), (3.2, y - 1.2), (1.6, y + 1.8)], 0.9)
-        legs.line([(10, y), (12.8, y - 1.2), (14.4, y + 1.8)], 0.9)
-    s.paint(legs, P["alien_dk"], sh=0)
-    s.paint(s.m().ell(8, 9, 3.4, 4.2), P["alien"])
-    s.paint(s.m().ell(8, 4.6, 2.2, 1.8), P["alien_lt"], sh=0.5)
-    eyes(s, ((7.1, 4.3), (8.9, 4.3)), 0.5)
-    return alien(s.drop(0.6))
+    arms = s.m().line([(5.2, 9.2), (4.9, 6.2), (5.5, 3.6)], 1.3).line([(10.8, 9.2), (11.3, 6.6), (10.4, 4.4)], 1.3)
+    zombie(s, P["zskin"], P["zcloth"], (8, 10, 4.1, 3.0), (7.4, 7.6, 2.3, 2.1), arms,
+           tears=((6.2, 11.2, 0.9), (10.2, 9.8, 0.7)), blood=((9.3, 11.6, 0.8),))
+    s.paint(s.m().ell(6.6, 7.2, 1.0, 0.7).ell(8.3, 6.6, 0.6), dk(P["zskin"], 0.7), sh=0, edge=False)  # patchy scalp
+    return s.drop(0.6)
 
 
 def runner():
     s = Spr(16, 16)
-    limbs = s.m()
-    limbs.line([(7, 9), (4.5, 10.5), (3.5, 13.5)], 0.7).line([(9, 9), (11.5, 10.5), (12.5, 13.5)], 0.7)
-    limbs.line([(7, 5), (4.6, 4.6), (3.6, 2)], 0.7).line([(9, 5), (11.4, 4.6), (12.4, 2)], 0.7)
-    s.paint(limbs, P["alien_dk"], sh=0)
-    s.paint(s.m().ell(8, 8.4, 1.9, 4.6), P["alien_lt"])
-    s.paint(s.m().ell(8, 3.6, 1.6, 1.5), P["alien_lt"], sh=0.5)
-    eyes(s, ((7.3, 3.2), (8.7, 3.2)), 0.4)
-    return alien(s.drop(0.6))
+    skin = mix(P["zskin"], P["zred"], 0.55)
+    cloth = mix(P["zcloth"], P["blood"], 0.45)
+    arms = s.m().line([(5.6, 9.0), (4.2, 11.2), (4.6, 13.2)], 1.0).line([(10.4, 9.0), (11.8, 11.0), (11.2, 13.4)], 1.0)
+    zombie(s, skin, cloth, (8, 9.6, 3.0, 2.5), (8.2, 6.0, 1.9, 2.0), arms,
+           tears=((7.0, 10.4, 0.7),), blood=((8.8, 9.0, 0.7), (6.8, 8.8, 0.4)))
+    s.paint(s.m().ell(8.2, 5.4, 1.1, 0.8), dk(skin, 0.68), sh=0, edge=False)
+    return s.drop(0.6)
 
 
-def spitter():
-    s = Spr(16, 16)
-    s.paint(s.m().ell(8, 8.8, 5.6, 5.2), P["alien"], sh=1.4)
-    s.paint(s.m().ell(8, 10, 3.4, 2.8), P["core"], sh=0.8)
-    s.paint(s.m().ell(7.2, 9.2, 1.1, 0.8), P["core_lt"], sh=0)
-    s.paint(s.m().ell(8, 3.8, 2.0, 1.3), P["alien_dk"], sh=0)  # mouth
-    eyes(s, ((5.0, 5.0), (11.0, 5.0)), 0.5)
-    return alien(s.drop(0.6))
-
-
-def flyer():
-    s = Spr(16, 16)
-    s.paint(s.m().poly([(7.5, 6), (1, 5), (0.5, 7.5), (3, 8.2), (4.5, 9.8), (7.5, 9.5)]), P["alien"], sh=0.8)
-    s.paint(s.m().poly([(8.5, 6), (15, 5), (15.5, 7.5), (13, 8.2), (11.5, 9.8), (8.5, 9.5)]), P["alien"], sh=0.8)
-    m = s.m()
-    for x0, x1 in ((7, 1.4), (9, 14.6)):
-        m.line([(x0, 6.8), (x1, 5.6)], 0.25)
-    s.paint(m, P["alien_dk"], sh=0)
-    s.paint(s.m().ell(8, 7.6, 1.9, 4.4), P["alien_dk"], sh=0.8)
-    eyes(s, ((7.3, 4.4), (8.7, 4.4)), 0.4)
-    return alien(s)
+def brute():
+    s = Spr(24, 24)
+    skin = dk(P["zskin"], 0.84)
+    cloth = dk(P["zcloth"], 0.85)
+    arms = s.m().line([(5.4, 12.0), (4.4, 8.0), (6.2, 4.6)], 2.3).line([(18.6, 12.0), (20.0, 8.6), (18.4, 5.2)], 2.3)
+    s.paint(s.m().ell(5.2, 11.6, 3.4, 3.0).ell(18.8, 11.6, 3.4, 3.0), skin, sh=0.9)  # shoulders
+    zombie(s, skin, cloth, (12, 14.2, 7.6, 6.2), (12, 9.4, 2.9, 2.6), arms,
+           tears=((8.6, 16.6, 1.6), (15.2, 13.0, 1.2), (12.2, 18.4, 1.0)), blood=((14.6, 17.2, 1.3), (9.2, 12.6, 0.8)))
+    s.paint(s.m().ell(12.6, 15.4, 3.0, 2.4), mix(skin, P["flesh"], 0.6), sh=0.8, edge=False)  # bloated, burst belly
+    gore(s, ((12.0, 16.2, 1.0),))
+    s.paint(s.m().ell(12, 9.0, 1.5, 1.1), dk(skin, 0.7), sh=0, edge=False)
+    return s.drop(0.9)
 
 
 def boss():
     s = Spr(48, 48)
-    legs = s.m()
-    for y in (15, 23, 31):
-        legs.line([(17, y), (8, y - 3), (3, y + 6)], 2.0)
-        legs.line([(31, y), (40, y - 3), (45, y + 6)], 2.0)
-    s.paint(legs, P["alien_dk"], sh=0.5)
-    s.paint(s.m().ell(24, 27, 12, 15), P["alien"], sh=3.0)
-    s.paint(s.m().ell(24, 10, 7.5, 6), P["alien_lt"], sh=1.6)
-    s.paint(s.m().line([(20, 5), (18.5, 2)], 1.2).line([(28, 5), (29.5, 2)], 1.2), P["alien_dk"], sh=0)
-    s.paint(s.m().ell(24, 28, 7, 7.5), P["core"], sh=1.4)
-    s.paint(s.m().ell(23, 27, 3.4, 3.6), P["core_lt"], sh=0)
-    eyes(s, ((21, 8.4), (27, 8.4), (22.6, 11), (25.4, 11)), 0.9)
-    return alien(s.drop(1.4))
+    skin = dk(P["zskin"], 0.9)
+    arms = s.m()
+    ends = ((8, 5), (40, 6.5), (3.5, 17), (44.5, 19), (5, 31), (43, 33))
+    for (x0, y0), (xm, ym), end in zip(((17, 18), (31, 18), (14, 24), (34, 24), (14, 31), (34, 31)),
+                                       ((12, 12), (36, 12.5), (7, 21), (41, 22), (8, 29), (40, 30.5)), ends):
+        arms.line([(x0, y0), (xm, ym), end], 3.4)  # all reaching forward/out, unlike legs
+    s.paint(arms, skin, sh=0.8)
+    hands = s.m()
+    for x, y in ends:
+        hands.ell(x, y, 2.2)
+    s.paint(hands, dk(skin, 0.85), sh=0.5)
+    s.paint(s.m().ell(24, 27, 13, 15), P["zcloth"], sh=3.0)  # bulk wrapped in rags
+    flesh = s.m().ell(24, 26, 10, 11.5).ell(16.5, 32, 4, 3.5)
+    s.paint(flesh, P["flesh"], sh=2.0, edge=False)
+    ribs = s.m()
+    for k in range(5):
+        y = 20 + k * 3.2
+        ribs.line([(17.5, y + 1), (24, y), (30.5, y + 1)], 0.8)
+    s.paint(ribs, mix(P["flesh"], (255, 240, 220), 0.45), sh=0, edge=False)
+    gore(s, ((22, 30, 3.0), (29, 24, 1.8), (17, 33, 1.6), (26, 37, 2.0)))
+    s.paint(s.m().ell(17, 11, 4.2, 3.8), P["zskin"], sh=1.2)  # two heads
+    s.paint(s.m().ell(30, 10, 5.2, 4.6), dk(P["zskin"], 0.9), sh=1.4)
+    s.paint(s.m().ell(29.4, 8.6, 2.2, 1.4).ell(16.4, 9.8, 1.6, 1.1), dk(P["zskin"], 0.65), sh=0, edge=False)
+    return s.drop(1.4)
 
 
 def survivor():
@@ -578,15 +722,25 @@ def wreck():
     return s
 
 
-def nest():
+def den():
+    """Zombie den: a caved-in house heaped with bodies and debris."""
     s = Spr(32, 32)
-    fill(s.img, s.m().ell(16, 18, 14, 12.5).im.filter(ImageFilter.GaussianBlur(1.5 * SS)), P["goo"] + (170,))
-    s.paint(s.m().ell(16, 17, 12, 10.5), P["alien_dk"], sh=2.2)
-    s.paint(s.m().ell(15, 15.5, 9.5, 8), P["alien"], sh=2.0)
-    s.paint(s.m().ell(13, 12, 4.5, 3), P["alien_lt"], sh=0)
-    for cx, cy, r in ((11, 14, 2.2), (20.5, 16, 2.4), (15, 21.5, 2.0)):
-        s.paint(s.m().ell(cx, cy, r, r * 0.85), (20, 16, 22), sh=0)
-        s.paint(s.m().ell(cx + 0.3, cy + 0.4, r * 0.5), P["core"], sh=0)
+    fill(s.img, s.m().ell(16, 17, 14.5, 12.5).im.filter(ImageFilter.GaussianBlur(2 * SS)), P["char"] + (190,))
+    fill(s.img, s.m().ell(15, 18, 8, 6).ell(22, 12, 4, 3).im.filter(ImageFilter.GaussianBlur(1.2 * SS)), P["blood"] + (170,))
+    s.paint(s.m().poly([(3, 4), (17, 3), (17, 5.4), (5.5, 6.4), (5, 17), (2.6, 19)]), P["bwall"], sh=0.7)
+    s.paint(s.m().poly([(29, 15), (29.4, 28.5), (16, 29), (17, 26.6), (26.6, 26), (26.8, 16)]), P["bwall"], sh=0.7)
+    s.paint(s.m().poly([(7, 8), (22, 6), (27, 15), (20, 24), (8, 22)]), dk(P["roof"], 0.9), sh=1.4)  # collapsed roof slab
+    s.paint(s.m().line([(9, 10), (24, 21)], 0.7).line([(20, 8), (11, 20)], 0.7), dk(P["roof"], 0.6), sh=0)  # beams
+    rnd = random.Random(21)
+    for _ in range(16):
+        x, y, r = rnd.uniform(4, 28), rnd.uniform(5, 28), rnd.uniform(0.6, 1.4)
+        s.paint(s.m().poly([(x - r, y), (x, y - r * 0.8), (x + r, y + r * 0.2), (x + r * 0.2, y + r)]),
+                P["rubble"] if rnd.random() < 0.6 else dk(P["rubble"], 0.75), sh=0.3)
+    for x, y, a in ((10, 25, 0.4), (23, 9.5, -0.9), (25, 21, 1.9), (6.5, 14, 1.3)):  # bodies
+        dx, dy = math.cos(a), math.sin(a)
+        s.paint(s.m().line([(x - dx * 1.6, y - dy * 1.6), (x + dx * 1.6, y + dy * 1.6)], 2.2), P["zcloth"], sh=0.4)
+        s.paint(s.m().ell(x + dx * 2.9, y + dy * 2.9, 1.1), P["zskin"], sh=0.3)
+    gore(s, ((12, 24, 1.2), (24, 22, 1.0), (15, 15, 1.4)))
     return s.drop(0.8)
 
 
@@ -625,17 +779,15 @@ def explosion():
 
 
 SPRITES = {
-    "heli": heli, "rotor": rotor, "bullet": bullet, "enemy_bullet": enemy_bullet, "walker": walker,
-    "runner": runner, "spitter": spitter, "flyer": flyer, "boss": boss, "survivor": survivor,
-    "helipad": helipad, "turret": turret, "hangar": hangar, "wall": wall, "crate": crate,
-    "radio_tower": radio_tower, "wreck": wreck, "nest": nest, "muzzle": muzzle,
+    "heli": heli, "rotor": rotor, "bullet": bullet, "shambler": shambler, "runner": runner, "brute": brute,
+    "boss": boss, "survivor": survivor, "helipad": helipad, "turret": turret, "hangar": hangar, "wall": wall,
+    "crate": crate, "radio_tower": radio_tower, "wreck": wreck, "den": den, "muzzle": muzzle,
 }
 SIZES = {  # logical sizes, see assets/sprites/README.md
-    "heli": (32, 32), "rotor": (32, 32), "bullet": (4, 4), "enemy_bullet": (6, 6), "walker": (16, 16),
-    "runner": (16, 16), "spitter": (16, 16), "flyer": (16, 16), "boss": (48, 48), "survivor": (8, 8),
-    "tiles": (128, 16), "helipad": (48, 48), "turret": (16, 16), "hangar": (32, 32), "wall": (16, 16),
-    "crate": (16, 16), "radio_tower": (16, 32), "wreck": (32, 32), "nest": (32, 32), "muzzle": (8, 8),
-    "explosion": (96, 16),
+    "heli": (32, 32), "rotor": (32, 32), "bullet": (4, 4), "shambler": (16, 16), "runner": (16, 16),
+    "brute": (24, 24), "boss": (48, 48), "survivor": (8, 8), "tiles": (256, 16), "helipad": (48, 48),
+    "turret": (16, 16), "hangar": (32, 32), "wall": (16, 16), "crate": (16, 16), "radio_tower": (16, 32),
+    "wreck": (32, 32), "den": (32, 32), "muzzle": (8, 8), "explosion": (96, 16),
 }
 
 
