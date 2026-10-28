@@ -70,18 +70,24 @@ func take_damage(amount: float) -> void:
 		Game.end_run("The base has fallen.")
 
 
-func _on_landed(landed: bool) -> void:
-	if not landed:
-		ui.close()
-		return
-	if Game.heli.position.distance_to(position) > PAD_REACH:
-		return
+## Top the heli up from base stock. Also runs after every purchase or loadout change while parked,
+## so a bigger tank or ammo feed fills right away instead of showing 100/125 until the next landing.
+func resupply() -> void:
 	var f: float = minf(Game.max_fuel - Game.fuel, Game.base_fuel)
 	Game.fuel += f
 	Game.base_fuel -= f
 	var a: int = mini(Game.max_ammo - Game.ammo, int(Game.base_ammo))
 	Game.ammo += a
 	Game.base_ammo -= a
+
+
+func _on_landed(landed: bool) -> void:
+	if not landed:
+		ui.close()
+		return
+	if Game.heli.position.distance_to(position) > PAD_REACH:
+		return
+	resupply()
 	var repair := int(ceil((Game.max_hp - Game.hp) / 5.0)) # 1 scrap per 5 hull
 	if repair > 0 and Game.scrap >= repair:
 		Game.scrap -= repair

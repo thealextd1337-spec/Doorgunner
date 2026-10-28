@@ -951,9 +951,18 @@ func _place_wild_poi(origin: Vector2i, rng: RandomNumberGenerator, dist: float, 
 		var cell := origin + Vector2i(rng.randi_range(4, CHUNK - 4), rng.randi_range(4, CHUNK - 4))
 		if kind == "crate" and homes.size() > 0 and i < 8:
 			cell = homes[0] + Vector2i(rng.randi_range(-4, 4), rng.randi_range(-4, 4))
-		if _tile(cell) in OPEN and (i >= 12 or _likes(kind, cell)):
+		if _tile(cell) in OPEN and (kind == "nest" or _clearing(cell)) and (i >= 12 or _likes(kind, cell)):
 			Game.world.spawn_poi(kind, _mid(cell, cell), rng)
 			return
+
+
+## A landing zone: no trees, water or rock in the 3x3 around the cell (the heli must set down next to it).
+func _clearing(cell: Vector2i) -> bool:
+	for dx in range(-1, 2):
+		for dy in range(-1, 2):
+			if _tile(cell + Vector2i(dx, dy)) in [T.FOREST, T.TREE_EDGE, T.WATER, T.ROCK, T.HEDGE, T.MARSH]:
+				return false
+	return true
 
 
 func _likes(kind: String, cell: Vector2i) -> bool:

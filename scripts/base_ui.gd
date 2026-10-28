@@ -224,6 +224,7 @@ func buy(id: String) -> bool:
 		"barracks":
 			Game.base_seats += 1
 	Game.recompute()
+	get_parent().resupply()
 	refresh()
 	return true
 
@@ -237,6 +238,7 @@ func set_loadout(key: String, lvl: int) -> bool:
 		return false
 	Game.loadout[key] = lvl
 	Game.recompute()
+	get_parent().resupply()
 	refresh()
 	return true
 
@@ -253,6 +255,7 @@ func stow(id: String) -> void:
 	if Game.weapon == id:
 		Game.weapon = Game.heli_weapons[0]
 	Game.recompute()
+	get_parent().resupply()
 	refresh()
 
 

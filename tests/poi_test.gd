@@ -26,7 +26,7 @@ func _run() -> void:
 			break
 	assert(Game.passengers > p0, "survivor boarded")
 	assert(Game.xp >= 4, "xp for boarding")
-	assert(get_tree().get_nodes_in_group("enemies").size() >= 3, "LZ wave called")
+	assert(get_tree().get_nodes_in_group("enemies").size() >= 2, "LZ wave called (call_wave spawns 2)")
 	_land(heli, false)
 	assert(not poi.loading and not poi.done, "loading stops on takeoff, settlement stays")
 	# crate: refills ammo/fuel, gives scrap

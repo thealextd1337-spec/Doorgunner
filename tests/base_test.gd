@@ -79,5 +79,12 @@ func _run() -> void:
 	Game.heli.landed_changed.emit(false)
 	await process_frame
 	assert(not main.ui_open, "takeoff closes menu")
+	# a bigger tank bought while parked is filled at once from stock
+	Game.base_fuel = 500.0
+	Game.scrap = 200
+	var max0: float = Game.max_fuel
+	assert(main.base.ui.buy("fuel"), "fuel depot bought")
+	assert(Game.max_fuel == max0 + 25.0, "max fuel grew")
+	assert(Game.fuel == Game.max_fuel, "tank topped up right after the purchase: %s/%s" % [Game.fuel, Game.max_fuel])
 	print("BASE OK  scrap=%d base_hp=%d weapon=%s base_fuel=%.2f" % [Game.scrap, Game.base_hp, Game.weapon, Game.base_fuel])
 	get_tree().quit(0)
