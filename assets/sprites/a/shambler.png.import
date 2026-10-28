@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dp5doxolgbg1v"
-path="res://.godot/imported/flyer.png-2d833d6637c3a1f9b22706bc144e0d90.ctex"
+uid="uid://bgg4akl3xam8a"
+path="res://.godot/imported/shambler.png-b9255dc00679f4dc1d7f78d6a1c91dfd.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/c/flyer.png"
-dest_files=["res://.godot/imported/flyer.png-2d833d6637c3a1f9b22706bc144e0d90.ctex"]
+source_file="res://assets/sprites/a/shambler.png"
+dest_files=["res://.godot/imported/shambler.png-b9255dc00679f4dc1d7f78d6a1c91dfd.ctex"]
 
 [params]
 

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://kwu0eaenoet8"
-path="res://.godot/imported/walker.png-dcd9af20475f6ce651bd0d70fe761c57.ctex"
+uid="uid://sfvhtitac0ci"
+path="res://.godot/imported/den.png-44a9850333ec87b94cbc06ea137c5658.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/b/walker.png"
-dest_files=["res://.godot/imported/walker.png-dcd9af20475f6ce651bd0d70fe761c57.ctex"]
+source_file="res://assets/sprites/c/den.png"
+dest_files=["res://.godot/imported/den.png-44a9850333ec87b94cbc06ea137c5658.ctex"]
 
 [params]
 

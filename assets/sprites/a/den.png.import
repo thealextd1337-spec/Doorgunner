@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://blmqbg5bdrx4m"
-path="res://.godot/imported/spitter.png-38b0f8b18b27a2ce6cd211e7663aaac1.ctex"
+uid="uid://b7u3pb56uo5hi"
+path="res://.godot/imported/den.png-3d8a448db910bd9828001512efa4ff8b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/b/spitter.png"
-dest_files=["res://.godot/imported/spitter.png-38b0f8b18b27a2ce6cd211e7663aaac1.ctex"]
+source_file="res://assets/sprites/a/den.png"
+dest_files=["res://.godot/imported/den.png-3d8a448db910bd9828001512efa4ff8b.ctex"]
 
 [params]
 
