@@ -1,4 +1,4 @@
-# Progression – Plan (Stand 2026-10-28)
+# Progression – Plan (Stand 2026-10-28, Entscheidungen: Slots 1/2/2 → 2/3/3, Heli-Cap 30)
 
 Ziel: ein Vampire-Survivors-artiger Pfad für den Helikopter. Jedes Level-up bietet drei Karten,
 man nimmt eine. Der Heli hat feste Slots, jedes Teil hat ein Maximallevel, Slots sind knapp,
@@ -9,13 +9,13 @@ dauerhafte Freischaltungen über Runs hinweg.
 
 | Slot-Typ | Anzahl (Start) | Was hinein passt | Thema |
 |---|---|---|---|
-| Hardpoint | 2 | Waffen (Door MG, Minigun, Autocannon, Flak, Raketen, Railgun) | Türbewaffnung links/rechts |
+| Hardpoint | 1 (max 2) | Waffen (Door MG, Minigun, Autocannon, Flak, Raketen, Railgun) | Türbewaffnung links/rechts |
 | System | 2 (max 3) | aktive Bordsysteme, feuern/wirken automatisch | Avionik und Crew |
-| Modul | 3 (max 4) | passive Boni | Zelle, Triebwerk, Munition |
+| Modul | 2 (max 3) | passive Boni | Zelle, Triebwerk, Munition |
 
 - Jeder Slot-Typ hat eine Obergrenze. Ein voller Slot-Typ bietet nur noch Level-ups für vorhandene Teile.
-- Dritter System-Slot und vierter Modul-Slot kommen aus der Basis (Werkstatt Stufe 2 und 3) oder aus der Meta-Progression.
-- Hardpoints bleiben die heutigen zwei Waffenplätze (Q wechselt). Waffen werden künftig ebenfalls gelevelt.
+- Zweiter Hardpoint: Werkstatt Stufe 1 oder Meta (Tag 5 erreicht). Dritter System-Slot: Werkstatt Stufe 2 oder Meta (Tag 15). Dritter Modul-Slot: Werkstatt Stufe 3 oder Meta (300 Überlebende).
+- Start mit nur einer Waffe am Hardpoint. Gefundene Waffen gehen ohne freien Hardpoint in die Bucht der Basis; mit zwei Hardpoints wechselt Q wie heute. Waffen werden künftig ebenfalls gelevelt.
 
 ## 2. Teile und Maximallevel
 
@@ -69,7 +69,7 @@ Die heutigen Waffenkisten an POIs geben wie bisher eine neue Waffe (sie belegt e
 
 - Heli-Level 1 bis 30. Die XP-Kurve bleibt 25 × Level^1,4 (Level 30 kumuliert ca. 37.000 XP).
 - Ab Level 30 fließen XP in Scrap (10 XP = 1 Scrap). Der Build ist dann fertig, der Rest des Runs ist Basisverteidigung und Rettungsquote.
-- Mit 2 + 3 + 4 Slots und Level 5 pro Teil braucht ein kompletter Build 9 Teile × 5 Level = 45 Karten, also sind 29 Level-ups bewusst knapp: man schafft etwa zwei Drittel eines perfekten Builds.
+- Mit voll ausgebauten 2 + 3 + 3 Slots und Level 5 pro Teil braucht ein kompletter Build 8 Teile × 5 Level = 40 Karten; mit den Start-Slots 1 + 2 + 2 sind es 25. 29 Level-ups reichen also für einen vollen Start-Build plus ein paar Stufen in nachgekauften Slots. Slots nachzukaufen lohnt nur, wenn man früh dran ist.
 
 ## 5. Dauerhafte Freischaltungen (Meta)
 
@@ -85,8 +85,9 @@ Gezählt werden über alle Runs: gerettete Überlebende, Tage überlebt, Boss-Ki
 | Railgun, Hartkern | Tag 10 erreicht |
 | Veteran, Plünderer | 10 Runs gespielt |
 | Reroll 2 und 3, Verbannen | 100 / 200 Überlebende |
+| Zweiter Hardpoint ab Start | Tag 5 erreicht |
 | Dritter System-Slot ab Start | Tag 15 erreicht |
-| Vierter Modul-Slot ab Start | 300 Überlebende |
+| Dritter Modul-Slot ab Start | 300 Überlebende |
 
 Die bestehenden Boni (Sitz pro 25 Gerettete, Tank und Munition pro 10) bleiben.
 
@@ -94,7 +95,7 @@ Die bestehenden Boni (Sitz pro 25 Gerettete, Tank und Munition pro 10) bleiben.
 
 - HUD: unter den Balken eine Zeile mit den Slots als kleine Kästchen (Waffe, System, Modul) mit Level-Punkten.
 - Titelbildschirm: "Hangar"-Tab mit allen Teilen, gesperrte grau mit Bedingung.
-- Basis-Menü HANGAR: zeigt Slots und erlaubt, ein Teil zu verschrotten (Slot frei, 50 % der Karten als Scrap zurück).
+- Basis-Menü HANGAR: zeigt Slots, erlaubt ein Teil zu verschrotten (Slot frei, 50 % der Karten als Scrap zurück) und kauft Slot-Erweiterungen über die Werkstatt.
 
 ## 7. Umsetzung in Schritten
 
