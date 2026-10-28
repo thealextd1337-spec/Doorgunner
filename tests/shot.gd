@@ -1,5 +1,5 @@
 extends Node
-## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots to the project folder, quits.
+## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (flight, combat, level-up cards, base, hangar, settings, title hangar), quits.
 ## Time-based so it works at any refresh rate.
 
 var t := 0.0
@@ -54,13 +54,29 @@ func _process(delta: float) -> void:
 		7:
 			if t > 8.0: # 1.5 s landing spool, then the base menu is open
 				_save("shot_base.png")
-				for c in Game.world.get_children():
-					if c is CanvasLayer and c.layer == 25:
-						c.open()
+				Game.take_item("searchlight")
+				Game.take_item("engine")
+				Game.world.base.ui.show_tab("HANGAR")
+				Game.world.base.ui.refresh()
 				step = 8
 		8:
 			if t > 8.3:
+				_save("shot_hangar.png")
+				for c in Game.world.get_children():
+					if c is CanvasLayer and c.layer == 25:
+						c.open()
+				step = 9
+		9:
+			if t > 8.6:
 				_save("shot_settings.png")
+				var title: CanvasLayer = preload("res://scripts/title_ui.gd").new()
+				Game.world.add_child(title)
+				title.open()
+				title._toggle_hangar()
+				step = 10
+		10:
+			if t > 8.9:
+				_save("shot_title_hangar.png")
 				get_tree().quit()
 
 

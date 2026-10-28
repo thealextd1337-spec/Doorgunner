@@ -8,6 +8,7 @@ const Weapons := preload("res://scripts/weapons.gd")
 
 var kind := ""
 var force_weapon := false # tests: weapons cache always yields a weapon
+var drop_level := 0 # crate from the Supply Drop system (item level): reduced contents
 var discovered := false
 var done := false
 var label := ""
@@ -76,7 +77,7 @@ func _process(delta: float) -> void:
 	if kind == "nest":
 		_nest(delta, d2)
 	elif loading:
-		load_cd -= delta
+		load_cd -= delta * Game.stats["board"]
 		if load_cd <= 0.0:
 			load_cd = 2.5
 			_dispatch()
@@ -111,23 +112,27 @@ func _on_landed(landed: bool) -> void:
 				s.visible = true
 			Game.radio("Gunner: people coming out of the house!")
 		"crate":
-			var a := rng.randi_range(30, 60)
-			var f := rng.randi_range(20, 40)
-			var s := rng.randi_range(5, 15)
+			var k := 1.0 if drop_level == 0 else 0.3 + 0.1 * drop_level
+			var a := int(rng.randi_range(30, 60) * k)
+			var f := int(rng.randi_range(20, 40) * k)
+			var s := rng.randi_range(5, 15) if drop_level == 0 or drop_level >= 5 else 0
 			Game.ammo = mini(Game.max_ammo, Game.ammo + a)
 			Game.fuel = minf(Game.max_fuel, Game.fuel + f)
-			Game.base_food += 15.0 # rations go straight to the base larder
 			Game.scrap += s
-			Game.base_fuel = minf(Game.base_fuel_cap, Game.base_fuel + 50.0)
-			Game.base_ammo = minf(Game.base_ammo_cap, Game.base_ammo + 100.0)
-			Game.radio("Supply cache: +%d ammo, +%d fuel, +%d scrap. Base stock +50 fuel, +100 ammo." % [a, f, s])
+			if drop_level > 0:
+				Game.radio("Supply drop: +%d ammo, +%d fuel, +%d scrap." % [a, f, s])
+			else:
+				Game.base_food += 15.0 # rations go straight to the base larder
+				Game.base_fuel = minf(Game.base_fuel_cap, Game.base_fuel + 50.0)
+				Game.base_ammo = minf(Game.base_ammo_cap, Game.base_ammo + 100.0)
+				Game.radio("Supply cache: +%d ammo, +%d fuel, +%d scrap. Base stock +50 fuel, +100 ammo." % [a, f, s])
 			_finish(true)
 		"upgrade":
 			Game.scrap += 10
 			_finish(true)
 			var pool: Array = Weapons.unowned()
 			if pool.is_empty() or (not force_weapon and rng.randf() < 0.4):
-				Game.world.offer_upgrades("Weapons cache")
+				Game.world.offer_upgrades("Weapons cache", 1)
 			else:
 				Game.add_weapon(pool[rng.randi() % pool.size()])
 		"radio_tower":
@@ -213,6 +218,14 @@ func _board(s: Node2D) -> void:
 	if survivors.is_empty():
 		Game.radio("Pilot: all survivors aboard.")
 		_finish(false)
+
+
+## Winch system: hoist one survivor straight aboard without landing. False if none left or the cabin is full.
+func winch_one() -> bool:
+	if done or survivors.is_empty() or Game.passengers >= Game.seats:
+		return false
+	_board(survivors[0])
+	return true
 
 
 ## Zombies raiding the settlement kill one survivor at a time.

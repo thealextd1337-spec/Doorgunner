@@ -174,13 +174,30 @@ func _refresh_weapons() -> void:
 		weapon_box.remove_child(c) # a Stow/Mount button may be mid-signal, so no free()
 		c.queue_free()
 	var cap := Label.new()
-	cap.text = "Weapons  (heli %d/%d slots, Q switches in flight)" % [Game.heli_weapons.size(), Game.HELI_SLOTS]
+	cap.text = "Weapons  (hardpoints %d/%d, Q switches in flight)" % [Game.heli_weapons.size(), Game.slots["hardpoint"]]
 	cap.add_theme_font_size_override("font_size", 13)
 	weapon_box.add_child(cap)
 	for id in Game.heli_weapons:
-		_weapon_row("HELI  %s%s" % [Weapons.TABLE[id]["name"], "  (equipped)" if id == Game.weapon else ""], "Stow", Game.heli_weapons.size() < 2, stow.bind(id))
+		_weapon_row("HELI  %s Lv %d%s" % [Weapons.TABLE[id]["name"], Progression.level(id), "  (equipped)" if id == Game.weapon else ""], "Stow", Game.heli_weapons.size() < 2, stow.bind(id))
 	for id in Game.weapon_bay:
-		_weapon_row("BAY   %s" % Weapons.TABLE[id]["name"], "Mount", Game.heli_weapons.size() >= Game.HELI_SLOTS, mount.bind(id))
+		_weapon_row("BAY   %s Lv %d" % [Weapons.TABLE[id]["name"], Progression.level(id)], "Mount", Game.heli_weapons.size() >= Game.slots["hardpoint"], mount.bind(id))
+	_refresh_items()
+
+
+## Fitted systems and modules with a scrap button; Workshop levels buy the extra slots.
+func _refresh_items() -> void:
+	var cap := Label.new()
+	cap.text = "Fitted  (systems %d/%d, modules %d/%d; Workshop 1/2/3 adds a hardpoint/system/module slot)" % [
+		Progression.used("system"), Game.slots["system"], Progression.used("module"), Game.slots["module"]]
+	cap.autowrap_mode = TextServer.AUTOWRAP_WORD
+	cap.custom_minimum_size.x = 360
+	cap.add_theme_font_size_override("font_size", 13)
+	weapon_box.add_child(cap)
+	for id in Game.heli_items:
+		if Progression.ITEMS[id]["slot"] != "hardpoint":
+			var lv: int = Game.heli_items[id]
+			_weapon_row("%s  %s Lv %d" % [Progression.ITEMS[id]["slot"].substr(0, 3).to_upper(), Progression.ITEMS[id]["name"], lv],
+				"Scrap +%d" % (lv * Progression.CARD_SCRAP / 2), false, func(): Game.scrap_item(id); refresh())
 
 
 func _weapon_row(text: String, btn: String, disabled: bool, cb: Callable) -> void:
@@ -216,8 +233,7 @@ func buy(id: String) -> bool:
 		"armory":
 			Game.base_max_ammo += 60
 			Game.base_ammo_cap += 400.0
-		"workshop":
-			Game.stats["damage"] += 0.15
+		"workshop": # extra hardpoint/system/module slot per level, see Progression.apply_all
 			Game.loadout_budget += 1
 		"clinic":
 			Game.max_hp += 20.0
@@ -260,7 +276,7 @@ func stow(id: String) -> void:
 
 
 func mount(id: String) -> void:
-	if Game.heli_weapons.size() >= Game.HELI_SLOTS or id not in Game.weapon_bay:
+	if Game.heli_weapons.size() >= Game.slots["hardpoint"] or id not in Game.weapon_bay:
 		return
 	Game.weapon_bay.erase(id)
 	Game.heli_weapons.append(id)

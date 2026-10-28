@@ -47,7 +47,7 @@ func _ready() -> void:
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
 	Game.day_changed.connect(_settlements_decline)
-	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot"}.get(OS.get_environment("SMOKE"), "")
+	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot", "prog": "progression_test"}.get(OS.get_environment("SMOKE"), "")
 	if test != "":
 		add_child(load("res://tests/%s.gd" % test).new())
 	else:
@@ -130,7 +130,6 @@ func spawn_fx(pos: Vector2, scale_factor := 1.0) -> void:
 	add_child(fx)
 
 
-## Pause and let the player pick one of three random upgrades.
-func offer_upgrades(title: String) -> void:
-	var upgrades := preload("res://scripts/upgrades.gd")
-	choice_ui.open(title, upgrades.roll(3))
+## Pause and let the player pick one of `n` item cards (default 3, Veteran Lv5 4).
+func offer_upgrades(title: String, n := 0) -> void:
+	choice_ui.open(title, n if n > 0 else (4 if Progression.level("veteran") >= 5 else 3))

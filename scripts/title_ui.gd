@@ -1,5 +1,6 @@
 extends CanvasLayer
 ## Title screen over the live world. ENTER / SPACE / START button emits start_pressed once and hides.
+## HANGAR button / H swaps the decorative heli for the list of all heli items and their meta unlocks.
 
 signal start_pressed
 
@@ -12,6 +13,10 @@ var mono := SystemFont.new()
 var stats: Label
 var hint: Label
 var rotor: Sprite2D
+var deco: Node2D
+var deco_call: Label
+var hangar: PanelContainer
+var hangar_grid: GridContainer
 var t := 0.0
 
 
@@ -26,6 +31,7 @@ func _ready() -> void:
 	add_child(dim)
 	# big decorative heli on the right, over the real base
 	var heli := Node2D.new()
+	deco = heli
 	heli.position = Vector2(990, 330)
 	heli.scale = Vector2(6, 6)
 	heli.rotation = 0.35
@@ -37,6 +43,7 @@ func _ready() -> void:
 	heli.add_child(rotor)
 	var call := _label("CALLSIGN  DG-1  //  ON THE PAD", 14, OLIVE.lightened(0.4), mono)
 	call.position = Vector2(875, 540)
+	deco_call = call
 	add_child(call)
 
 	var panel := PanelContainer.new()
@@ -82,10 +89,57 @@ func _ready() -> void:
 	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		btn.add_theme_color_override(c, Color(0.06, 0.07, 0.03))
 	btn.pressed.connect(_start)
-	v.add_child(btn)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 12)
+	v.add_child(btn_row)
+	btn_row.add_child(btn)
+	var hangar_btn := Button.new()
+	hangar_btn.text = "HANGAR [H]"
+	hangar_btn.custom_minimum_size = Vector2(150, 56)
+	hangar_btn.add_theme_font_override("font", mono)
+	hangar_btn.add_theme_font_size_override("font_size", 16)
+	hangar_btn.pressed.connect(_toggle_hangar)
+	btn_row.add_child(hangar_btn)
+	_build_hangar()
 	hint = _label("press ENTER", 14, SAND, mono)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hint)
+
+
+func _build_hangar() -> void:
+	hangar = PanelContainer.new()
+	hangar.position = Vector2(796, 96)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = PANEL
+	sb.border_width_top = 8
+	sb.border_color = OLIVE.lightened(0.3)
+	sb.set_content_margin_all(20)
+	hangar.add_theme_stylebox_override("panel", sb)
+	hangar.visible = false
+	add_child(hangar)
+	var v := VBoxContainer.new()
+	hangar.add_child(v)
+	v.add_child(_label("// HANGAR  -  PARTS ON RECORD", 13, ACCENT, mono))
+	hangar_grid = GridContainer.new()
+	hangar_grid.columns = 3
+	hangar_grid.add_theme_constant_override("h_separation", 14)
+	v.add_child(hangar_grid)
+
+
+func _toggle_hangar() -> void:
+	hangar.visible = not hangar.visible
+	deco.visible = not hangar.visible
+	deco_call.visible = deco.visible
+	for c in hangar_grid.get_children():
+		c.free()
+	for id in Progression.ITEMS:
+		var it: Dictionary = Progression.ITEMS[id]
+		var ok := Progression.unlocked(id)
+		var col := SAND if ok else SAND.darkened(0.55)
+		hangar_grid.add_child(_label(it["name"], 13, col, mono))
+		hangar_grid.add_child(_label(it["slot"].to_upper(), 12, OLIVE.lightened(0.45) if ok else col, mono))
+		hangar_grid.add_child(_label("ready" if ok else "LOCKED  " + Progression.condition(id), 12, ACCENT if ok else col, mono))
 
 
 func _label(text: String, size: int, color: Color, font: Font = null) -> Label:
@@ -113,7 +167,9 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if visible and event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+	if visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_H:
+		_toggle_hangar()
+	elif visible and event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
 		get_viewport().set_input_as_handled()
 		_start()
 

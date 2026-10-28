@@ -29,6 +29,7 @@ func _process(delta: float) -> void:
 	elif Game.attack_active and _attackers_alive() == 0:
 		Game.attack_active = false
 		Game.radio("Base secured. Good work, gunner.")
+		Game.meta["assaults_held"] += 1
 
 
 ## A horde of 6-12 zombies spawned around a town near the heli (towns are where the dead are).

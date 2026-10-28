@@ -10,12 +10,14 @@ const LAND_SPEED := 50.0
 const RADIUS := 14.0
 const SPOOL := 1.5 # seconds to land or take off
 const Weapons := preload("res://scripts/weapons.gd")
+const DMG_PER_LEVEL := {"mg": 0.12, "autocannon": 0.15, "railgun": 0.2}
 
 var vel := Vector2.ZERO
 var landed := false
 var fire_cd := 0.0
 var transition := 0.0 # time left in the current land/takeoff
 var pending := 0 # 1 landing, -1 taking off
+var heat := 0.0 # minigun spread growth 0..1, gone at Lv5
 var body: Sprite2D
 var rotor: Sprite2D
 var shadow: Sprite2D
@@ -44,11 +46,12 @@ func _process(delta: float) -> void:
 	if not Game.running:
 		return
 	fire_cd -= delta
+	heat = maxf(0.0, heat - delta)
 	muzzle.visible = fire_cd > _interval() - 0.04
 	if Input.is_action_just_pressed("land") and pending == 0:
 		_toggle_landing()
 	if pending != 0:
-		transition -= delta
+		transition -= delta / Game.stats["spool"]
 		if transition <= 0.0:
 			landed = pending == 1
 			pending = 0
@@ -113,27 +116,61 @@ func weapon_range() -> float:
 
 
 func _interval() -> float:
-	return Weapons.TABLE[Game.weapon]["interval"] / Game.stats["fire_rate"]
+	var rate: float = 1.0 + 0.1 * (maxi(1, Progression.level("minigun")) - 1) if Game.weapon == "minigun" else 1.0
+	return Weapons.TABLE[Game.weapon]["interval"] / Game.stats["fire_rate"] / rate
+
+
+## Installed system items (Progression slot "system") live as child nodes named by id.
+func refresh_systems() -> void:
+	for id in Progression.ITEMS:
+		if Progression.ITEMS[id]["slot"] != "system":
+			continue
+		var n := get_node_or_null(NodePath(id))
+		if Game.heli_items.has(id) and n == null:
+			n = load("res://scripts/systems/%s.gd" % id).new()
+			n.name = id
+			add_child(n)
+		elif not Game.heli_items.has(id) and n != null:
+			remove_child(n)
+			n.queue_free()
 
 
 func _fire() -> void:
-	var w: Dictionary = Weapons.TABLE[Game.weapon]
+	var id: String = Game.weapon
+	var w: Dictionary = Weapons.TABLE[id]
 	if fire_cd > 0.0 or Game.ammo < w["ammo_per_shot"]:
 		return
+	var lv := maxi(1, Progression.level(id))
+	var dmg: float = w["damage"] * Game.stats["damage"] * (1.0 + DMG_PER_LEVEL.get(id, 0.0) * (lv - 1))
+	if fire_cd < -1.0 and Progression.level("training") >= 5:
+		dmg *= 2.0 # Gunnery Lv5: first shot after a pause crits
 	fire_cd = _interval()
 	Game.ammo -= w["ammo_per_shot"]
 	Sfx.play("gun", null, -4.0)
 	Game.make_noise(global_position, 1.0)
 	var aim: Vector2 = (get_global_mouse_position() - global_position).normalized()
 	muzzle.position = aim * 18
-	var shots: int = w["shots"] + Game.stats["shots"] - 1
-	var jitter: float = w["spread_deg"] / 2.0
+	var shots: int = w["shots"] + Game.stats["shots"] - 1 + (lv - 1 if id == "shotgun" else 0)
+	var splash: float = w.get("splash", 0.0) * (1.0 + 0.15 * (lv - 1) if id == "rockets" else 1.0)
+	var tracers := [0.0] # sideways offsets, Twin MG fires two parallel tracers
+	if lv >= 5:
+		match id:
+			"mg": tracers = [-3.0, 3.0]
+			"shotgun": shots *= 2
+			"autocannon": splash = 40.0
+			"rockets": shots = 3
+	if id == "minigun" and lv < 5:
+		heat = minf(1.0, heat + 0.1)
+	var jitter: float = w["spread_deg"] / 2.0 * (1.0 + heat)
 	for i in shots:
 		var spread := deg_to_rad((i - (shots - 1) / 2.0) * 6.0 + randf_range(-jitter, jitter))
-		var b := bullet_script.new()
-		b.setup(global_position + aim * 16, aim.rotated(spread), w["damage"] * Game.stats["damage"], w["pierce"] + Game.stats["pierce"],
-			w["bullet_speed"], weapon_range() / (w["bullet_speed"] * Game.stats["bullet_speed"]), w.get("splash", 0.0))
-		Game.world.add_child(b)
+		for o in tracers:
+			var b := bullet_script.new()
+			b.setup(global_position + aim * 16 + aim.orthogonal() * o, aim.rotated(spread), dmg, w["pierce"] + Game.stats["pierce"],
+				w["bullet_speed"], weapon_range() / (w["bullet_speed"] * Game.stats["bullet_speed"]), splash)
+			b.chain = 2 if id == "railgun" and lv >= 5 else 0
+			b.bounce = 1 if Progression.level("hardcore") >= 5 else 0
+			Game.world.add_child(b)
 
 
 ## Damage from any source. Ground enemies should only call this when landed.
