@@ -7,7 +7,7 @@ build the base up, and hold it when the horde assaults every third night.
 ## Play
 - Open the project in Godot 4.7 (`godot --path .`) and press F5, or run `godot --path . --export`-free: just `godot --path .`.
 - **WASD / arrows** fly, **mouse** aims, **LMB** fires the door gun (out of the side doors only: swing the heli to bring it to bear; zombies hide in forests and chew into houses), **SPACE** lands / takes off, **Q / E** swing the heli (the door guns only fire sideways), **Q** switches guns, **F** fires the loudspeaker (when fitted), **R** restarts after a run ends, **ESC** opens the sound settings (volumes are saved).
-- Land next to a point of interest to interact: settlements (survivors board one by one, hold the LZ),
+- Land next to a point of interest to interact: settlements (survivors board one by one, hold the LZ; settlements and hideouts inside the fence or within 12 m of it walk to the base by themselves and move in),
   supply crates (fuel, ammo, scrap), weapons caches (a weapon or one item card), relay towers (reveal nearby POIs),
   crash sites (scrap and a permanent boost). Zombie dens spawn an abomination boss when approached.
 - The run starts without a base: the heli carries a founding crew of 4, 60 scrap and basic supplies. Pick a site with room for the 5x5 helipad (fields and town edges are fine, ideally near water), land and press **B** to found the FOB there: helipad, field workshop, the crew moves in (2 on Build), and the first assault comes two nights later. Until then there is nowhere to refuel or drop survivors.

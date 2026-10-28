@@ -19,6 +19,7 @@ var ring_shown := false
 # survivors
 var survivors := []
 var loading := false
+var walking_home := false # next to the base: the survivors walk in on their own (base._call_settlers)
 var load_cd := 0.0
 var boarded := 0
 # nest (group "enemies")
@@ -103,7 +104,7 @@ func _on_landed(landed: bool) -> void:
 	if not landed:
 		_stop_loading()
 		return
-	if done or position.distance_to(Game.heli.position) > LAND_DIST:
+	if done or walking_home or position.distance_to(Game.heli.position) > LAND_DIST:
 		return
 	if kind != "survivors" and kind != "hideout":
 		Sfx.play("pickup")
@@ -219,7 +220,35 @@ func _finish(hide: bool) -> void:
 		sprite.visible = false
 
 
+## The base was built close by: everyone walks to the pad and moves in, no heli needed.
+func walk_to_base() -> void:
+	walking_home = true
+	loading = false
+	for s in survivors:
+		s.visible = true
+		s.target = Game.world.base
+	Game.radio("Radio: the %s next to the base is joining you, %d walking over." % [label, survivors.size()])
+
+
+## One survivor reached the base pad: rescued, a new pawn walks off to change.
+func _join_base(s: Node2D) -> void:
+	Game.rescued += 1
+	if s.injured:
+		Game.injured += 1
+	Game.add_xp(6)
+	var base: Node2D = Game.world.base
+	if base.pawns.get_child_count() < base.PAWN_MAX:
+		base.add_pawn(s.global_position, true)
+	survivors.erase(s)
+	s.queue_free()
+	if survivors.is_empty():
+		Game.radio("Base: the %s has moved in." % label)
+		_finish(false)
+
+
 func _stop_loading() -> void:
+	if walking_home:
+		return
 	loading = false
 	for s in survivors:
 		s.target = null
@@ -243,6 +272,9 @@ func _dispatch() -> void:
 
 
 func _board(s: Node2D) -> void:
+	if walking_home:
+		_join_base(s)
+		return
 	if Game.passengers >= Game.seats:
 		_full()
 		return
@@ -264,7 +296,7 @@ func _board(s: Node2D) -> void:
 
 ## Winch system: hoist one survivor straight aboard without landing. False if none left or the cabin is full.
 func winch_one() -> bool:
-	if done or survivors.is_empty() or Game.passengers >= Game.seats:
+	if done or walking_home or survivors.is_empty() or Game.passengers >= Game.seats:
 		return false
 	_board(survivors[0])
 	return true

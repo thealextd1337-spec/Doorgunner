@@ -13,6 +13,7 @@ const TINTS := {"barracks": Color(0.62, 0.7, 0.36), "clinic": Color(1.5, 1.5, 1.
 const Chunks := preload("res://scripts/chunk_manager.gd")
 const Pawn := preload("res://scripts/base_pawn.gd")
 const UI := preload("res://scripts/base_ui.gd")
+const SETTLE_REACH := 120.0 # settlements this close to the fence join the base on foot
 const PAWN_MAX := 60 # drawn people; beyond that the base only counts
 const DIRS := [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT] # neighbour bits 1 2 4 8 = sandbag / wire sprite frame
 # demolition target -> [seconds of one worker, scrap, metal, parts]
@@ -117,6 +118,7 @@ func _process(delta: float) -> void:
 	if pawn_t <= 0.0:
 		pawn_t = 0.5
 		sync_pawns()
+		_call_settlers()
 	if Game.workers["build"] <= 0:
 		return
 	var site: Dictionary = next_work() # buildings and perimeter work first, then demolitions, then sandbags and wire
@@ -630,6 +632,13 @@ func sync_pawns() -> void:
 		p.slot = slots.get(p.job, 0)
 		slots[p.job] = p.slot + 1
 		p.camper = i >= Game.housing()
+
+
+## Settlements and hideouts inside the fence or up to SETTLE_REACH outside it walk over and move in (poi.walk_to_base).
+func _call_settlers() -> void:
+	for p in Game.world.pois:
+		if is_instance_valid(p) and p.kind in ["survivors", "hideout"] and not p.done and not p.walking_home 				and p.position.distance_to(position) < Game.base_radius + SETTLE_REACH:
+			p.walk_to_base()
 
 
 ## New pawn at `pos`; `arriving` ones walk into the barracks to change first.
