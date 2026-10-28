@@ -47,14 +47,16 @@ func _run() -> void:
 	while camp.survivors.size() == n0 and Time.get_ticks_msec() - t0 < 5000:
 		await process_frame
 	assert(camp.survivors.size() == n0 - 1, "zombie killed a waiting survivor")
-	# a zombie pushing against a house chews its way in: the BUILDING cell turns to RUIN
+	# a zombie walled in by houses chews its way out: the BUILDING cell towards its target turns to RUIN
 	var T: Dictionary = preload("res://scripts/chunk_manager.gd").T
-	var wall := Vector2i(34, 16) # due east of the base centre, so the zombie walks straight into it
-	main.chunks.set_cell(wall, 0, Vector2i(T.BUILDING, 0))
-	main.chunks.set_cell(wall + Vector2i(1, 0), 0, Vector2i(T.GRASS, 0))
+	var wall := Vector2i(34, 16) # due east of the base centre, so the zombie pushes straight into it
+	for x in range(-1, 2):
+		for y in range(-1, 2):
+			main.chunks.set_cell(wall + Vector2i(1 + x, y), 0, Vector2i(T.BUILDING if x != 0 or y != 0 else T.GRASS, 0))
+	main.nav_dirty()
 	main.spawn_enemy("shambler", Vector2((wall.x + 1) * 16.0 + 4.0, main.BASE_POS.y), true)
 	t0 = Time.get_ticks_msec()
-	while main.chunks.tile_at(Vector2(wall) * 16.0 + Vector2(8, 8)) == T.BUILDING and Time.get_ticks_msec() - t0 < 10000:
+	while main.chunks.tile_at(Vector2(wall) * 16.0 + Vector2(8, 8)) == T.BUILDING and Time.get_ticks_msec() - t0 < 14000:
 		await process_frame
 	assert(main.chunks.tile_at(Vector2(wall) * 16.0 + Vector2(8, 8)) == T.RUIN, "zombie broke into the house")
 	print("POI OK")

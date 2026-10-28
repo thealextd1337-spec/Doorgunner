@@ -24,5 +24,6 @@ build the base up, and hold it when the horde assaults every third night.
 ## Dev
 - `python tools/gen_sprites.py` regenerates the art ("Field Map" style) in `assets/sprites/b/`. Previews: `docs/region_*.png`.
 - `python tools/gen_sfx.py` regenerates all sound effects in `assets/sfx/`. Sound starts muted for now: **M** or the ESC menu turns it on.
-- Headless checks (bash): `SMOKE=1 godot --headless --path . --quit-after 30000` prints `SMOKE OK`. Other values: `poi`, `base`, `ui`, `prog` (heli systems), `tut` (tutorial).
+- Headless checks (bash): `SMOKE=1 godot --headless --path . --quit-after 30000` prints `SMOKE OK`. Other values: `poi`, `base`, `ui`, `prog` (heli systems), `tut` (tutorial), `nav` (pathfinding).
+- Walkers (zombies, survivors, base pawns) path around houses, hedges, water, rock, sandbags and buildings with `main.gd` `nav_move` / `nav_path` (cached AStarGrid2D on the 16 px grid, straight line when free); walled-in zombies chew through after 2 s.
 - `SMOKE=shot godot --path .` saves screenshots (flight, combat, level-up cards, base, hangar, settings, title hangar) into the project folder.
