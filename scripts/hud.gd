@@ -119,9 +119,9 @@ func _process(_delta: float) -> void:
 	var next_attack := Game.days_to_assault()
 	var table: Dictionary = preload("res://scripts/weapons.gd").TABLE
 	var carried := " / ".join(Game.heli_weapons.map(func(id): return table[id]["name"].to_upper() if id == Game.weapon else table[id]["name"]))
-	info.text = "DAY %d  %02d:%02d %s\nSCRAP %d\nPASSENGERS %d/%d\nRESCUED %d   KILLS %d\nWEAPON %s  (%d m)\n" % [
+	info.text = "DAY %d  %02d:%02d %s\nSCRAP %d\nPASSENGERS %d/%d\nWEAPON %s  (%d m)\n" % [ # rescued / kills: title screen service record only
 		Game.day, h, m, "NIGHT" if Game.is_night() else "",
-		Game.scrap, Game.passengers, Game.seats, Game.rescued, Game.kills, carried, Game.heli.weapon_range() / 10.0]
+		Game.scrap, Game.passengers, Game.seats, carried, Game.heli.weapon_range() / 10.0]
 	info.text += "NO BASE: land on open ground and press B" if not Game.base_founded else "BASE HP %d/%d   STOCK %d fuel  %d ammo  %d food  SALVAGE %d/%d/%d\nWATER %d  MED %d  RIFLES %d  INJURED %d\nPOWER %s (gen fuel %d/day)\nNOISE %d%%\nNext assault: %s" % [
 		Game.base_hp, Game.max_base_hp, Game.base_fuel, Game.base_ammo, Game.base_food, Game.salvage["metal"], Game.salvage["parts"], Game.salvage["electronics"],
 		Game.base_water, Game.base_medicine, Game.base_rifles, Game.injured, "on" if Game.power else "off", Game.built("generator") * Game.GEN_FUEL, Game.noise_level * 100.0,

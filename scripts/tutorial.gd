@@ -2,6 +2,7 @@ extends Node
 ## First-run tutorial (docs/BASE.md section 7). main.gd adds it after the title when meta "tutorial_done" is 0
 ## or on the TUTORIAL button. Each step is a radio line and waits on a condition; the compass marks the settlement.
 ## Ends with a small forced assault tonight. The ESC menu's "Skip tutorial" calls finish(false).
+## The current step also sits in its own panel (base menu look) above the radio log, on top of the base menu.
 
 const STEPS := [
 	"Land on open ground and press B to found the base.",
@@ -18,10 +19,49 @@ const SCRAP_GRANT := 80 # barracks 40 + 6 sandbags 30, with some spare
 var step := -1
 var settlement: Node2D # spawned 700 px east of the base once it is founded
 var rescued0 := 0 # the founding crew does not count as rescued
+var panel: PanelContainer
+var step_label: Label
+var text_label: Label
 
 
 func _ready() -> void:
+	_panel()
 	_next()
+
+
+## Bottom-centre card between the radio log and the minimap, clear of the base menu panels.
+func _panel() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 11 # over the base menu: steps 5-7 are done in it
+	add_child(layer)
+	panel = PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.position = Vector2(460, 470)
+	panel.custom_minimum_size = Vector2(440, 0)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.06, 0.08, 0.04, 0.92)
+	sb.border_width_top = 6
+	sb.border_color = Color(0.96, 0.77, 0.18)
+	sb.set_content_margin_all(12)
+	panel.add_theme_stylebox_override("panel", sb)
+	layer.add_child(panel)
+	var v := VBoxContainer.new()
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(v)
+	step_label = _label(13, Color(0.96, 0.77, 0.18))
+	v.add_child(step_label)
+	text_label = _label(16, Color(0.91, 0.86, 0.71))
+	text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(text_label)
+	v.add_child(_label(11, Color(0.64, 0.6, 0.5), "ESC menu: skip tutorial"))
+
+
+func _label(size: int, color: Color, text := "") -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	return l
 
 
 func _spawn_settlement() -> void:
@@ -83,6 +123,10 @@ func _next() -> void:
 	if step == 1:
 		_spawn_settlement()
 	Game.radio("TUTORIAL: " + STEPS[step])
+	step_label.text = "TUTORIAL  ·  STEP %d / %d" % [step + 1, STEPS.size()]
+	text_label.text = STEPS[step]
+	panel.modulate = Color(2, 2, 1.4) # flash on each new step
+	create_tween().tween_property(panel, "modulate", Color.WHITE, 0.6)
 	if step == 4:
 		Game.world.radio_target = null # the BASE arrow shows the way home
 	if step == 5 and Game.scrap < SCRAP_GRANT:
