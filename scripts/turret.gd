@@ -12,6 +12,9 @@ var rifle := false
 var armed := true # a militia post without a rifle just stands there
 var tower := false # watchtower post: +50 % reach
 var sprite: Sprite2D
+var flash: Sprite2D # muzzle flash, shown for `shot` seconds after each round
+var aim := Vector2.UP # last firing direction (base_pawn.gd turns the militia on this post to it)
+var shot := 0.0
 
 
 func _ready() -> void:
@@ -19,9 +22,15 @@ func _ready() -> void:
 	if not armed:
 		sprite.modulate = Color(0.6, 0.6, 0.6)
 	add_child(sprite)
+	flash = Art.sprite("muzzle")
+	flash.scale *= 0.6 if rifle else 1.0
+	flash.visible = false
+	add_child(flash)
 
 
 func _process(delta: float) -> void:
+	shot -= delta
+	flash.visible = shot > 0.0
 	if not Game.running or not armed:
 		return
 	cd -= delta
@@ -39,6 +48,9 @@ func _process(delta: float) -> void:
 		return
 	var dir: Vector2 = (best.global_position - global_position).normalized()
 	sprite.rotation = dir.angle() + PI / 2
+	aim = dir
+	shot = 0.08
+	flash.position = dir * (7.0 if rifle else 12.0)
 	Sfx.play("gun", global_position, -14.0 if rifle else -10.0)
 	var b := preload("res://scripts/bullet.gd").new()
 	b.setup(global_position + dir * 10, dir, 6.0 if rifle else DAMAGE, 0)

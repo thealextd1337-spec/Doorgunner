@@ -9,6 +9,9 @@ const HURT := Color(1.0, 0.45, 0.45)
 const DARK := Color(0.12, 0.1, 0.08)
 const GREY := Color(0.5, 0.52, 0.55)
 const TOOL_JOBS := ["fuel", "ammo", "repair", "workshop", "build"]
+const WORK_JOBS := TOOL_JOBS + ["farm", "water", "medic"] # bob and swing while waiting at a work spot
+const DUST := Color(0.75, 0.66, 0.5)
+const FLASH := Color(1.0, 0.8, 0.35)
 const DEPOT := Vector2(56, -56) # fuel depot area, from the base centre
 
 var base: Node2D
@@ -24,6 +27,7 @@ var leg := 0.0 # seconds left for the current walk before giving up (blocked pat
 var nav := {}
 var fence_angle := randf() * TAU
 var sprite: Sprite2D
+var anim := 0.0 # seconds into the current work or firing animation, 0 when idle
 var gear := "": # "rifle", "tool" (plus pistol), "pistol" or ""
 	set(v):
 		if v != gear:
@@ -43,6 +47,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_animate(delta)
 	if wait > 0.0:
 		wait -= delta
 		if wait <= 0.0:
@@ -51,6 +56,37 @@ func _process(delta: float) -> void:
 	leg -= delta
 	if _walk(delta) or leg <= 0.0:
 		_arrived()
+
+
+## Militia on their post turn to the last shot and kick back with a flash; workers at a work spot bob with each swing.
+func _animate(delta: float) -> void:
+	var post := _post()
+	if post == null and not _working():
+		if anim > 0.0:
+			anim = 0.0
+			sprite.position = Vector2.ZERO
+			sprite.rotation = 0.0
+			queue_redraw()
+		return
+	anim += delta
+	if post != null:
+		sprite.rotation = post.aim.angle() + PI / 2
+		sprite.position = -post.aim * (1.0 if post.shot > 0.0 else 0.0)
+	else:
+		sprite.position.y = -absf(sin(anim * 9.0))
+	queue_redraw()
+
+
+## The defender post (turret.gd) this militia pawn stands on during an assault, else null.
+func _post() -> Node2D:
+	if job != "militia" or not Game.attack_active or slot >= base.defenders.get_child_count():
+		return null
+	var p: Node2D = base.defenders.get_child(slot)
+	return p if global_position.distance_to(p.global_position) < 8.0 else null
+
+
+func _working() -> bool:
+	return wait > 0.0 and mode == "" and job in WORK_JOBS and not Game.is_night() and state == "live"
 
 
 ## nav_move (main.gd) when the world has it, else a straight walk.
@@ -146,6 +182,28 @@ func _around(p: Vector2, r: float) -> Vector2:
 
 
 func _draw() -> void:
+	var post := _post()
+	if post != null: # rifle along the aim, flash at the muzzle
+		var a: Vector2 = post.aim
+		var r := a.orthogonal() * 1.5 + sprite.position
+		draw_line(r + a, r + a * 7.0, DARK, 1.0)
+		if post.shot > 0.0:
+			draw_circle(r + a * 8.5, 1.8, FLASH)
+			draw_circle(r + a * 8.5, 0.8, Color.WHITE)
+		return
+	if anim > 0.0:
+		var s := sin(anim * 9.0)
+		if job in TOOL_JOBS + ["farm"] and s > 0.6: # dust where the swing lands
+			var a := (s - 0.6) / 0.4 * 0.7
+			draw_circle(Vector2(6.5, 4), 1.4, Color(DUST, a))
+			draw_circle(Vector2(5, 5), 1.0, Color(DUST, a * 0.8))
+		if gear == "tool": # hammer swinging from the hand
+			draw_set_transform(Vector2(3, 2) + sprite.position, s * 0.9 - 0.3)
+			draw_line(Vector2.ZERO, Vector2(2, -3), GREY, 1.0)
+			draw_line(Vector2(1, -4), Vector2(3, -2.5), GREY, 1.0)
+			draw_set_transform(Vector2.ZERO)
+			draw_rect(Rect2(-4, 1, 2, 2), DARK)
+			return
 	if gear == "rifle":
 		draw_line(Vector2(-1, 2), Vector2(5, -1), DARK, 1.0)
 	if gear == "tool": # hammer: handle and head
