@@ -7,7 +7,7 @@ const UPGRADES := {
 	"turrets": ["Turret", 4, 40, 0],
 	"fuel": ["Fuel Depot", 3, 40, 0],
 	"armory": ["Armory", 3, 40, 0],
-	"workshop": ["Workshop", 3, 60, 0],
+	"workshop": ["Workshop", 4, 60, 0],
 }
 const UPGRADE_INFO := {"workshop": "+ enables salvage processing"}
 const BUILD_INFO := {"barracks": "+4 beds", "clinic": "2 beds for the injured", "generator": "power, 10 fuel/day",
@@ -269,7 +269,7 @@ func _refresh_weapons() -> void:
 ## Fitted systems and modules with a scrap button; Workshop levels buy the extra slots.
 func _refresh_items() -> void:
 	var cap := Label.new()
-	cap.text = "Fitted  (systems %d/%d, modules %d/%d; Workshop 1/2/3 adds a hardpoint/system/module slot)" % [
+	cap.text = "Fitted  (systems %d/%d, modules %d/%d; Workshop 2/3/4 adds a hardpoint/system/module slot)" % [
 		Progression.used("system"), Game.slots["system"], Progression.used("module"), Game.slots["module"]]
 	cap.autowrap_mode = TextServer.AUTOWRAP_WORD
 	cap.custom_minimum_size.x = 360

@@ -21,14 +21,33 @@ var settlement: Node2D
 func _ready() -> void:
 	var world: Node2D = Game.world
 	var pos: Vector2 = world.BASE_POS + Vector2(700, 0)
-	for off in [Vector2.ZERO, Vector2(0, 64), Vector2(0, -64), Vector2(-64, 0), Vector2(0, 128), Vector2(0, -128), Vector2(-128, 0)]:
-		if world.is_landable(pos + off):
-			pos += off
+	var found := false
+	for ring in 6: # spiral outwards in 48 px steps until the spot and its 3x3 are landable
+		for i in maxi(1, ring * 8):
+			var off := Vector2(ring * 48.0, 0).rotated(i * TAU / maxi(1, ring * 8))
+			if _clear(pos + off):
+				pos += off
+				found = true
+				break
+		if found:
 			break
+	if not found: # water or forest everywhere: lay a grass clearing, it is the tutorial
+		var chunks: TileMapLayer = world.chunks
+		for dx in range(-2, 3):
+			for dy in range(-2, 3):
+				chunks.set_cell(Vector2i((pos / 16.0).floor()) + Vector2i(dx, dy), 0, Vector2i(chunks.T.GRASS, 0))
 	settlement = world.spawn_poi("survivors", pos, RandomNumberGenerator.new(), 3)
 	settlement.discovered = true
 	world.radio_target = settlement
 	_next()
+
+
+func _clear(at: Vector2) -> bool:
+	for dx in range(-1, 2):
+		for dy in range(-1, 2):
+			if not Game.world.is_landable(at + Vector2(dx, dy) * 16.0):
+				return false
+	return true
 
 
 func _process(_delta: float) -> void:

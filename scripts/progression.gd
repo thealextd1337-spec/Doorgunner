@@ -78,7 +78,7 @@ static func apply_all() -> void:
 			apply(id, Game.heli_items[id])
 	var ws: int = Game.base_level.get("workshop", 0)
 	var m: Dictionary = Game.meta
-	var extra := {"hardpoint": ws >= 1 or m["best_day"] >= 5, "system": ws >= 2 or m["best_day"] >= 15, "module": ws >= 3 or m["total_rescued"] >= 300}
+	var extra := {"hardpoint": ws >= 2 or m["best_day"] >= 5, "system": ws >= 3 or m["best_day"] >= 15, "module": ws >= 4 or m["total_rescued"] >= 300} # workshop 1 is the stock one
 	for k in SLOT_TYPES:
 		Game.slots[k] = Game.MAX_SLOTS[k] if extra[k] else Game.START_SLOTS[k]
 	if is_instance_valid(Game.heli):

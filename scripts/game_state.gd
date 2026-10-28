@@ -192,7 +192,7 @@ func new_run() -> void:
 	rescued = 0; kills = 0
 	base_hp = 500.0; max_base_hp = 500.0
 	attack_pending = false; attack_active = false
-	base_level = {}
+	base_level = {"workshop": 1} # the first workshop comes with the base: salvage processing from day 1
 	for k in stats.keys():
 		stats[k] = 1.0 if typeof(stats[k]) == TYPE_FLOAT else 0
 	stats["shots"] = 1
