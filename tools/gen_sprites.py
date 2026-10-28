@@ -33,6 +33,9 @@ STYLES = {
         "skin": (214, 172, 132), "shirt": (78, 102, 128), "hair": (72, 54, 40),
         "tan": (168, 148, 104), "crate": (102, 108, 72), "strap": (176, 160, 114),
         "pad": (92, 92, 88), "paint": (226, 220, 198), "red": (200, 64, 48), "fire": (236, 140, 60),
+        "barn": (146, 66, 50), "wood": (134, 104, 72), "ash": ((70, 68, 64), (92, 88, 82)), "reed": (132, 136, 76),
+        "hedge": (58, 78, 42), "hroof": (178, 164, 148), "metalroof": (148, 152, 150), "stone": ((146, 140, 128), (166, 160, 148)),
+        "white": (224, 220, 208), "car": (196, 196, 192),
         "shade": 0.74, "shadow": (0.38, 0.8, 1.1, 0.7), "edge": (26, 24, 20, 110), "grain": 5, "hatch": None, "contrast": 1.0,
     },
     "b": {  # Field Map
@@ -53,6 +56,9 @@ STYLES = {
         "skin": (220, 180, 140), "shirt": (70, 98, 126), "hair": (80, 60, 44),
         "tan": (196, 176, 128), "crate": (118, 124, 86), "strap": (206, 190, 140),
         "pad": (140, 138, 128), "paint": (244, 238, 220), "red": (196, 70, 52), "fire": (232, 140, 64),
+        "barn": (192, 106, 86), "wood": (190, 164, 124), "ash": ((150, 146, 136), (170, 166, 156)), "reed": (162, 172, 112),
+        "hedge": (122, 140, 90), "hroof": (224, 212, 192), "metalroof": (198, 198, 192), "stone": ((204, 198, 182), (220, 214, 198)),
+        "white": (246, 242, 230), "car": (232, 230, 222),
         "shade": 0.82, "shadow": (0.22, 0.6, 0.8, 0.25), "edge": (52, 46, 36, 230), "grain": 3,
         "hatch": (112, 104, 74, 60), "contrast": 0.7,
     },
@@ -74,6 +80,9 @@ STYLES = {
         "skin": (182, 152, 126), "shirt": (122, 92, 68), "hair": (40, 36, 32),
         "tan": (118, 110, 88), "crate": (72, 78, 62), "strap": (132, 124, 98),
         "pad": (58, 60, 60), "paint": (176, 174, 164), "red": (170, 50, 40), "fire": (226, 128, 52),
+        "barn": (104, 54, 46), "wood": (96, 82, 64), "ash": ((44, 42, 40), (58, 56, 52)), "reed": (86, 94, 60),
+        "hedge": (38, 50, 36), "hroof": (122, 114, 106), "metalroof": (98, 100, 100), "stone": ((94, 92, 86), (110, 108, 102)),
+        "white": (164, 162, 154), "car": (150, 150, 148),
         "shade": 0.68, "shadow": (0.6, 1.1, 1.5, 1.0), "edge": (12, 12, 10, 140), "grain": 9, "hatch": None, "contrast": 1.1,
     },
 }
@@ -486,10 +495,138 @@ def t_floor():
     return s
 
 
+def t_hedge():
+    """Grass with a hedgerow running down the middle (transposed in game for east-west hedges)."""
+    s = t_grass(31, 2)
+    b = Spr(16, 16, True)
+    rnd = random.Random(15)
+    m = b.m()
+    for k in range(6):  # period 16, so the hedge joins the next tile
+        m.ell(8 + rnd.uniform(-0.6, 0.6), k * 16 / 6, rnd.uniform(3.0, 3.6), 2.4)
+    b.paint(m, P["hedge"], sh=1.0, edge=False)
+    hl = b.m()
+    for k in range(6):
+        hl.ell(7 + rnd.uniform(-0.5, 0.5), k * 16 / 6 - 0.6, 1.3, 0.9)
+    fill(b.img, hl.im, mix(P["hedge"], (255, 255, 255), 0.16) + (170,))
+    b.drop(0.6)
+    return b.under(s.img)
+
+
+def t_marsh():
+    """Reed bed: wet mud, small pools and reed clumps, joins water and grass."""
+    s = Spr(16, 16, True)
+    s.img = ground((mix(P["grass2"], P["water"][0], 0.5), P["grass2"]), 61, 0.7)
+    rnd = random.Random(62)
+    pools = s.m()
+    for _ in range(4):
+        pools.ell(rnd.uniform(2, 14), rnd.uniform(2, 14), rnd.uniform(1.4, 2.6), rnd.uniform(0.9, 1.6))
+    fill(s.img, pools.im.filter(ImageFilter.GaussianBlur(0.3 * SS)), P["water"][0] + (230,))
+    fill(s.img, ImageChops.subtract(pools.im, ImageChops.offset(pools.im, 0, SS // 2)), P["ripple"] + (120,))
+    reeds = s.m()
+    for _ in range(9):
+        x, y = rnd.uniform(1, 15), rnd.uniform(2, 15)
+        for a in (-0.8, -0.35, 0.0, 0.4, 0.85):
+            reeds.line([(x, y), (x + a * 1.2, y - 1.6 - rnd.uniform(0, 0.8))], 0.24)
+    fill(s.img, reeds.im, P["reed"] + (235,))
+    detail(s, 63, mix(P["reed"], (255, 255, 255), 0.3) + (160,), 14, 0.1, 0.2)
+    return s
+
+
+def t_warehouse():
+    """Ribbed metal roof, seamless: adjacent tiles form one big roof (ribs turned by ACROSS)."""
+    s = Spr(16, 16, True)
+    s.img = ground((P["metalroof"], mix(P["metalroof"], (255, 255, 255), 0.08)), 71, 0.25)
+    ribs = s.m()
+    for x in range(0, 16, 2):
+        ribs.rect(x + 0.7, 0, x + 1.1, 16)
+    fill(s.img, ribs.im, dk(P["metalroof"], 0.8) + (150,))
+    fill(s.img, s.m().ell(4, 11, 2.5, 1.6).im.filter(ImageFilter.GaussianBlur(1 * SS)), P["rubble"] + (60,))  # stain
+    return s
+
+
+def ash_ground(seed):
+    s = Spr(16, 16, True)
+    s.img = ground(P["ash"], seed, 0.8)
+    detail(s, seed + 1, P["char"] + (170,), 30, 0.1, 0.35)
+    detail(s, seed + 2, mix(P["ash"][1], (255, 255, 255), 0.25) + (120,), 16, 0.08, 0.2)
+    return s
+
+
+def t_ash():
+    s = ash_ground(81)
+    m = s.m()
+    rnd = random.Random(83)
+    for _ in range(3):  # charred sticks
+        x, y, a = rnd.uniform(3, 13), rnd.uniform(3, 13), rnd.uniform(0, 3.1)
+        m.line([(x - math.cos(a) * 1.4, y - math.sin(a) * 1.4), (x + math.cos(a) * 1.4, y + math.sin(a) * 1.4)], 0.35)
+    fill(s.img, m.im, P["char"] + (220,))
+    tufts(s, random.Random(84), 2, dk(P["grass3"], 0.7))
+    return s
+
+
+def t_crater():
+    s = ash_ground(91)
+    fill(s.img, s.m().ell(8, 8, 7, 6.4).im.filter(ImageFilter.GaussianBlur(0.8 * SS)), P["char"] + (200,))
+    fill(s.img, s.m().ell(8.5, 8.6, 4.6, 4.0).im.filter(ImageFilter.GaussianBlur(0.8 * SS)), dk(P["char"], 0.6) + (230,))
+    rim = s.m().ell(8, 8, 7.2, 6.6)
+    rim.ell(8.8, 8.8, 6.6, 6.0, v=0)
+    fill(s.img, rim.im.filter(ImageFilter.GaussianBlur(0.4 * SS)), mix(P["ash"][1], (255, 255, 255), 0.2) + (150,))
+    b = Spr(16, 16, True)
+    rnd = random.Random(92)
+    for _ in range(7):
+        a, r = rnd.uniform(0, 6.28), rnd.uniform(6.4, 7.6)
+        x, y, k = 8 + math.cos(a) * r, 8 + math.sin(a) * r * 0.9, rnd.uniform(0.3, 0.6)
+        b.paint(b.m().poly([(x - k, y), (x, y - k), (x + k, y + k * 0.3)]), P["rubble"], sh=0.2)
+    b.drop(0.3)
+    return b.under(s.img)
+
+
+def t_parking():
+    """Asphalt with two parking bays; lines run from the top edge (turned by ACROSS)."""
+    s = t_asphalt()
+    m = s.m().rect(-0.2, 0, 0.2, 10.5).rect(7.8, 0, 8.2, 10.5)
+    fill(s.img, m.im, P["paint"] + (200,))
+    stops = s.m().rect(2.5, 1.2, 5.5, 1.9, 0.3).rect(10.5, 1.2, 13.5, 1.9, 0.3)
+    fill(s.img, stops.im, P["pave"][1] + (220,))
+    fill(s.img, s.m().ell(12, 6, 1.4, 2).im.filter(ImageFilter.GaussianBlur(0.6 * SS)), dk(P["road"][0], 0.6) + (90,))
+    return s
+
+
+def t_plaza():
+    """Village square cobbles."""
+    s = Spr(16, 16, True)
+    s.img = ground(P["stone"], 101, 0.5)
+    rnd = random.Random(102)
+    joints = s.m()
+    for y in range(0, 16, 2):
+        off = 1 if (y // 2) % 2 else 0
+        joints.rect(0, y - 0.12, 16, y + 0.12)
+        for x in range(off, 16 + off, 2):
+            joints.rect(x - 0.12, y, x + 0.12, y + 2)
+    fill(s.img, joints.im, dk(P["stone"][0], 0.72) + (170,))
+    m = s.m()
+    for _ in range(12):
+        y = rnd.randrange(8) * 2
+        x = rnd.randrange(8) * 2 + y // 2 % 2
+        m.rect(x + 0.2, y + 0.2, x + 1.8, y + 1.8, 0.3)
+    fill(s.img, m.im, mix(P["stone"][1], (255, 255, 255), 0.1) + (90,))
+    return s
+
+
+def t_pad():
+    """Concrete foundation under big props (church, barn, silo, tanks): not landable."""
+    s = Spr(16, 16, True)
+    s.img = ground(P["pave"], 111, 0.45)
+    hatch(s)
+    detail(s, 112, dk(P["pave"][0], 0.8) + (110,), 20, 0.1, 0.3)
+    return s
+
+
 TILES = (  # index = chunk_manager.gd T enum
     t_grass, t_forest, t_water, t_sand, t_road, t_building, t_ruin, t_floor,
     lambda: t_grass(11, 6, P["grass2"]), lambda: t_grass(21, 1, P["grass3"], P["grass3"]),
     t_field, t_dirt_road, t_rock, t_tree_edge, t_yard, t_asphalt,
+    t_hedge, t_marsh, t_warehouse, t_ash, t_crater, t_parking, t_plaza, t_pad,
 )
 
 
@@ -778,16 +915,199 @@ def explosion():
     return strip
 
 
+# ---------------------------------------------------------------- props (decorative, placed by chunk_manager.gd)
+
+def gable(s, x0, y0, x1, y1, col, horizontal=True):
+    """Pitched roof seen from above: lit half up/left, shaded half down/right, dark ridge."""
+    s.paint(s.m().rect(x0, y0, x1, y1, 0.3), col, sh=0)
+    if horizontal:
+        ym = (y0 + y1) / 2
+        s.paint(s.m().rect(x0 + 0.3, ym, x1 - 0.3, y1 - 0.3), dk(col, 0.8), sh=0, edge=False)
+        s.paint(s.m().rect(x0 + 0.3, ym - 0.35, x1 - 0.3, ym + 0.35), dk(col, 0.62), sh=0, edge=False)
+    else:
+        xm = (x0 + x1) / 2
+        s.paint(s.m().rect(xm, y0 + 0.3, x1 - 0.3, y1 - 0.3), dk(col, 0.8), sh=0, edge=False)
+        s.paint(s.m().rect(xm - 0.35, y0 + 0.3, xm + 0.35, y1 - 0.3), dk(col, 0.62), sh=0, edge=False)
+
+
+def shingles(s, x0, y0, x1, y1, col, step=1.6):
+    m = s.m()
+    y = y0 + step
+    while y < y1:
+        m.rect(x0 + 0.4, y - 0.08, x1 - 0.4, y + 0.08)
+        y += step
+    fill(s.img, m.im, dk(col, 0.7) + (70,))
+
+
+def house(w, h):
+    """Gable-roofed house that covers its whole footprint (light neutral roof, tinted in game with modulate)."""
+    def f():
+        s = Spr(w, h)
+        col = P["hroof"]
+        gable(s, 0.3, 0.3, w - 0.3, h - 0.3, col, horizontal=w >= h)
+        shingles(s, 0.3, 0.3, w - 0.3, h - 0.3, col)
+        cx = w * 0.72 if w >= h else w * 0.3
+        s.paint(s.m().rect(cx - 1, h * 0.22, cx + 1, h * 0.22 + 1.8, 0.2), P["bwall"], sh=0.5)  # chimney
+        return s.drop(0.5)
+    return f
+
+
+def barn():
+    s = Spr(32, 24)
+    gable(s, 0.3, 2, 31.7, 22, P["barn"])
+    m = s.m()
+    for x in range(2, 31, 2):
+        m.rect(x - 0.1, 2.3, x + 0.1, 21.7)
+    fill(s.img, m.im, dk(P["barn"], 0.7) + (80,))
+    s.paint(s.m().rect(0.3, 2, 1.3, 22).rect(30.7, 2, 31.7, 22), P["white"], sh=0)  # gable trim
+    s.paint(s.m().rect(13, 5.5, 19, 8.5, 0.3), P["vent"], sh=0.4)  # cupola
+    return s.drop(0.7)
+
+
+def church():
+    s = Spr(32, 40)
+    roof = mix(P["roof"], P["hroof"], 0.3)
+    walls = P["stone"][1]
+    s.paint(s.m().rect(5, 11, 27, 39.5, 0.3), walls, sh=0.6)
+    gable(s, 5.6, 11.5, 26.4, 39, roof, horizontal=False)
+    s.paint(s.m().rect(0.5, 22, 31.5, 30, 0.3), walls, sh=0.6)  # transept
+    gable(s, 1.1, 22.5, 30.9, 29.5, roof, horizontal=True)
+    s.paint(s.m().rect(10, 1, 22, 13, 0.3), walls, sh=0.8)  # tower with a pyramid roof
+    s.paint(s.m().poly([(10.6, 1.6), (21.4, 1.6), (16, 7)]), mix(roof, (255, 255, 255), 0.12), sh=0, edge=False)
+    s.paint(s.m().poly([(10.6, 1.6), (16, 7), (10.6, 12.4)]), roof, sh=0, edge=False)
+    s.paint(s.m().poly([(21.4, 1.6), (21.4, 12.4), (16, 7)]), dk(roof, 0.82), sh=0, edge=False)
+    s.paint(s.m().poly([(10.6, 12.4), (16, 7), (21.4, 12.4)]), dk(roof, 0.7), sh=0, edge=False)
+    s.paint(s.m().rect(15.5, 4, 16.5, 10).rect(13.8, 5.6, 18.2, 6.6), P["white"], sh=0)  # cross
+    return s.drop(1.0)
+
+
+def silo():
+    s = Spr(16, 24)
+    s.paint(s.m().rect(6, 13, 10, 23, 0.4), P["metal"], sh=0.4)  # loading chute
+    s.paint(s.m().ell(8, 8, 7), P["metalroof"], sh=1.4, light=0.8)
+    ring = s.m().ell(8, 8, 5)
+    ring.ell(8, 8, 4.5, v=0)
+    fill(s.img, ring.im, dk(P["metalroof"], 0.75) + (180,))
+    s.paint(s.m().ell(8, 8, 1.6), dk(P["metalroof"], 0.7), sh=0.3)
+    return s.drop(1.0)
+
+
+def tree():
+    s = Spr(16, 16)
+    s.paint(s.m().ell(8, 7.6, 6.2, 5.9), P["canopy"], sh=2.2)
+    rnd = random.Random(31)
+    m = s.m()
+    for _ in range(5):
+        m.ell(rnd.uniform(5.5, 9), rnd.uniform(5, 8.5), rnd.uniform(1.2, 2.0))
+    fill(s.img, m.im, P["canopy_lt"] + (200,))
+    return s.drop(0.8)
+
+
+def dead_tree():
+    s = Spr(16, 16)
+    col = mix(P["wood"], P["char"], 0.55)
+    m = s.m()
+    rnd = random.Random(41)
+    for k in range(6):
+        a = k / 6 * 6.283 + rnd.uniform(-0.3, 0.3)
+        r = rnd.uniform(4.5, 6.8)
+        ex, ey = 8 + math.cos(a) * r, 8 + math.sin(a) * r
+        m.line([(8, 8), (ex, ey)], 0.55)
+        b = a + rnd.choice((-0.7, 0.7))
+        mx, my = 8 + math.cos(a) * r * 0.6, 8 + math.sin(a) * r * 0.6
+        m.line([(mx, my), (mx + math.cos(b) * 2.2, my + math.sin(b) * 2.2)], 0.35)
+    s.paint(m, col, sh=0)
+    s.paint(s.m().ell(8, 8, 1.4), dk(col, 0.8), sh=0.4)
+    return s.drop(0.5)
+
+
+def fence():
+    s = Spr(16, 4)
+    s.paint(s.m().rect(0, 1.2, 16, 1.8).rect(0, 2.4, 16, 3.0), P["wood"], sh=0, edge=False)
+    s.paint(s.m().rect(0, 0.8, 1.2, 3.4).rect(7.4, 0.8, 8.6, 3.4).rect(14.8, 0.8, 16, 3.4), dk(P["wood"], 0.85), sh=0)
+    return s.drop(0.25)
+
+
+def jetty():
+    """Wooden jetty, shore end at the bottom."""
+    s = Spr(8, 24)
+    s.paint(s.m().rect(1, 0.5, 7, 24), P["wood"], sh=0.4)
+    m = s.m()
+    for k in range(16):
+        m.rect(1.2, k * 1.5 + 0.6, 6.8, k * 1.5 + 0.75)
+    fill(s.img, m.im, dk(P["wood"], 0.65) + (170,))
+    s.paint(s.m().ell(1.2, 1.2, 0.8).ell(6.8, 1.2, 0.8).ell(1.2, 12, 0.8).ell(6.8, 12, 0.8), dk(P["wood"], 0.6), sh=0)
+    return s.drop(0.5)
+
+
+def gas_station():
+    s = Spr(32, 16)
+    s.paint(s.m().rect(0.5, 1, 31.5, 15, 0.5), P["white"], sh=0.8)
+    s.paint(s.m().rect(0.5, 1, 31.5, 2.6, 0.3).rect(0.5, 13.4, 31.5, 15, 0.3), P["red"], sh=0, edge=False)  # fascia
+    m = s.m()
+    for x in (8, 16, 24):
+        m.rect(x - 0.15, 3, x + 0.15, 13)
+    fill(s.img, m.im, dk(P["white"], 0.8) + (150,))
+    s.paint(s.m().ell(4, 8, 1.2).ell(28, 8, 1.2), P["skylight"], sh=0)
+    return s.drop(0.6)
+
+
+def fuel_tank():
+    s = Spr(16, 16)
+    s.paint(s.m().ell(8, 8, 7.2), P["white"], sh=1.4, light=0.6)
+    ring = s.m().ell(8, 8, 6.4)
+    ring.ell(8, 8, 6.0, v=0)
+    fill(s.img, ring.im, dk(P["white"], 0.75) + (170,))
+    s.paint(s.m().ell(8, 8, 1.4), P["metal"], sh=0.3)
+    s.paint(s.m().line([(8, 8), (13.5, 11)], 0.5), P["metal"], sh=0)  # walkway
+    return s.drop(0.8)
+
+
+def woodpile():
+    s = Spr(12, 8)
+    for y in (1.6, 3.6, 5.6):
+        s.paint(s.m().rect(1, y - 1, 11, y + 1, 1.0), P["wood"], sh=0.4)
+    m = s.m()
+    for y in (1.6, 3.6, 5.6):
+        m.ell(1.8, y, 0.75)
+    s.paint(m, mix(P["wood"], (255, 230, 180), 0.35), sh=0, edge=False)  # cut ends
+    return s.drop(0.4)
+
+
+def water_tower():
+    s = Spr(16, 24)
+    s.paint(s.m().line([(4, 9), (2, 23)], 0.6).line([(12, 9), (14, 23)], 0.6).line([(3, 17), (13, 17)], 0.4), P["metal"], sh=0)
+    s.paint(s.m().ell(8, 8, 6.5), P["metalroof"], sh=1.2, light=0.6)
+    s.paint(s.m().poly([(8, 3), (12.5, 8), (8, 13), (3.5, 8)]), mix(P["metalroof"], (255, 255, 255), 0.1), sh=0, edge=False)
+    s.paint(s.m().ell(8, 8, 1.0), P["metal"], sh=0)
+    return s.drop(1.4)
+
+
+def car():
+    """Car seen from above, front to the right. Light paint: tinted in game with modulate."""
+    s = Spr(12, 6)
+    s.paint(s.m().rect(0.4, 0.5, 11.6, 5.5, 1.6), P["car"], sh=0.6)
+    s.paint(s.m().rect(7.2, 1.1, 8.8, 4.9, 0.4).rect(2.2, 1.2, 3.2, 4.8, 0.3), P["glass"], sh=0, edge=False)
+    s.paint(s.m().rect(3.4, 1.2, 7.0, 4.8, 0.5), mix(P["car"], (255, 255, 255), 0.15), sh=0, edge=False)
+    return s.drop(0.25)
+
+
 SPRITES = {
     "heli": heli, "rotor": rotor, "bullet": bullet, "shambler": shambler, "runner": runner, "brute": brute,
     "boss": boss, "survivor": survivor, "helipad": helipad, "turret": turret, "hangar": hangar, "wall": wall,
     "crate": crate, "radio_tower": radio_tower, "wreck": wreck, "den": den, "muzzle": muzzle,
+    "church": church, "barn": barn, "silo": silo, "tree": tree, "dead_tree": dead_tree, "fence": fence,
+    "jetty": jetty, "gas_station": gas_station, "fuel_tank": fuel_tank, "woodpile": woodpile,
+    "water_tower": water_tower, "car": car, "house": house(16, 16), "house_2x1": house(32, 16), "house_2x2": house(32, 32),
 }
 SIZES = {  # logical sizes, see assets/sprites/README.md
     "heli": (32, 32), "rotor": (32, 32), "bullet": (4, 4), "shambler": (16, 16), "runner": (16, 16),
-    "brute": (24, 24), "boss": (48, 48), "survivor": (8, 8), "tiles": (256, 16), "helipad": (48, 48),
+    "brute": (24, 24), "boss": (48, 48), "survivor": (8, 8), "tiles": (16 * len(TILES), 16), "helipad": (48, 48),
     "turret": (16, 16), "hangar": (32, 32), "wall": (16, 16), "crate": (16, 16), "radio_tower": (16, 32),
     "wreck": (32, 32), "den": (32, 32), "muzzle": (8, 8), "explosion": (96, 16),
+    "church": (32, 40), "barn": (32, 24), "silo": (16, 24), "tree": (16, 16), "dead_tree": (16, 16), "fence": (16, 4),
+    "jetty": (8, 24), "gas_station": (32, 16), "fuel_tank": (16, 16), "woodpile": (12, 8), "water_tower": (16, 24),
+    "car": (12, 6), "house": (16, 16), "house_2x1": (32, 16), "house_2x2": (32, 32),
 }
 
 

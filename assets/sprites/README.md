@@ -14,12 +14,56 @@ Sizes below are LOGICAL; the PNGs are 4x that (tile 64 px, heli 128 px). Load th
 - `brute.png` 24x24: bulky bloated zombie, wide shoulders, burst belly.
 - `boss.png` 48x48: abomination, two heads, six reaching arms, exposed flesh and ribs. No glow.
 - `survivor.png` 8x8: civilian, skin head, blue shirt.
-- `tiles.png` 256x16: 16 tiles of 16x16 in a row, each tiles seamlessly with itself; the grass variants, tree edge
-  and grass share one ground so they also join each other. Index (= `T` enum in scripts/chunk_manager.gd):
-  0 grass, 1 forest, 2 water, 3 sand, 4 road (vertical dashed line), 5 building, 6 ruin, 7 base_floor,
-  8 grass2 (lusher), 9 grass3 (dry), 10 field (vertical crop rows), 11 dirt_road (vertical wheel tracks), 12 rock,
-  13 tree_edge (grass with a few trees), 14 house_yard (lawn, vertical path), 15 asphalt (plain, same ground as road).
-  Directional tiles are turned with the transposed alternative tile in chunk_manager.gd.
+- `tiles.png` 384x16: 24 tiles of 16x16 in a row, each tiles seamlessly with itself; the grass variants, tree edge,
+  hedge and grass share one ground so they also join each other. Index = `T` enum in scripts/chunk_manager.gd;
+  "land" = the heli may land there (`is_landable`):
+
+  | # | tile | land | notes |
+  |---|------|------|-------|
+  | 0 | grass | yes | |
+  | 1 | forest | no | dense canopy |
+  | 2 | water | no | |
+  | 3 | sand | yes | beaches, river banks |
+  | 4 | road | yes | vertical dashed line |
+  | 5 | building | no | flat roof; tinted roof alternatives; also under house props |
+  | 6 | ruin | yes | |
+  | 7 | base_floor | yes | |
+  | 8 | grass2 | yes | lusher |
+  | 9 | grass3 | yes | dry |
+  | 10 | field | yes | vertical crop rows, golden (ripe) alternatives |
+  | 11 | dirt_road | yes | vertical wheel tracks |
+  | 12 | rock | no | |
+  | 13 | tree_edge | yes | grass with a few trees, forest borders |
+  | 14 | house_yard | yes | lawn, vertical path |
+  | 15 | asphalt | yes | plain, same ground as road |
+  | 16 | hedge | no | grass with a vertical hedgerow |
+  | 17 | marsh | yes | reeds and pools at lake shores |
+  | 18 | warehouse | no | seamless ribbed metal roof, vertical ribs |
+  | 19 | ash | yes | burned ground, wasteland |
+  | 20 | crater | yes | shell crater in ash |
+  | 21 | parking | yes | asphalt, two bays whose lines start at the top edge |
+  | 22 | plaza | yes | cobbled village square |
+  | 23 | pad | no | concrete foundation under big props (church, barn, silo, tanks, gas station) |
+
+  Directional tiles are turned with the transposed alternative tile (and parking bays flipped) in chunk_manager.gd.
+
+Props, placed by chunk_manager.gd through `Game.world.spawn_prop` (z 1, decorative). Light neutral roofs and car
+paint are tinted in game with `modulate`. Facing up unless noted:
+
+- `church.png` 32x40: nave and transept with a square tower and cross at the top.
+- `barn.png` 32x24: red gable roof, ridge along x, white gable trim, cupola.
+- `silo.png` 16x24: round domed silo, loading chute at the bottom.
+- `tree.png` 16x16: single round canopy with shadow.
+- `dead_tree.png` 16x16: bare charred branches.
+- `fence.png` 16x4: wooden fence segment, horizontal.
+- `jetty.png` 8x24: plank jetty, shore end at the bottom.
+- `gas_station.png` 32x16: white canopy with red fascia.
+- `fuel_tank.png` 16x16: round white tank with walkway.
+- `woodpile.png` 12x8: stacked logs, cut ends to the left.
+- `water_tower.png` 16x24: tank on four legs.
+- `car.png` 12x6: light car, front to the right.
+- `house.png` 16x16, `house_2x1.png` 32x16, `house_2x2.png` 32x32: gable-roofed houses (ridge along x), covering
+  their whole footprint so the building tiles underneath do not show.
 - `helipad.png` 48x48: dark concrete disc, white ring and H.
 - `turret.png` 16x16: gray base, barrel up.
 - `hangar.png` 32x32: olive roof, dark door at bottom edge.
