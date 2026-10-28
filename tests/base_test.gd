@@ -138,6 +138,9 @@ func _run() -> void:
 				walls[c] = main.chunks.get_cell_atlas_coords(c)
 				main.chunks.set_cell(c, 0, Vector2i(main.T.BUILDING, 0))
 	main.nav_dirty()
+	for leftover in get_tree().get_nodes_in_group("enemies"): # the militia section's zombies must not touch the base now
+		leftover.queue_free()
+	await process_frame
 	var z: Node2D = main.spawn_enemy("shambler", main.base.position + Vector2(114, 0), true)
 	z.hp = 1e6 # the turret must not kill it before it reaches the sandbag
 	var bhp: float = Game.base_hp
