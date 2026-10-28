@@ -14,6 +14,8 @@ var log_lines: Array[String] = []
 const MAP_SIZE := 200.0
 const MAP_SCALE := 16.0 # world px per minimap px
 const MAP_SEEN := 480.0 # POIs this close to the heli become known
+const ARC_IN := 36.0 # door gun wedges around the heli, screen px (camera zoom 2)
+const ARC_OUT := 56.0
 # minimap terrain colours by chunk_manager tile index (see its T enum)
 const MAP_COLORS := {
 	0: Color(0.36, 0.48, 0.25), 8: Color(0.33, 0.46, 0.24), 9: Color(0.42, 0.5, 0.28), 13: Color(0.28, 0.4, 0.2), # grass
@@ -130,6 +132,8 @@ func _process(_delta: float) -> void:
 	alert.text = "BASE UNDER ATTACK" if Game.attack_active and fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0 else ""
 	if Game.fuel < Game.max_fuel * 0.2 and alert.text == "":
 		alert.text = "LOW FUEL"
+	if Game.heli and Game.heli.no_angle > 0.0 and alert.text == "":
+		alert.text = "no firing angle: swing the heli"
 	compass.queue_redraw()
 	minimap.queue_redraw()
 
@@ -146,9 +150,30 @@ func _draw_compass() -> void:
 		return
 	var center := compass.size / 2.0
 	compass.draw_arc(center, Game.heli.weapon_range() * 2.0, 0.0, TAU, 64, Color(1, 1, 1, 0.12), 1.0) # camera zoom 2
+	_door_arcs(Game.heli.get_global_transform_with_canvas().origin) # on the heli itself, the smoothed camera lags behind it
 	_arrow(center, Game.world.base.global_position, Color(0.9, 0.9, 0.3), "BASE")
 	if is_instance_valid(Game.world.radio_target):
 		_arrow(center, Game.world.radio_target.global_position, Color(0.4, 1, 0.5), "RADIO")
+
+
+## Left and right door gun arcs turning with the heli body, lit on the side the mouse aims at; aim line red outside both.
+func _door_arcs(at: Vector2) -> void:
+	var heli: Node2D = Game.heli
+	var aim: Vector2 = heli.aim_dir()
+	var ok: bool = heli.in_arc(aim)
+	var half := deg_to_rad(heli.ARC_DEG)
+	for side in [0.0, PI]:
+		var a: float = heli.body.rotation + side # body rotation 0 = nose up, so the doors face rotation and rotation + PI
+		var lit: bool = ok and Vector2.from_angle(a).dot(aim) > 0.0
+		var pts := PackedVector2Array()
+		for i in 15:
+			pts.append(at + Vector2.from_angle(a - half + i * half / 7.0) * ARC_OUT)
+		for i in 15:
+			pts.append(at + Vector2.from_angle(a + half - i * half / 7.0) * ARC_IN)
+		compass.draw_colored_polygon(pts, Color(1, 0.85, 0.3, 0.28 if lit else 0.12))
+		compass.draw_arc(at, ARC_OUT, a - half, a + half, 24, Color(0, 0, 0, 0.35), 4.0) # dark rim for daylight contrast
+		compass.draw_arc(at, ARC_OUT, a - half, a + half, 24, Color(1, 0.85, 0.3, 0.95 if lit else 0.5), 2.0 if lit else 1.5)
+	compass.draw_line(at + aim * ARC_IN, at + aim * (ARC_OUT + 14.0), Color(1, 1, 1, 0.8) if ok else Color(1, 0.2, 0.15, 0.9), 2.0)
 
 
 func _arrow(center: Vector2, world_pos: Vector2, color: Color, text: String) -> void:
@@ -193,6 +218,8 @@ func _draw_minimap() -> void:
 		if p.discovered:
 			minimap.draw_rect(Rect2(to_map.call(p.global_position) - Vector2(2, 2), Vector2(4, 4)), POI_COLORS.get(p.kind, Color.WHITE))
 	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.get("concealed"):
+			continue # in the forest
 		var mp: Vector2 = (e.global_position - heli_pos) / MAP_SCALE + Vector2(half, half)
 		if mp.x >= 0 and mp.y >= 0 and mp.x < MAP_SIZE and mp.y < MAP_SIZE:
 			minimap.draw_rect(Rect2(mp - Vector2(1, 1), Vector2(2, 2)), Color(1, 0.25, 0.25))

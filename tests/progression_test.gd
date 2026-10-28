@@ -27,6 +27,9 @@ func _run() -> void:
 	Game.time = 0.0 # midnight
 	# searchlight: of two zombies walking to the base, the one in the cone moves slower
 	Game.take_item("searchlight")
+	for c in 16: # plain grass under both walks (the seed is random: no forest or houses in the way)
+		for r in 16:
+			main.chunks.set_cell(Vector2i((heli.position / 16.0).floor()) + Vector2i(c - 4, r - 4), 0, Vector2i(0, 0))
 	var lit: Node2D = main.spawn_enemy("shambler", heli.position + Vector2(100, 0), true)
 	var dark: Node2D = main.spawn_enemy("shambler", heli.position + Vector2(0, 100), true)
 	lit.speed = 20.0
@@ -79,11 +82,21 @@ func _run() -> void:
 	assert(e1.hp < e1.max_hp and e2.hp < e2.max_hp, "railgun chain hit a second target")
 	e1.queue_free()
 	e2.queue_free()
-	# co-gunner: shoots and kills a nearby zombie on its own
+	# co-gunner: holds fire without ammo, then shoots and kills a nearby zombie on its own, 1 round per 3 shots
 	Game.take_item("cogunner")
+	var cg: Node = heli.get_node("cogunner")
+	Game.ammo = 0
 	var z: Node2D = main.spawn_enemy("shambler", heli.position + Vector2(120, 0))
 	z.hp = 3.0
+	await _frames(60)
+	assert(cg.shots == 0 and is_instance_valid(z), "co-gunner holds fire with no ammo")
+	Game.ammo = 50
 	await _frames(240)
 	assert(not is_instance_valid(z), "co-gunner killed the zombie")
+	z = main.spawn_enemy("brute", heli.position + Vector2(120, 0))
+	z.hp = 1e9
+	await _frames(240)
+	assert(cg.shots >= 3 and Game.ammo == 50 - floori(cg.shots / 3.0), "co-gunner pays 1 round per 3 shots: %d shots, %d ammo" % [cg.shots, Game.ammo])
+	z.queue_free()
 	print("PROG OK  systems=%d" % heli.get_children().filter(func(c): return Progression.ITEMS.has(str(c.name))).size())
 	get_tree().quit(0)

@@ -14,6 +14,8 @@ var tutorial: Node # tutorial.gd while one runs
 var pois := []
 
 const BASE_POS := Vector2(16 * 16 + 8, 16 * 16 + 8) # centre of chunk (0,0)
+const T := preload("res://scripts/chunk_manager.gd").T
+const SOLID := [T.WATER, T.BUILDING, T.ROCK, T.WAREHOUSE, T.HEDGE] # walkers (zombies, survivors) cannot enter
 
 
 func _ready() -> void:
@@ -103,6 +105,22 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Open ground that is not under a finished base building.
 func is_landable(pos: Vector2) -> bool:
 	return chunks.is_landable(pos) and not base.building_at(Vector2i((pos / 16.0).floor())).get("built", false)
+
+
+## Ground a zombie or survivor can walk on: no solid terrain, no finished base building.
+func is_walkable(pos: Vector2) -> bool:
+	return not chunks.tile_at(pos) in SOLID and not base.building_at(Vector2i((pos / 16.0).floor())).get("built", false)
+
+
+## The part of `step` a walker at `from` may take: the full step, else slide along x or y, else none.
+## Walkers already stuck inside a solid cell move freely so they can get out.
+func slide(from: Vector2, step: Vector2) -> Vector2:
+	if not is_walkable(from):
+		return step
+	for s in [step, Vector2(step.x, 0), Vector2(0, step.y)]:
+		if is_walkable(from + s):
+			return s
+	return Vector2.ZERO
 
 
 func spawn_poi(kind: String, pos: Vector2, rng: RandomNumberGenerator, count := 0) -> Node2D:

@@ -37,13 +37,20 @@ func _run() -> void:
 	assert(Game.heli.position.x > main.BASE_POS.x + 100, "heli moved: %s" % Game.heli.position)
 	assert(Game.fuel < fuel0, "fuel burned")
 	assert(main.chunks.loaded.size() > 25, "new chunks generated while flying")
-	# fire a few rounds
+	# door gun arcs: straight ahead is out of reach, out of the side door fires
+	var nose := Vector2.UP.rotated(Game.heli.body.rotation)
+	Game.heli.aim_override = nose
 	var ammo0 := Game.ammo
 	Input.action_press("fire")
 	for i in 20:
 		await process_frame
+	assert(Game.ammo == ammo0 and Game.heli.no_angle > 0.0, "no shot straight ahead")
+	Game.heli.aim_override = nose.orthogonal()
+	for i in 20:
+		await process_frame
 	Input.action_release("fire")
-	assert(Game.ammo < ammo0, "ammo consumed")
+	Game.heli.aim_override = Vector2.ZERO
+	assert(Game.ammo < ammo0, "ammo consumed firing sideways")
 	for c in main.get_children():
 		if c.get_script() == preload("res://scripts/bullet.gd"):
 			assert(c.life <= 420.0 / 520.0 + 0.001, "bullet lifetime follows the weapon range: %s" % c.life)
