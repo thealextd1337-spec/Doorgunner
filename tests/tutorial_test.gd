@@ -54,7 +54,13 @@ func _run() -> void:
 	await process_frame
 	assert(Game.rescued == 3 and tut.step == 5, "step 4 done: delivered")
 	assert(Game.scrap >= 80, "construction scrap granted")
-	# 5-7 by direct calls
+	# 5-7 by direct calls, on cleared ground: founding no longer paves around the pad, the seed may put water there
+	var bc := Vector2i((main.BASE_POS / 16.0).floor())
+	for x in range(-10, 11):
+		for y in range(-10, 11):
+			if not main.chunks.is_landable(main.base.cell_pos(bc + Vector2i(x, y))):
+				main.chunks.set_cell(bc + Vector2i(x, y), 0, Vector2i(main.T.GRASS, 0))
+	main.nav_dirty()
 	var cell := Vector2i(((main.BASE_POS + Vector2(-20, 60)) / 16.0).floor())
 	assert(main.base.place_building("barracks", cell), "barracks blueprint")
 	assert(main.base.ui.set_worker("build", 1), "build worker")
