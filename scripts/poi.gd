@@ -26,6 +26,7 @@ var boss_called := false
 var spawn_cd := 8.0
 var spawned := []
 var raid_warned := 0.0
+var last_raid_ms := -100000
 
 
 ## "180 m north-east" as seen from `from` (10 px = 1 m).
@@ -209,6 +210,11 @@ func _board(s: Node2D) -> void:
 func lose_survivor(silent := false) -> void:
 	if kind != "survivors" or done or survivors.is_empty():
 		return
+	# a whole horde strikes at once; cap losses to one survivor per 8 s per settlement
+	var now_ms := Time.get_ticks_msec()
+	if not silent and now_ms - last_raid_ms < 8000:
+		return
+	last_raid_ms = now_ms
 	var s: Node2D = survivors.pop_back()
 	if s.target != null:
 		s.target = null
