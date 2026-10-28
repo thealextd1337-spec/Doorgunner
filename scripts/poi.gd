@@ -1,7 +1,7 @@
 extends Node2D
 ## Points of interest. Landing within LAND_DIST triggers the reward; nests are enemies instead.
 
-const LABELS := {"survivors": "settlement", "hideout": "hideout", "crate": "supply cache", "nest": "zombie den", "radio_tower": "relay tower", "wreck": "crash site", "upgrade": "weapons cache", "water_tower": "water tower", "pharmacy": "pharmacy"}
+const LABELS := {"survivors": "settlement", "hideout": "hideout", "crate": "supply cache", "nest": "zombie den", "radio_tower": "relay tower", "wreck": "crash site", "upgrade": "weapons cache", "water_tower": "water tower", "pharmacy": "pharmacy", "scrapyard": "scrap yard"}
 const DIRS := ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"]
 const LAND_DIST := 48.0
 const Weapons := preload("res://scripts/weapons.gd")
@@ -58,10 +58,11 @@ func _ready() -> void:
 			add_child(s)
 			survivors.append(s)
 		return
-	sprite = Art.sprite({"upgrade": "crate", "nest": "den", "pharmacy": "crate"}.get(kind, kind))
+	sprite = Art.sprite({"upgrade": "crate", "nest": "den", "pharmacy": "crate", "scrapyard": "wreck"}.get(kind, kind))
 	add_child(sprite)
 	match kind:
 		"upgrade": sprite.modulate = Color(0.6, 0.8, 1.0)
+		"scrapyard": sprite.modulate = Color(0.55, 0.55, 0.55)
 		"pharmacy":
 			sprite.modulate = Color(0.5, 1.0, 0.55)
 			sprite.show_behind_parent = true # the cross in _draw goes on top
@@ -126,6 +127,10 @@ func _on_landed(landed: bool) -> void:
 			Game.base_water += 40.0
 			Game.radio("Water tower: tanks filled, base water +40.")
 			_finish(false)
+		"scrapyard":
+			_salvage(20.0, 6.0, 2.0)
+			Game.radio("Scrap yard: stripped clean, salvage +20 metal, +6 parts, +2 electronics.")
+			_finish(false)
 		"pharmacy":
 			Game.base_medicine += 4.0
 			Game.radio("Pharmacy: shelves cleared, base medicine +4.")
@@ -146,7 +151,8 @@ func _on_landed(landed: bool) -> void:
 				Game.base_ammo = minf(Game.base_ammo_cap, Game.base_ammo + 100.0)
 				Game.base_water += 10.0
 				Game.base_medicine += 1.0
-				Game.radio("Supply cache: +%d ammo, +%d fuel, +%d scrap. Base stock +50 fuel, +100 ammo, +15 food, +10 water, +1 medicine." % [a, f, s])
+				_salvage(6.0, 0.0, 0.0)
+				Game.radio("Supply cache: +%d ammo, +%d fuel, +%d scrap. Base stock +50 fuel, +100 ammo, +15 food, +10 water, +1 medicine, +6 metal." % [a, f, s])
 			_finish(true)
 		"upgrade":
 			Game.scrap += 10
@@ -194,8 +200,15 @@ func _on_landed(landed: bool) -> void:
 					line = "recovered a %s" % Weapons.TABLE[id]["name"]
 			Game.base_medicine += 2.0
 			Game.base_rifles += 1.0
-			Game.radio("Crash site: %s, +%d scrap, 2 medkits and a rifle." % [line, s])
+			_salvage(10.0, 4.0, 1.0)
+			Game.radio("Crash site: %s, +%d scrap, 2 medkits, a rifle, salvage +10 metal, +4 parts, +1 electronics." % [line, s])
 			_finish(false)
+
+
+func _salvage(metal: float, parts: float, electronics: float) -> void:
+	Game.salvage["metal"] += metal
+	Game.salvage["parts"] += parts
+	Game.salvage["electronics"] += electronics
 
 
 func _finish(hide: bool) -> void:

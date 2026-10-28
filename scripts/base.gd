@@ -94,12 +94,13 @@ func _process(delta: float) -> void:
 	if Game.workers["build"] <= 0:
 		return
 	var site: Dictionary = next_site() # buildings and perimeter work first, then sandbags
+	var crew: float = Game.workers["build"] * Game.work_eff() # campers build at half rate
 	if not site.is_empty():
-		site["progress"] += Game.workers["build"] * delta
+		site["progress"] += crew * delta
 		if site["progress"] >= Game.BUILDINGS[site["kind"]][2]:
 			_finish_site(site)
 		return
-	build_progress += Game.workers["build"] * delta / Game.BUILD_SECONDS
+	build_progress += crew * delta / Game.BUILD_SECONDS
 	while build_progress >= 1.0:
 		var cell: Variant = _nearest_blueprint()
 		if cell == null:
@@ -401,7 +402,7 @@ func _on_landed(landed: bool) -> void:
 	if Game.heli.position.distance_to(position) > PAD_REACH:
 		return
 	resupply()
-	var free_hp: float = Game.MEDIC_REPAIR * Game.workers["medic"] # medics patch for free, the rest is 1 scrap per 5 hull
+	var free_hp: float = Game.MEDIC_REPAIR * Game.workers["medic"] * Game.work_eff() # medics patch for free, the rest is 1 scrap per 5 hull
 	var repair := int(ceil(maxf(0.0, Game.max_hp - Game.hp - free_hp) / 5.0))
 	if Game.scrap >= repair:
 		Game.scrap -= repair

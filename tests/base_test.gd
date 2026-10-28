@@ -2,7 +2,7 @@ extends Node
 ## Headless base test. main.gd adds this node when env SMOKE=base:
 ##   SMOKE=base godot --headless --path . --quit-after 8000
 ## Landing services from stock, base menu purchase, turret fire, weapon find + Q cycle, loadout, workers, sandbags, militia,
-## then block 2: rifles, perimeter, barracks/campers, water, sickness, clinic, generator.
+## then block 2: rifles, perimeter, barracks/campers, water, sickness, clinic, generator; campers at 50 %, salvage.
 
 
 func _ready() -> void:
@@ -71,8 +71,9 @@ func _run() -> void:
 	assert(Game.loadout_points() == 9 and Game.weight_factor < 1.0, "weight penalty above 8 pts")
 	assert(not main.base.ui.set_loadout("armor", 1), "over budget rejected")
 	# workers: 3 rescued, 2 on fuel duty produce stock over time
-	assert(main.base.ui.set_worker("fuel", 2) and Game.idle_workers() == 0, "fuel workers assigned (2 hangar beds, 1 camper)")
+	assert(main.base.ui.set_worker("fuel", 2) and Game.idle_workers() == 1, "fuel workers assigned (2 hangar beds, 1 camper)")
 	assert(not main.base.ui.set_worker("ammo", 2), "no idle left for two more")
+	assert(main.base.ui.worker_msg.text == "no idle people", "refusal reason shown")
 	var t0: float = Game.time
 	for i in 2000:
 		await process_frame
@@ -194,5 +195,32 @@ func _run() -> void:
 	Game.time = 0.8
 	await process_frame
 	assert(Game.attack_active and Game.injured == 1, "a camper was hurt by the wave")
+	# campers work at half rate: 10 healthy, 6 beds -> 6 full + 4 half = 0.8
+	Game.attack_active = false
+	Game.injured = 0
+	Game.treating = []
+	Game.rescued = 10
+	main.base.ui.unassign_all()
+	assert(Game.idle_workers() == 10 and main.base.ui.set_worker("fuel", 10), "campers can be assigned")
+	assert(is_equal_approx(Game.work_eff(), 0.8), "work_eff %s" % Game.work_eff())
+	Game.base_fuel = 100.0 # one generator burns 10/day
+	Game._process(Game.DAY_SECONDS * 0.01)
+	assert(is_equal_approx(Game.base_fuel, 100.0 + 10 * 20.0 * 0.8 * 0.01 - 0.1), "fuel at 80 %%: %s" % Game.base_fuel)
+	# workshop job: needs the upgrade, breaks electronics down first (3 scrap each)
+	main.base.ui.unassign_all()
+	Game.base_level["workshop"] = 0
+	assert(not main.base.ui.set_worker("workshop", 1), "workshop refused without the upgrade")
+	Game.base_level["workshop"] = 1
+	assert(main.base.ui.set_worker("workshop", 1), "workshop accepted with the upgrade")
+	Game.salvage = {"metal": 1.0, "parts": 0.0, "electronics": 1.0}
+	scrap0 = Game.scrap
+	Game.workshop_progress = 1.0
+	await process_frame
+	assert(Game.salvage["electronics"] == 0.0 and Game.salvage["metal"] >= 1.0 and Game.scrap == scrap0 + 3, "1 electronics -> 3 scrap")
+	# scrap yard next to the heli: salvage on landing, once
+	var yard: Node2D = main.spawn_poi("scrapyard", Game.heli.position + Vector2(30, 0), RandomNumberGenerator.new())
+	var m0: float = Game.salvage["metal"] # kills may have dropped some
+	Game.heli.landed_changed.emit(true)
+	assert(yard.done and Game.salvage["metal"] == m0 + 20.0 and Game.salvage["parts"] == 6.0 and Game.salvage["electronics"] == 2.0, "scrap yard salvaged")
 	print("BASE OK  scrap=%d base_hp=%d weapon=%s base_fuel=%.2f" % [Game.scrap, Game.base_hp, Game.weapon, Game.base_fuel])
 	get_tree().quit(0)

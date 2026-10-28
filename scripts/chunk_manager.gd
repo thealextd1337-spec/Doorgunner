@@ -407,6 +407,10 @@ func _paint_town(origin: Vector2i, rng: RandomNumberGenerator, dist: float, reg:
 			if _tile(Vector2i((at / TILE).floor())) in OPEN:
 				Game.world.spawn_poi("nest", at, rng)
 				break
+	if kind == "industrial" or (kind == "suburb" and rng.randf() < 0.3):
+		var yard := _find(ends[2], size * 2, ROADS, rng)
+		if yard != NONE:
+			Game.world.spawn_poi("scrapyard", _mid(yard, yard), rng)
 	return true
 
 

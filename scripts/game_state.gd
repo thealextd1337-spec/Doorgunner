@@ -14,6 +14,8 @@ const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
 const LOADOUT_COST := {"seats": 1, "fuel_tank": 2, "ammo_feed": 2, "armor": 2} # weight points per level
 const WORKER_RATE := {"fuel": 20.0, "ammo": 40.0, "repair": 40.0, "farm": 6.0, "water": 15.0} # per worker per day
+const WORKSHOP_RATE := 12.0 # salvage units broken down per workshop worker per day
+const SALVAGE_SCRAP := {"electronics": 3, "parts": 2, "metal": 1} # scrap per unit, broken down in this order
 const BUILD_SECONDS := 20.0 # one sandbag per build worker
 const MEDIC_REPAIR := 20.0 # free hull per medic per landing
 const SANDBAG_HP := 120.0
@@ -65,9 +67,11 @@ var base_fuel := 400.0
 var base_ammo := 800.0
 var base_fuel_cap := 600.0
 var base_ammo_cap := 1200.0
-var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0}
+var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0, "workshop": 0}
 var sandbags := {} # Vector2i cell -> {"hp": float, "built": bool}; nodes live in base.gd
 var base_food := 60.0
+var salvage := {"metal": 0.0, "parts": 0.0, "electronics": 0.0} # crates, wrecks, scrap yards, kills; the workshop job turns it into scrap
+var workshop_progress := 0.0 # salvage units owed to the workshop, carried between frames
 # base block 2 (docs/BASE.md): buildings, perimeter, water/medicine/rifles, injuries, power
 # kind -> [name, scrap, build seconds, footprint cells]; "perimeter" costs scrap x next level and has no footprint
 const BUILDINGS := {"barracks": ["Barracks", 40, 90.0, 2], "clinic": ["Field Clinic", 50, 90.0, 2], "generator": ["Generator", 60, 60.0, 1],
@@ -196,9 +200,10 @@ func new_run() -> void:
 	base_seats = 0; base_max_fuel = 75.0; base_max_ammo = 140; base_armor = 1.0
 	loadout = {"seats": 4, "fuel_tank": 1, "ammo_feed": 1, "armor": 0}; loadout_budget = 10
 	base_fuel = 400.0; base_ammo = 800.0; base_fuel_cap = 600.0; base_ammo_cap = 1200.0
-	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0}
+	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0, "workshop": 0}
 	sandbags = {}
 	base_food = 60.0; noise_level = 0.0
+	salvage = {"metal": 0.0, "parts": 0.0, "electronics": 0.0}; workshop_progress = 0.0
 	_reset_progression()
 	buildings = []; base_radius = BASE_RADIUS
 	base_water = 60.0; base_medicine = 2.0; base_rifles = 2.0
@@ -237,12 +242,23 @@ func loadout_points() -> int:
 	return p
 
 
-## Housed, healthy people without a job (campers and the injured do not work).
+## Healthy people without a job (campers work too, at half rate, see work_eff).
 func idle_workers() -> int:
-	var n: int = mini(rescued - injured, housing())
+	return rescued - injured - assigned()
+
+
+func assigned() -> int:
+	var n := 0
 	for k in workers:
-		n -= workers[k]
+		n += workers[k]
 	return n
+
+
+## Output factor of the workforce: assigned workers fill the beds left by the injured first, campers work at 50 %.
+func work_eff() -> float:
+	var n := assigned()
+	var beds: int = maxi(0, housing() - injured)
+	return (mini(n, beds) + 0.5 * maxi(0, n - beds)) / maxf(1.0, n)
 
 
 ## 4 beds per built barracks + 2 in the hangar.
@@ -314,12 +330,20 @@ func _process(delta: float) -> void:
 	if not running or get_tree().paused:
 		return
 	var d := delta / DAY_SECONDS
-	base_fuel = minf(base_fuel_cap, base_fuel + workers["fuel"] * WORKER_RATE["fuel"] * d)
-	base_ammo = minf(base_ammo_cap, base_ammo + workers["ammo"] * WORKER_RATE["ammo"] * d)
-	base_hp = minf(max_base_hp, base_hp + workers["repair"] * WORKER_RATE["repair"] * d)
+	var w := work_eff() * d
+	base_fuel = minf(base_fuel_cap, base_fuel + workers["fuel"] * WORKER_RATE["fuel"] * w)
+	base_ammo = minf(base_ammo_cap, base_ammo + workers["ammo"] * WORKER_RATE["ammo"] * w)
+	base_hp = minf(max_base_hp, base_hp + workers["repair"] * WORKER_RATE["repair"] * w)
 	var eaters: int = rescued + campers() # campers eat and drink double
-	base_food = maxf(0.0, base_food + (workers["farm"] * WORKER_RATE["farm"] - eaters * FOOD_PER_PERSON) * d)
-	base_water = maxf(0.0, base_water + (workers["water"] * WORKER_RATE["water"] + built("well") * WELL_WATER - eaters * WATER_PER_PERSON) * d)
+	base_food = maxf(0.0, base_food + workers["farm"] * WORKER_RATE["farm"] * w - eaters * FOOD_PER_PERSON * d)
+	base_water = maxf(0.0, base_water + workers["water"] * WORKER_RATE["water"] * w + (built("well") * WELL_WATER - eaters * WATER_PER_PERSON) * d)
+	workshop_progress += workers["workshop"] * WORKSHOP_RATE * w
+	for k in SALVAGE_SCRAP:
+		while workshop_progress >= 1.0 and salvage[k] >= 1.0:
+			workshop_progress -= 1.0
+			salvage[k] -= 1.0
+			scrap += SALVAGE_SCRAP[k]
+	workshop_progress = minf(workshop_progress, 1.0) # no stockpiling while idle
 	base_rifles += base_level.get("armory", 0) * d
 	var burn: float = built("generator") * GEN_FUEL * d
 	power = burn > 0.0 and base_fuel > 0.0

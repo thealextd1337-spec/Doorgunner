@@ -159,7 +159,8 @@ func _die() -> void:
 	if randf() < 0.02:
 		Game.base_rifles += 1.0 # a rifle off the body, goes to the base armory
 	if randf() < 0.2 or cfg.get("boss", false):
-		Game.scrap += int((2 + int(cfg["xp"] / 4)) * Game.stats["scrap_gain"])
+		if cfg.get("boss", false): Game.scrap += int((2 + int(cfg["xp"] / 4)) * Game.stats["scrap_gain"])
+		else: Game.salvage["metal"] += 1.0
 		if Progression.level("scavenger") >= 5:
 			Game.ammo = mini(Game.max_ammo, Game.ammo + 10)
 	Game.world.spawn_fx(global_position, 2.0 if cfg.get("boss", false) else 0.7)

@@ -5,7 +5,7 @@ Alles in English im Code, Texte im Spiel English. Zahlen sind Startwerte für da
 
 ## 1. Bevölkerung und Unterkünfte
 - `Game.rescued` bleibt die Gesamtzahl. Neu: `housing` = 4 × Barracken-Stufe + 2 (Hangar-Notlager).
-- Überzählige Leute (rescued > housing) campen draußen: sie essen doppelt, arbeiten nicht (zählen nicht als idle)
+- Überzählige Leute (rescued > housing) campen draußen: sie essen doppelt, arbeiten mit 50 % Leistung (Arbeiter belegen zuerst die Betten)
   und bei jedem Basisangriff wird je Welle einer von ihnen verletzt. Radio warnt beim Abliefern: "no beds left".
 - Barracke wird nicht mehr gekauft, sondern GEBAUT: im BUILD-Tab "Barracks (40 scrap)" setzt einen 2×2-Bauplatz
   (wie Sandsäcke per Klick im Perimeter), Bauarbeiter brauchen 90 s pro Barracke. Sprite: hangar.png getönt.

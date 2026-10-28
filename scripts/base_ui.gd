@@ -9,6 +9,7 @@ const UPGRADES := {
 	"armory": ["Armory", 3, 40, 0],
 	"workshop": ["Workshop", 3, 60, 0],
 }
+const UPGRADE_INFO := {"workshop": "+ enables salvage processing"}
 const BUILD_INFO := {"barracks": "+4 beds", "clinic": "2 beds for the injured", "generator": "power, 10 fuel/day",
 	"well": "+8 water/day", "watchtower": "militia post, +50 % reach"}
 # loadout key -> [label, min, max]
@@ -19,7 +20,8 @@ const LOADOUT := {
 	"armor": ["Armour +15 %/lv (2 pt)", 0, 3],
 }
 const JOBS := {"fuel": "Fuel +20/day", "ammo": "Ammo +40/day", "repair": "Repair +40 hp/day", "militia": "Militia -3 % dmg, mans posts in assaults", "farm": "Farm +6 food/day",
-	"build": "Build: sandbags (20 s) and buildings", "medic": "Medic: 20 hull per landing, faster clinic", "water": "Water +15/day (river or lake within 40 m)"}
+	"build": "Build: sandbags (20 s) and buildings", "medic": "Medic: 20 hull per landing, faster clinic", "water": "Water +15/day (river or lake within 40 m)",
+	"workshop": "Workshop: breaks down salvage, 12/day each (needs Workshop)"}
 const Weapons := preload("res://scripts/weapons.gd")
 
 var header: Label
@@ -33,7 +35,9 @@ var tabs := {} # name -> VBoxContainer
 var loadout_rows := {} # key -> Label
 var loadout_info: Label
 var weapon_box: VBoxContainer
-var job_rows := {} # job -> Label
+var job_rows := {} # job -> Label, its - and + buttons are the next siblings
+var worker_info: Label
+var worker_msg: Label # why the last + was refused, cleared after 3 s
 
 
 func _ready() -> void:
@@ -91,8 +95,15 @@ func _ready() -> void:
 		loadout_rows[k] = _pm_row(tabs["HANGAR"], _adjust_loadout, k)
 	weapon_box = VBoxContainer.new()
 	tabs["HANGAR"].add_child(weapon_box)
+	worker_info = _wrap_lbl(tabs["WORKERS"])
+	worker_msg = _wrap_lbl(tabs["WORKERS"])
+	worker_msg.modulate = Color(1, 0.5, 0.4)
 	for j in JOBS:
 		job_rows[j] = _pm_row(tabs["WORKERS"], _adjust_worker, j)
+	var unassign := Button.new()
+	unassign.text = "Unassign all"
+	unassign.pressed.connect(unassign_all)
+	tabs["WORKERS"].add_child(unassign)
 	var hint := Label.new()
 	hint.text = "[SPACE] take off closes this menu"
 	hint.modulate = Color(0.7, 0.7, 0.7)
@@ -146,6 +157,15 @@ func _lbl(h: HBoxContainer) -> Label:
 	return l
 
 
+func _wrap_lbl(box: VBoxContainer) -> Label:
+	var l := Label.new()
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD
+	l.custom_minimum_size.x = 360
+	l.add_theme_font_size_override("font_size", 13)
+	box.add_child(l)
+	return l
+
+
 func show_tab(tab: String) -> void:
 	for t in tabs:
 		tabs[t].visible = t == tab
@@ -181,9 +201,10 @@ func can_buy(id: String) -> bool:
 func refresh() -> void:
 	var base: Node2D = get_parent()
 	var eaters: int = Game.rescued + Game.campers()
-	header.text = "Scrap: %d   Rescued: %d   Beds: %d   Camping: %d   Injured: %d   Idle: %d\nStock  fuel %d/%d   ammo %d/%d   rifles %d   medicine %d\nfood %d   water %d   (-%d/day each)   power %s" % [
+	header.text = "Scrap: %d   Rescued: %d   Beds: %d   Camping: %d   Injured: %d   Idle: %d\nStock  fuel %d/%d   ammo %d/%d   rifles %d   medicine %d\nfood %d   water %d   (-%d/day each)   power %s\nsalvage metal %d  parts %d  electronics %d" % [
 		Game.scrap, Game.rescued, Game.housing(), Game.campers(), Game.injured, Game.idle_workers(), Game.base_fuel, Game.base_fuel_cap,
-		Game.base_ammo, Game.base_ammo_cap, Game.base_rifles, Game.base_medicine, Game.base_food, Game.base_water, eaters, "on" if Game.power else "off"]
+		Game.base_ammo, Game.base_ammo_cap, Game.base_rifles, Game.base_medicine, Game.base_food, Game.base_water, eaters, "on" if Game.power else "off",
+		Game.salvage["metal"], Game.salvage["parts"], Game.salvage["electronics"]]
 	if base.placing:
 		header.text += "\nClick: place %s   RMB: remove blueprint   Build workers build" % ("sandbag" if base.place_kind == "sandbag" else Game.BUILDINGS[base.place_kind][0])
 	for k in place_btns:
@@ -206,7 +227,7 @@ func refresh() -> void:
 		var lvl: int = Game.base_level.get(id, 0)
 		var maxed: bool = lvl >= u[1]
 		var need: int = u[3] * (lvl + 1)
-		rows[id][0].text = "%s  Lv %d/%d" % [u[0], lvl, u[1]] + ("" if maxed or need == 0 else "  (needs %d rescued)" % need)
+		rows[id][0].text = "%s  Lv %d/%d" % [u[0], lvl, u[1]] + ("" if maxed or need == 0 else "  (needs %d rescued)" % need) + ("  " + UPGRADE_INFO[id] if UPGRADE_INFO.has(id) else "")
 		rows[id][1].text = "MAX" if maxed else "Buy %d" % cost(id)
 		rows[id][1].disabled = not can_buy(id)
 	rows["repair"][0].text = "Repair Base  %d/%d" % [Game.base_hp, Game.max_base_hp]
@@ -217,8 +238,15 @@ func refresh() -> void:
 	for k in LOADOUT:
 		loadout_rows[k].text = "%s: %d" % [LOADOUT[k][0], Game.loadout[k]]
 	_refresh_weapons()
+	worker_info.text = "Population %d   beds %d   camping %d (work at 50 %%)   injured %d   assigned %d   idle %d" % [
+		Game.rescued, Game.housing(), Game.campers(), Game.injured, Game.assigned(), Game.idle_workers()]
 	for j in JOBS:
 		job_rows[j].text = "%s: %d" % [JOBS[j], Game.workers[j]]
+		var h: Node = job_rows[j].get_parent()
+		h.get_child(1).disabled = Game.workers[j] <= 0
+		var why := worker_refusal(j, Game.workers[j] + 1)
+		h.get_child(2).modulate = Color(1, 1, 1, 0.35) if why != "" else Color.WHITE # greyed but clickable: a click shows why
+		h.get_child(2).tooltip_text = why
 	job_rows["militia"].text = "Militia %d (rifles %d)  -3 %% dmg each, mans posts in assaults" % [Game.workers["militia"], Game.base_rifles]
 	job_rows["militia"].modulate = Color(1, 0.4, 0.4) if Game.workers["militia"] > int(Game.base_rifles) else Color.WHITE
 
@@ -329,13 +357,35 @@ func mount(id: String) -> void:
 	refresh()
 
 
-func set_worker(job: String, n: int) -> bool:
+## Why `job` cannot have `n` workers, "" if it can.
+func worker_refusal(job: String, n: int) -> String:
 	var cur: int = Game.workers[job]
-	if n < 0 or n - cur > Game.idle_workers() or (job == "water" and n > cur and not get_parent().water_near()):
+	if n < 0:
+		return "nobody on that job"
+	if n - cur > Game.idle_workers():
+		return "no idle people"
+	if n > cur and job == "water" and not get_parent().water_near():
+		return "no water within 40 m"
+	if n > cur and job == "workshop" and Game.base_level.get("workshop", 0) < 1:
+		return "needs the Workshop upgrade (BUILD tab)"
+	return ""
+
+
+func set_worker(job: String, n: int) -> bool:
+	var why := worker_refusal(job, n)
+	if why != "":
+		worker_msg.text = why
+		get_tree().create_timer(3.0).timeout.connect(func(): if worker_msg.text == why: worker_msg.text = "")
 		return false
 	Game.workers[job] = n
 	refresh()
 	return true
+
+
+func unassign_all() -> void:
+	for k in Game.workers:
+		Game.workers[k] = 0
+	refresh()
 
 
 func _adjust_worker(job: String, d: int) -> void:
