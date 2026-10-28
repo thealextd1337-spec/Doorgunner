@@ -27,6 +27,33 @@ func _run() -> void:
 	assert(is_equal_approx(Game.fuel, 20.0) and Game.base_fuel == 0.0, "partial refuel from stock")
 	assert(Game.ammo == Game.max_ammo and Game.base_ammo == 800.0 - Game.max_ammo, "rearmed from stock")
 	assert(main.ui_open, "base menu open")
+	# base pawns: one per delivered person, they change into uniform in the barracks (the hangar for now), militia carry rifles
+	var pawns: Node2D = main.base.pawns
+	assert(pawns.get_child_count() == 3, "3 pawns walk off the pad")
+	Engine.max_fps = 60
+	Engine.time_scale = 8.0
+	for i in 600:
+		await process_frame
+		if pawns.get_children().any(func(p): return p.uniformed):
+			break
+	assert(pawns.get_children().any(func(p): return p.uniformed), "a pawn came out of the barracks in uniform")
+	assert(main.base.ui.set_worker("militia", 1), "militia for the pawns")
+	for i in 600:
+		await process_frame
+		if pawns.get_children().any(func(p): return p.gear == "rifle"):
+			break
+	assert(pawns.get_children().any(func(p): return p.gear == "rifle"), "a militia pawn carries a rifle")
+	Game.time = 0.9 # night: everyone but the militia sleeps in the barracks
+	var asleep := func(): return pawns.get_children().any(func(p): return p.state == "live" and p.job != "militia" and not p.visible)
+	for i in 600:
+		await process_frame
+		if asleep.call():
+			break
+	assert(asleep.call(), "a pawn went to bed at night")
+	Game.time = 0.25
+	Engine.time_scale = 1.0
+	Engine.max_fps = 0
+	main.base.ui.set_worker("militia", 0)
 	var scrap0: int = Game.scrap
 	assert(main.base.ui.buy("turrets"), "turret purchase accepted")
 	assert(Game.base_level["turrets"] == 1, "turret level stored")
