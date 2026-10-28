@@ -30,6 +30,11 @@ var goal_cd := 0.0
 var wander := Vector2.ZERO
 var wander_cd := 0.0
 var sprite: Sprite2D
+# heli systems (scripts/systems): searchlight slow/stun, loudspeaker panic, flare decoys
+var slowed := 0.0 # fraction of speed lost, set each frame by the searchlight
+var stun_left := 0.0
+var panic_left := 0.0
+var panic_from := Vector2.ZERO
 
 
 func setup(kind_name: String, pos: Vector2, danger: float, base_target := false) -> void:
@@ -54,6 +59,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not Game.running or Game.heli == null:
 		return
+	delta *= 1.0 - slowed
+	slowed = 0.0
 	attack_cd -= delta
 	var heli: Node2D = Game.heli
 	var to_heli: Vector2 = heli.global_position - global_position
@@ -66,6 +73,8 @@ func _process(delta: float) -> void:
 			spawn_cd = 10.0
 			for i in 2:
 				Game.world.spawn_enemy("runner", global_position + Vector2(30, 0).rotated(randf() * TAU), target_base)
+	if _system_hooks(delta):
+		return
 	# 1. base assault
 	if target_base:
 		_approach(delta, Game.world.base, radius + 50.0, Game.world.base.take_damage)
@@ -148,10 +157,48 @@ func _die() -> void:
 	Game.kills += 1
 	Game.add_xp(cfg["xp"])
 	if randf() < 0.2 or cfg.get("boss", false):
-		Game.scrap += 2 + int(cfg["xp"] / 4)
+		Game.scrap += int((2 + int(cfg["xp"] / 4)) * Game.stats["scrap_gain"])
+		if Progression.level("scavenger") >= 5:
+			Game.ammo = mini(Game.max_ammo, Game.ammo + 10)
 	Game.world.spawn_fx(global_position, 2.0 if cfg.get("boss", false) else 0.7)
 	Sfx.play("explosion" if cfg.get("boss", false) else "enemy_die", global_position)
 	if cfg.get("boss", false):
 		Game.radio("Abomination down! Outstanding, gunner.")
+		Game.meta["boss_kills"] += 1
 		Sfx.play("boss_roar", global_position)
 	queue_free()
+
+
+## Searchlight Lv5: freeze for `seconds`, then immune for 4 s.
+func stun(seconds: float) -> void:
+	if stun_left <= -4.0:
+		stun_left = seconds
+
+
+## Loudspeaker Lv5: run away from `from` for `seconds`.
+func panic(from: Vector2, seconds: float) -> void:
+	panic_from = from
+	panic_left = seconds
+
+
+## Stun, panic and flare decoys (Lv5 flares join group "decoys") override the normal goals. True = handled.
+func _system_hooks(delta: float) -> bool:
+	stun_left -= delta
+	panic_left -= delta
+	if stun_left > 0.0:
+		return true
+	if panic_left > 0.0:
+		var away := global_position - panic_from
+		_face(away)
+		position += away.normalized() * speed * delta
+		return true
+	var best: Node2D
+	var best_d := 400.0 * 400.0
+	for d in get_tree().get_nodes_in_group("decoys"):
+		if global_position.distance_squared_to(d.global_position) < best_d:
+			best_d = global_position.distance_squared_to(d.global_position)
+			best = d
+	if best == null:
+		return false
+	_approach(delta, best, radius + 6.0, best.hit)
+	return true

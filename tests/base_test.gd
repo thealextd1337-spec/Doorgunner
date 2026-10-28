@@ -38,7 +38,10 @@ func _run() -> void:
 		if not is_instance_valid(e) or e.hp < e.max_hp:
 			break
 	assert(not is_instance_valid(e) or e.hp < e.max_hp, "turret hit the enemy")
-	# weapons cache next to the pad: forced weapon branch fills the second heli slot and auto-equips
+	# weapons cache next to the pad: forced weapon branch fills the second hardpoint (Workshop 1) and auto-equips
+	Game.base_level["workshop"] = 1
+	Game.recompute()
+	assert(Game.slots["hardpoint"] == 2, "workshop 1 adds a hardpoint")
 	var cache: Node2D = main.spawn_poi("upgrade", Game.heli.position + Vector2(30, 0), RandomNumberGenerator.new())
 	cache.force_weapon = true
 	Game.heli.landed_changed.emit(true)

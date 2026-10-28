@@ -219,4 +219,5 @@ func _on_landed(landed: bool) -> void:
 		Game.scrap += 3 * n
 		Game.radio("%d survivors delivered. Total: %d" % [n, Game.rescued])
 		Game.add_xp(6 * n)
+		Progression.on_delivery()
 	ui.open()

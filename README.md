@@ -6,18 +6,20 @@ build the base up, and hold it when the horde assaults every third night.
 
 ## Play
 - Open the project in Godot 4.7 (`godot --path .`) and press F5, or run `godot --path . --export`-free: just `godot --path .`.
-- **WASD / arrows** fly, **mouse** aims, **LMB** fires the door gun, **SPACE** lands / takes off, **R** restarts after a run ends, **ESC** opens the sound settings (volumes are saved).
+- **WASD / arrows** fly, **mouse** aims, **LMB** fires the door gun, **SPACE** lands / takes off, **Q** switches guns, **F** fires the loudspeaker (when fitted), **R** restarts after a run ends, **ESC** opens the sound settings (volumes are saved).
 - Land next to a point of interest to interact: settlements (survivors board one by one, hold the LZ),
-  supply crates (fuel, ammo, scrap), weapons caches (pick an upgrade), relay towers (reveal nearby POIs),
+  supply crates (fuel, ammo, scrap), weapons caches (a weapon or one item card), relay towers (reveal nearby POIs),
   crash sites (scrap and a permanent boost). Zombie dens spawn an abomination boss when approached.
 - Landing on the base pad refuels, rearms, repairs, delivers passengers and opens the base menu (turrets, depot, armory, workshop, clinic, barracks).
 - Sandbags: toggle "Place sandbags" in the BUILD tab and click around the pad (5 scrap, RMB removes). Blueprints are built by survivors on Build duty, zombies have to chew through them, Militia man them during assaults, Medics patch the hull for free.
 - Pace is deliberate: landing and take-off spool for 1.5 s, gunfire and the rotor make NOISE that draws zombies (flying is safe, landing is not: everything within 600 px swarms a landed heli), settlements fall overnight if you leave them, the base eats food (farm workers, crates) and hull repairs cost scrap.
-- Fuel and ammo run out. Level-ups let you pick one of three upgrades. Dying ends the run; survivors rescued
-  across runs unlock permanent seats, fuel and ammo capacity (saved in `user://meta.json`).
+- Fuel and ammo run out. Dying ends the run; survivors rescued across runs unlock permanent seats, fuel and ammo capacity (saved in `user://meta.json`).
+- Progression (`docs/PROGRESSION.md`, `scripts/progression.gd`): the heli has hardpoint / system / module slots (start 1/2/2, Workshop or meta unlocks raise them to 2/3/3).
+  Each level-up offers three item cards (new item or next level, max 5): **1-4** or click picks, **R** rerolls, **S** skips for 15 scrap, **B** banishes (unlocked at 200 rescued).
+  Heli level caps at 30, further XP turns into scrap. The base HANGAR tab scraps items; the title screen HANGAR (**H**) lists every item and its unlock condition.
 
 ## Dev
 - `python tools/gen_sprites.py` regenerates the art ("Field Map" style) in `assets/sprites/b/`. Previews: `docs/region_*.png`.
 - `python tools/gen_sfx.py` regenerates all sound effects in `assets/sfx/`. Sound starts muted for now: **M** or the ESC menu turns it on.
-- Headless checks (bash): `SMOKE=1 godot --headless --path . --quit-after 3000` prints `SMOKE OK`. Other values: `poi`, `base`, `ui`.
-- `SMOKE=shot godot --path .` saves three screenshots into the project folder.
+- Headless checks (bash): `SMOKE=1 godot --headless --path . --quit-after 30000` prints `SMOKE OK`. Other values: `poi`, `base`, `ui`, `prog` (heli systems).
+- `SMOKE=shot godot --path .` saves screenshots (flight, combat, level-up cards, base, hangar, settings, title hangar) into the project folder.

@@ -12,7 +12,6 @@ const ATTACK_EVERY_DAYS := 3
 const META_PATH := "user://meta.json"
 const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
-const HELI_SLOTS := 2
 const LOADOUT_COST := {"seats": 1, "fuel_tank": 2, "ammo_feed": 2, "armor": 2} # weight points per level
 const WORKER_RATE := {"fuel": 20.0, "ammo": 40.0, "repair": 40.0, "farm": 6.0} # per worker per day
 const BUILD_SECONDS := 20.0 # one sandbag per build worker
@@ -49,7 +48,7 @@ var attack_pending := false
 var attack_active := false
 var base_level := {} # upgrade id -> level
 
-# weapons: weapon = equipped id, heli_weapons = carried (HELI_SLOTS), weapon_bay = stored at base
+# weapons: weapon = equipped id, heli_weapons = mounted (slots["hardpoint"]), weapon_bay = stored at base
 var weapon := "mg"
 var heli_weapons: Array[String] = ["mg"]
 var weapon_bay: Array[String] = []
@@ -79,7 +78,72 @@ var stats := {
 	"armor": 1.0, "pierce": 0, "shots": 1, "bullet_speed": 1.0, "xp_gain": 1.0, "range": 1.0,
 }
 
-var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b",
+# progression (docs/PROGRESSION.md, scripts/progression.gd): items fitted to the heli, cards on level-up
+const LEVEL_CAP := 30
+const START_SLOTS := {"hardpoint": 1, "system": 2, "module": 2}
+const MAX_SLOTS := {"hardpoint": 2, "system": 3, "module": 3}
+var heli_items := {"mg": 1} # id -> level 1..5
+var slots := START_SLOTS.duplicate() # derived by Progression.apply_all (workshop, meta)
+var rerolls := 1
+var skips := 0
+var banished: Array = []
+
+
+func _reset_progression() -> void:
+	heli_items = {"mg": 1}
+	var r: int = meta["total_rescued"]
+	rerolls = 1 + int(r >= 100) + int(r >= 200)
+	skips = 0
+	banished = []
+
+
+## Card ids for a level-up: own items under Lv5 (60 %) and new unlocked items with a free slot (40 %, less after level 10).
+func offer_cards(n: int) -> Array:
+	var ups := []
+	var news := []
+	for id in Progression.ITEMS:
+		if id in banished:
+			continue
+		if Progression.owned(id):
+			if heli_items[id] < 5:
+				ups.append(id)
+		elif not heli_items.has(id) and Progression.unlocked(id) and Progression.used(Progression.ITEMS[id]["slot"]) < slots[Progression.ITEMS[id]["slot"]]:
+			news.append(id)
+	var w_new := 0.4 if level < 10 else maxf(0.1, 0.4 - 0.015 * (level - 10))
+	var out := []
+	while out.size() < n and not (ups.is_empty() and news.is_empty()):
+		var from: Array = news if ups.is_empty() or (not news.is_empty() and randf() < w_new) else ups
+		out.append(from.pop_at(randi() % from.size()))
+	return out
+
+
+## Picked card: level up an owned item or fit a new one (weapons go through add_weapon).
+func take_item(id: String) -> void:
+	var a0 := max_ammo
+	if Progression.owned(id):
+		heli_items[id] += 1
+	elif Progression.ITEMS[id]["slot"] == "hardpoint":
+		add_weapon(id)
+	else:
+		heli_items[id] = 1
+	recompute()
+	ammo = mini(max_ammo, ammo + maxi(0, max_ammo - a0))
+
+
+## Base HANGAR: remove a fitted item, refund half its cards as scrap. Returns the refund (0 = refused).
+func scrap_item(id: String) -> int:
+	if not Progression.owned(id) or (id in heli_weapons and heli_weapons.size() < 2):
+		return 0
+	var refund: int = heli_items[id] * Progression.CARD_SCRAP / 2
+	heli_items.erase(id)
+	heli_weapons.erase(id)
+	if weapon == id:
+		weapon = heli_weapons[0]
+	scrap += refund
+	recompute()
+	return refund
+
+var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0,
 	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1} # sound off by default for now; M or ESC menu turns it on
 var radio_beep_ms := 0
 
@@ -111,6 +175,7 @@ func new_run() -> void:
 	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0}
 	sandbags = {}
 	base_food = 60.0; noise_level = 0.0
+	_reset_progression()
 	_apply_meta_bonus()
 	recompute()
 	fuel = max_fuel; ammo = max_ammo; hp = max_hp
@@ -126,12 +191,13 @@ func _apply_meta_bonus() -> void:
 	max_hp += (r / 20) * 10.0
 
 
-## Derive seats/max_fuel/max_ammo/armor/weight from base values + loadout + equipped weapon.
+## Derive stats/slots (Progression) and seats/max_fuel/max_ammo/armor/weight from base values + loadout + equipped weapon.
 func recompute() -> void:
-	seats = base_seats + loadout["seats"]
+	Progression.apply_all()
+	seats = base_seats + loadout["seats"] + stats["seats"]
 	max_fuel = base_max_fuel + 25.0 * loadout["fuel_tank"]
-	max_ammo = base_max_ammo + 60 * loadout["ammo_feed"] + Weapons.TABLE[weapon]["max_ammo_bonus"]
-	stats["armor"] = base_armor * (1.0 + 0.15 * loadout["armor"])
+	max_ammo = base_max_ammo + 60 * loadout["ammo_feed"] + Weapons.TABLE[weapon]["max_ammo_bonus"] + stats["max_ammo"]
+	stats["armor"] *= base_armor * (1.0 + 0.15 * loadout["armor"])
 	weight_factor = 1.0 - 0.04 * maxi(0, loadout_points() - 8)
 	fuel = minf(fuel, max_fuel)
 	ammo = mini(ammo, max_ammo)
@@ -163,7 +229,8 @@ func cycle_weapon() -> void:
 ## Found weapon: heli slot if free (auto-equip when still on the stock MG), else the base bay.
 func add_weapon(id: String) -> void:
 	var n: String = Weapons.TABLE[id]["name"]
-	if heli_weapons.size() >= HELI_SLOTS:
+	heli_items[id] = heli_items.get(id, 1)
+	if heli_weapons.size() >= slots["hardpoint"]:
 		weapon_bay.append(id)
 		radio("Gunner: found a %s, stowed in the bay, swap at base." % n)
 		return
@@ -234,10 +301,13 @@ func danger_at(pos: Vector2) -> float:
 
 func add_xp(amount: int) -> void:
 	xp += int(amount * stats["xp_gain"])
-	while xp >= xp_needed():
+	while level < LEVEL_CAP and xp >= xp_needed():
 		xp -= xp_needed()
 		level += 1
 		level_up.emit(level)
+	if level >= LEVEL_CAP: # build is done: 10 XP = 1 scrap
+		scrap += xp / 10
+		xp %= 10
 
 
 func xp_needed() -> int:
