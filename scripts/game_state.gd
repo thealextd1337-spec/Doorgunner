@@ -265,6 +265,7 @@ func _load_meta() -> void:
 				meta[k] = str(data[k]) if meta[k] is String else int(data[k])
 	if not meta["art"] in ART_VARIANTS:
 		meta["art"] = "a"
+	meta["muted"] = 1 # always start silent for now, whatever was saved; M / ESC menu turns sound on for the session
 
 
 func _save_meta() -> void:
