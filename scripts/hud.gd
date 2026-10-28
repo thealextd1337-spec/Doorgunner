@@ -114,9 +114,9 @@ func _process(_delta: float) -> void:
 	var next_attack := Game.ATTACK_EVERY_DAYS - (Game.day % Game.ATTACK_EVERY_DAYS)
 	var table: Dictionary = preload("res://scripts/weapons.gd").TABLE
 	var carried := " / ".join(Game.heli_weapons.map(func(id): return table[id]["name"].to_upper() if id == Game.weapon else table[id]["name"]))
-	info.text = "DAY %d  %02d:%02d %s\nSCRAP %d\nPASSENGERS %d/%d\nRESCUED %d   KILLS %d\nWEAPON %s\nBASE HP %d/%d   STOCK %d fuel  %d ammo  %d food\nNOISE %d%%\nNext assault: %s" % [
+	info.text = "DAY %d  %02d:%02d %s\nSCRAP %d\nPASSENGERS %d/%d\nRESCUED %d   KILLS %d\nWEAPON %s  (%d m)\nBASE HP %d/%d   STOCK %d fuel  %d ammo  %d food\nNOISE %d%%\nNext assault: %s" % [
 		Game.day, h, m, "NIGHT" if Game.is_night() else "",
-		Game.scrap, Game.passengers, Game.seats, Game.rescued, Game.kills, carried,
+		Game.scrap, Game.passengers, Game.seats, Game.rescued, Game.kills, carried, Game.heli.weapon_range() / 10.0,
 		Game.base_hp, Game.max_base_hp, Game.base_fuel, Game.base_ammo, Game.base_food, Game.noise_level * 100.0,
 		"TONIGHT" if Game.attack_pending or Game.attack_active else "in %d day(s)" % next_attack]
 	info.visible = not Game.world.ui_open # base menu shows the same numbers
@@ -140,6 +140,7 @@ func _draw_compass() -> void:
 	if Game.heli == null:
 		return
 	var center := compass.size / 2.0
+	compass.draw_arc(center, Game.heli.weapon_range() * 2.0, 0.0, TAU, 64, Color(1, 1, 1, 0.12), 1.0) # camera zoom 2
 	_arrow(center, Game.world.base.global_position, Color(0.9, 0.9, 0.3), "BASE")
 	if is_instance_valid(Game.world.radio_target):
 		_arrow(center, Game.world.radio_target.global_position, Color(0.4, 1, 0.5), "RADIO")

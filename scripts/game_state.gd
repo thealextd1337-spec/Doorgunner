@@ -70,7 +70,7 @@ var noise_level := 0.0
 # multipliers / flat stats changed by upgrades
 var stats := {
 	"damage": 1.0, "fire_rate": 1.0, "speed": 1.0, "fuel_eff": 1.0,
-	"armor": 1.0, "pierce": 0, "shots": 1, "bullet_speed": 1.0, "xp_gain": 1.0,
+	"armor": 1.0, "pierce": 0, "shots": 1, "bullet_speed": 1.0, "xp_gain": 1.0, "range": 1.0,
 }
 
 var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b",

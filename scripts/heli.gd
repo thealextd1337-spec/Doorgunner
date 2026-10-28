@@ -107,6 +107,11 @@ func _toggle_landing() -> void:
 		Game.radio("Pilot: too fast or no clear ground to land.")
 
 
+## Effective reach of the equipped gun in world px.
+func weapon_range() -> float:
+	return Weapons.TABLE[Game.weapon]["range"] * Game.stats["range"]
+
+
 func _interval() -> float:
 	return Weapons.TABLE[Game.weapon]["interval"] / Game.stats["fire_rate"]
 
@@ -127,7 +132,7 @@ func _fire() -> void:
 		var spread := deg_to_rad((i - (shots - 1) / 2.0) * 6.0 + randf_range(-jitter, jitter))
 		var b := bullet_script.new()
 		b.setup(global_position + aim * 16, aim.rotated(spread), w["damage"] * Game.stats["damage"], w["pierce"] + Game.stats["pierce"],
-			w["bullet_speed"], w.get("life", 1.3), w.get("splash", 0.0))
+			w["bullet_speed"], weapon_range() / (w["bullet_speed"] * Game.stats["bullet_speed"]), w.get("splash", 0.0))
 		Game.world.add_child(b)
 
 

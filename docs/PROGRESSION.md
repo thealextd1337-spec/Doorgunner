@@ -25,6 +25,8 @@ Alle Teile haben Level 1 bis 5. Level 5 ist das "Ausbaulevel" mit einem spürbar
 | Waffe | pro Level | Level 5 |
 |---|---|---|
 | Door MG | +12 % Schaden | Doppel-MG: zwei Tracer pro Schuss |
+
+Reichweiten (umgesetzt): Door MG 42 m, Minigun 32 m, Autocannon 62 m, Flak 20 m, Raketen 52 m, Railgun 90 m. Geschosse verpuffen am Ende der Reichweite; der HUD zeigt einen Ring.
 | Minigun | +10 % Feuerrate | Überhitzung weg: Dauerfeuer ohne Streuung-Anstieg |
 | Autocannon | +15 % Schaden | Sprengmunition: kleiner Flächenschaden |
 | Flak | +1 Projektil | Doppelter Kegel |
@@ -54,6 +56,7 @@ Alle Teile haben Level 1 bis 5. Level 5 ist das "Ausbaulevel" mit einem spürbar
 | Kabinenausbau | +1 Sitz alle 2 Level | Zivilisten steigen doppelt so schnell ein |
 | Veteran | +10 % XP | Level-ups bieten 4 statt 3 Karten |
 | Plünderer | +15 % Scrap | Zombie-Drops geben Munition |
+| Zieloptik | +10 % Reichweite | Treffer im äußeren Drittel der Reichweite machen +50 % Schaden |
 
 ## 3. Angebot beim Level-up (Vampire-Survivors-Logik)
 

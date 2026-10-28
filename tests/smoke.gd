@@ -44,6 +44,10 @@ func _run() -> void:
 		await process_frame
 	Input.action_release("fire")
 	assert(Game.ammo < ammo0, "ammo consumed")
+	for c in main.get_children():
+		if c.get_script() == preload("res://scripts/bullet.gd"):
+			assert(c.life <= 420.0 / 520.0 + 0.001, "bullet lifetime follows the weapon range: %s" % c.life)
+			break
 	# spawn an enemy and hit it with a bullet
 	var e: Node2D = main.spawn_enemy("shambler", Game.heli.position + Vector2(40, 0))
 	var b := preload("res://scripts/bullet.gd").new()
