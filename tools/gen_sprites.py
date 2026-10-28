@@ -332,11 +332,14 @@ def t_field():
     return s
 
 
-def t_dirt_road():
+def t_dirt_road(tracks=True):
+    """Wheel tracks along y; without them it is the plain dirt of junctions and bends."""
     s = Spr(16, 16, True)
     s.img = ground(P["dirt"], 37, 0.6)
     detail(s, 43, dk(P["dirt"][0], 0.8) + (130,), 30, 0.1, 0.3)
     detail(s, 44, P["dirt"][1] + (140,), 16, 0.08, 0.2)
+    if not tracks:
+        return s
     tracks = s.m()
     for x in (4.6, 11.4):
         tracks.line([(x + 0.3 * math.sin(k / 16 * 6.283), k) for k in range(-1, 18)], 1.5)
@@ -442,10 +445,12 @@ def t_sand():
     return s
 
 
-def t_road():
+def t_road(dashes=True):
     s = Spr(16, 16, True)
     s.img = ground(P["road"], 13, 0.6, ((4, 0.4), (8, 0.3), (16, 0.3)))
     detail(s, 41, dk(P["road"][0], 0.8) + (140,), 30, 0.1, 0.3)
+    if not dashes:
+        return s
     m = s.m()
     for y in (1.5, 9.5):  # dashes, period 8 so they wrap
         m.rect(7.55, y, 8.45, y + 4.5, 0.3)
@@ -581,6 +586,35 @@ def t_crater():
     return b.under(s.img)
 
 
+def t_bend(paved):
+    """Road (paved) or dirt road turning from the bottom edge to the right edge, grass outside the curve.
+    The game flips it for the other three turns. Drawn once, not tiled: the curve is centred on the tile's corner."""
+    s = t_grass()
+    road = t_road(False) if paved else t_dirt_road(False)
+    c = 32 * SS  # bottom-right corner of the centre tile on the 3x3 canvas
+
+    def arc(r, w, a0=180, a1=270):
+        m = Image.new("L", s.size, 0)
+        o = (r + w / 2) * SS
+        ImageDraw.Draw(m).arc([c - o, c - o, c + o, c + o], a0, a1, fill=255, width=max(1, int(w * SS)))
+        return m
+
+    disc = Image.new("L", s.size, 0)
+    ImageDraw.Draw(disc).ellipse([c - 16 * SS, c - 16 * SS, c + 16 * SS, c + 16 * SS], fill=255)
+    s.img = Image.composite(road.img, s.img, disc.filter(ImageFilter.GaussianBlur(0.2 * SS)))
+    if paved:
+        fill(s.img, arc(8, 0.9, 203, 247), P["road_line"])  # one dash mid-curve, gaps at the edges like the straight tiles
+    else:
+        tracks = ImageChops.lighter(arc(4.6, 1.5), arc(11.4, 1.5))  # the straight tiles' tracks sit 3.4 off the middle
+        fill(s.img, tracks.filter(ImageFilter.GaussianBlur(0.3 * SS)), dk(P["dirt"][0], 0.82) + (110,))
+        mid = Image.new("L", s.size, 0)
+        for a in (0.25, 0.75, 1.25):
+            x, y = c - 8 * SS * math.cos(a), c - 8 * SS * math.sin(a)
+            ImageDraw.Draw(mid).ellipse([x - 0.6 * SS, y - 0.6 * SS, x + 0.6 * SS, y + 0.6 * SS], fill=255)
+        fill(s.img, mid, P["tuft"] + (90,))
+    return s
+
+
 def t_parking():
     """Asphalt with two parking bays; lines run from the top edge (turned by ACROSS)."""
     s = t_asphalt()
@@ -627,6 +661,7 @@ TILES = (  # index = chunk_manager.gd T enum
     lambda: t_grass(11, 6, P["grass2"]), lambda: t_grass(21, 1, P["grass3"], P["grass3"]),
     t_field, t_dirt_road, t_rock, t_tree_edge, t_yard, t_asphalt,
     t_hedge, t_marsh, t_warehouse, t_ash, t_crater, t_parking, t_plaza, t_pad,
+    lambda: t_bend(True), lambda: t_bend(False), lambda: t_dirt_road(False),
 )
 
 
