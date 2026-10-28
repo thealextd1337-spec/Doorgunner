@@ -3,7 +3,7 @@ class_name Art
 
 const SCALE := 0.25
 
-static var variant := "a"
+static var variant := "b"
 static var _cache := {}
 
 

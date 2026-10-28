@@ -13,6 +13,17 @@ var log_lines: Array[String] = []
 const MAP_SIZE := 200.0
 const MAP_SCALE := 16.0 # world px per minimap px
 const MAP_SEEN := 480.0 # POIs this close to the heli become known
+# minimap terrain colours by chunk_manager tile index (see its T enum)
+const MAP_COLORS := {
+	0: Color(0.36, 0.48, 0.25), 8: Color(0.33, 0.46, 0.24), 9: Color(0.42, 0.5, 0.28), 13: Color(0.28, 0.4, 0.2), # grass
+	1: Color(0.14, 0.28, 0.14), 16: Color(0.2, 0.34, 0.16), # forest, hedge
+	2: Color(0.25, 0.4, 0.7), 17: Color(0.3, 0.45, 0.4), # water, marsh
+	3: Color(0.75, 0.68, 0.48), 10: Color(0.68, 0.64, 0.3), 14: Color(0.5, 0.58, 0.32), # sand, field, yard
+	4: Color(0.22, 0.22, 0.24), 15: Color(0.2, 0.2, 0.22), 21: Color(0.26, 0.26, 0.28), 11: Color(0.5, 0.38, 0.24), # roads, parking, dirt
+	5: Color(0.6, 0.6, 0.62), 18: Color(0.55, 0.55, 0.6), 6: Color(0.42, 0.4, 0.38), # building, warehouse, ruin
+	7: Color(0.7, 0.7, 0.68), 22: Color(0.66, 0.64, 0.6), 23: Color(0.62, 0.62, 0.6), # base floor, plaza, pad
+	12: Color(0.5, 0.5, 0.48), 19: Color(0.36, 0.34, 0.32), 20: Color(0.2, 0.18, 0.17), # rock, ash, crater
+}
 const POI_COLORS := {
 	"survivors": Color(0.4, 1, 0.5), "hideout": Color(0.6, 0.9, 0.6), "crate": Color(1, 0.85, 0.3), "upgrade": Color(0.5, 0.8, 1),
 	"radio_tower": Color(1, 1, 1), "wreck": Color(1, 0.5, 0.2), "nest": Color(1, 0.3, 0.9),
@@ -46,6 +57,7 @@ func _ready() -> void:
 	minimap.position = Vector2(1280 - MAP_SIZE - 10, 720 - MAP_SIZE - 10)
 	minimap.size = Vector2(MAP_SIZE, MAP_SIZE)
 	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	minimap.clip_contents = true
 	minimap.draw.connect(_draw_minimap)
 	root.add_child(minimap)
 	Game.radio_message.connect(_on_radio)
@@ -152,21 +164,18 @@ func _draw_minimap() -> void:
 	var heli_pos: Vector2 = Game.heli.global_position
 	var half := MAP_SIZE / 2.0
 	minimap.draw_rect(Rect2(Vector2.ZERO, Vector2(MAP_SIZE, MAP_SIZE)), Color(0, 0, 0, 0.6))
-	var step := 8.0 # minimap px per terrain sample
+	# terrain samples sit on a fixed world grid (not relative to the heli), so the map scrolls instead of flickering
+	var step := 5.0 # minimap px per terrain sample
+	var world_step := step * MAP_SCALE
 	var chunks: Node = Game.world.chunks
-	for x in range(0, int(MAP_SIZE), int(step)):
-		for y in range(0, int(MAP_SIZE), int(step)):
-			var wp := heli_pos + (Vector2(x, y) + Vector2(step, step) / 2.0 - Vector2(half, half)) * MAP_SCALE
-			var t: int = chunks.tile_at(wp)
-			var c := Color(0, 0, 0, 0)
-			if t == chunks.T.WATER:
-				c = Color(0.2, 0.35, 0.7, 0.7)
-			elif t == chunks.T.FOREST:
-				c = Color(0.1, 0.3, 0.1, 0.7)
-			elif t == chunks.T.BUILDING or t == chunks.T.RUIN or t == chunks.T.ROAD:
-				c = Color(0.5, 0.5, 0.5, 0.8)
-			if c.a > 0.0:
-				minimap.draw_rect(Rect2(Vector2(x, y), Vector2(step, step)), c)
+	var first := ((heli_pos - Vector2(half, half) * MAP_SCALE) / world_step).floor() * world_step
+	var n := int(MAP_SIZE / step) + 2
+	for i in n:
+		for j in n:
+			var wp := first + Vector2(i, j) * world_step
+			var mp := (wp - heli_pos) / MAP_SCALE + Vector2(half, half)
+			var c: Color = MAP_COLORS.get(chunks.tile_at(wp + Vector2(world_step, world_step) / 2.0), Color(0.3, 0.3, 0.3))
+			minimap.draw_rect(Rect2(mp, Vector2(step, step)), c)
 	var to_map := func(wp: Vector2) -> Vector2:
 		return ((wp - heli_pos) / MAP_SCALE + Vector2(half, half)).clamp(Vector2(2, 2), Vector2(MAP_SIZE - 2, MAP_SIZE - 2))
 	minimap.draw_rect(Rect2(to_map.call(Game.world.base.global_position) - Vector2(3, 3), Vector2(6, 6)), Color(1, 1, 0.3))

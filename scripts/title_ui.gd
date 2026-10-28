@@ -7,8 +7,6 @@ const SAND := Color(0.91, 0.86, 0.71)
 const ACCENT := Color(0.96, 0.77, 0.18) # warning yellow
 const PANEL := Color(0.06, 0.08, 0.04, 0.86)
 const OLIVE := Color(0.33, 0.37, 0.2)
-const ART_NAMES := {"a": "RimWorld Classic", "b": "Field Map", "c": "Grim Overcast"}
-const ART_KEYS := {KEY_1: "a", KEY_2: "b", KEY_3: "c", KEY_KP_1: "a", KEY_KP_2: "b", KEY_KP_3: "c"}
 
 var mono := SystemFont.new()
 var stats: Label
@@ -71,8 +69,6 @@ func _ready() -> void:
 	v.add_child(_label("WASD   fly             MOUSE  aim     LMB  fire\nSPACE  land / take off  R      restart", 14, SAND.darkened(0.3), mono))
 	stats = _label("", 13, OLIVE.lightened(0.45), mono)
 	v.add_child(stats)
-	var art_name: String = ART_NAMES[Game.meta["art"]]
-	v.add_child(_label("ART STYLE  [1] %s  [2] %s  [3] %s\ncurrent: %s" % [ART_NAMES["a"], ART_NAMES["b"], ART_NAMES["c"], art_name], 13, SAND.darkened(0.3), mono))
 	var btn := Button.new()
 	btn.text = "CLEARED FOR TAKEOFF"
 	btn.custom_minimum_size = Vector2(0, 56)
@@ -117,13 +113,6 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if visible and event is InputEventKey and event.pressed and not event.echo and ART_KEYS.has(event.keycode):
-		get_viewport().set_input_as_handled()
-		Game.meta["art"] = ART_KEYS[event.keycode]
-		Game._save_meta()
-		Art.variant = Game.meta["art"]
-		get_tree().reload_current_scene() # rebuild the whole world in the new style
-		return
 	if visible and event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
 		get_viewport().set_input_as_handled()
 		_start()

@@ -10,7 +10,7 @@ signal radio_message(msg: String)
 const DAY_SECONDS := 600.0
 const ATTACK_EVERY_DAYS := 3
 const META_PATH := "user://meta.json"
-const ART_VARIANTS := ["a", "b", "c"]
+const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
 const HELI_SLOTS := 2
 const LOADOUT_COST := {"seats": 1, "fuel_tank": 2, "ammo_feed": 2, "armor": 2} # weight points per level
@@ -73,7 +73,7 @@ var stats := {
 	"armor": 1.0, "pierce": 0, "shots": 1, "bullet_speed": 1.0, "xp_gain": 1.0,
 }
 
-var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "a",
+var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b",
 	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1} # sound off by default for now; M or ESC menu turns it on
 var radio_beep_ms := 0
 
@@ -264,7 +264,7 @@ func _load_meta() -> void:
 			if data.has(k):
 				meta[k] = str(data[k]) if meta[k] is String else int(data[k])
 	if not meta["art"] in ART_VARIANTS:
-		meta["art"] = "a"
+		meta["art"] = "b"
 	meta["muted"] = 1 # always start silent for now, whatever was saved; M / ESC menu turns sound on for the session
 
 

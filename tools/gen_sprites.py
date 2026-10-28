@@ -1114,6 +1114,8 @@ SIZES = {  # logical sizes, see assets/sprites/README.md
 def main():
     global P
     for variant, style in STYLES.items():
+        if variant != "b":  # Field Map is the only shipped style; a/c kept in STYLES for reference
+            continue
         P = style
         out = os.path.join(ROOT, variant)
         os.makedirs(out, exist_ok=True)

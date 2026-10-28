@@ -395,9 +395,10 @@ func _paint_town(origin: Vector2i, rng: RandomNumberGenerator, dist: float, reg:
 	if rng.randf() < 0.5:
 		var off := Vector2(rng.randf_range(-size, size), rng.randf_range(-size, size)) * TILE * 2
 		Game.world.spawn_poi("crate", world_center + off, rng)
-	if rng.randf() < (0.5 if kind == "ruined" else 0.3) and world_center.distance_to(Game.world.BASE_POS) > 1100.0:
+	# dens sit well outside town (the boss wakes at 420 px), and rarely unless the town is ruined
+	if rng.randf() < (0.5 if kind == "ruined" else 0.12) and world_center.distance_to(Game.world.BASE_POS) > 1100.0:
 		for _i in 6: # on dry land
-			var at := world_center + Vector2((size + 4) * TILE, 0).rotated(rng.randf() * TAU)
+			var at := world_center + Vector2((size + 34) * TILE, 0).rotated(rng.randf() * TAU)
 			if _tile(Vector2i((at / TILE).floor())) in OPEN:
 				Game.world.spawn_poi("nest", at, rng)
 				break
@@ -980,6 +981,7 @@ func _shot_jump() -> void:
 	_shot_at = ""
 	if p.size() == 2:
 		Game.heli.position = Vector2(float(p[0]), float(p[1]))
+		Game.max_hp = 1e9; Game.hp = 1e9 # screenshots only: the heli must survive wherever it lands
 		return
 	for r in range(3, 60):
 		for x in range(-r, r + 1):
@@ -993,4 +995,5 @@ func _shot_jump() -> void:
 						continue # the town found no dry ground
 					_shot_kind = ""
 					Game.heli.position = (town_centers.back() if town else Vector2(c * CHUNK * TILE) + Vector2(256, 256)) - Vector2(440, 0)
+					Game.max_hp = 1e9; Game.hp = 1e9
 					return
