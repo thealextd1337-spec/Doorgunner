@@ -156,6 +156,8 @@ func hit(amount: float) -> void:
 func _die() -> void:
 	Game.kills += 1
 	Game.add_xp(cfg["xp"])
+	if randf() < 0.02:
+		Game.base_rifles += 1.0 # a rifle off the body, goes to the base armory
 	if randf() < 0.2 or cfg.get("boss", false):
 		Game.scrap += int((2 + int(cfg["xp"] / 4)) * Game.stats["scrap_gain"])
 		if Progression.level("scavenger") >= 5:

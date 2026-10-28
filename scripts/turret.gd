@@ -1,6 +1,7 @@
 extends Node2D
 ## Base auto turret: every 0.5 s shoots the nearest enemy in range with a player bullet.
 ## rifle = true: a militia survivor (6 dmg, 200 px, 0.8 s), posted by base.gd during assaults.
+## Turrets and watchtower posts fire at half rate without base power.
 
 const RANGE := 240.0
 const INTERVAL := 0.5
@@ -8,23 +9,27 @@ const DAMAGE := 8.0
 
 var cd := 0.0
 var rifle := false
+var armed := true # a militia post without a rifle just stands there
+var tower := false # watchtower post: +50 % reach
 var sprite: Sprite2D
 
 
 func _ready() -> void:
 	sprite = Art.sprite("survivor" if rifle else "turret")
+	if not armed:
+		sprite.modulate = Color(0.6, 0.6, 0.6)
 	add_child(sprite)
 
 
 func _process(delta: float) -> void:
-	if not Game.running:
+	if not Game.running or not armed:
 		return
 	cd -= delta
 	if cd > 0.0:
 		return
-	cd = 0.8 if rifle else INTERVAL
+	cd = (0.8 if rifle else INTERVAL) * (2.0 if (tower or not rifle) and not Game.power else 1.0)
 	var best: Node2D
-	var best_d := 200.0 * 200.0 if rifle else RANGE * RANGE
+	var best_d := pow(200.0 * (1.5 if tower else 1.0), 2) if rifle else RANGE * RANGE
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var d: float = global_position.distance_squared_to(e.global_position)
 		if d < best_d:

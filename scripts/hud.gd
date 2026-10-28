@@ -117,10 +117,11 @@ func _process(_delta: float) -> void:
 	var next_attack := Game.ATTACK_EVERY_DAYS - (Game.day % Game.ATTACK_EVERY_DAYS)
 	var table: Dictionary = preload("res://scripts/weapons.gd").TABLE
 	var carried := " / ".join(Game.heli_weapons.map(func(id): return table[id]["name"].to_upper() if id == Game.weapon else table[id]["name"]))
-	info.text = "DAY %d  %02d:%02d %s\nSCRAP %d\nPASSENGERS %d/%d\nRESCUED %d   KILLS %d\nWEAPON %s  (%d m)\nBASE HP %d/%d   STOCK %d fuel  %d ammo  %d food\nNOISE %d%%\nNext assault: %s" % [
+	info.text = "DAY %d  %02d:%02d %s\nSCRAP %d\nPASSENGERS %d/%d\nRESCUED %d   KILLS %d\nWEAPON %s  (%d m)\nBASE HP %d/%d   STOCK %d fuel  %d ammo  %d food\nWATER %d  MED %d  RIFLES %d  INJURED %d\nPOWER %s (gen fuel %d/day)\nNOISE %d%%\nNext assault: %s" % [
 		Game.day, h, m, "NIGHT" if Game.is_night() else "",
 		Game.scrap, Game.passengers, Game.seats, Game.rescued, Game.kills, carried, Game.heli.weapon_range() / 10.0,
-		Game.base_hp, Game.max_base_hp, Game.base_fuel, Game.base_ammo, Game.base_food, Game.noise_level * 100.0,
+		Game.base_hp, Game.max_base_hp, Game.base_fuel, Game.base_ammo, Game.base_food,
+		Game.base_water, Game.base_medicine, Game.base_rifles, Game.injured, "on" if Game.power else "off", Game.built("generator") * Game.GEN_FUEL, Game.noise_level * 100.0,
 		"TONIGHT" if Game.attack_pending or Game.attack_active else "in %d day(s)" % next_attack]
 	info.visible = not Game.world.ui_open # base menu shows the same numbers
 	slots_label.text = Progression.slot_line()

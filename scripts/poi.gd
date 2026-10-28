@@ -1,12 +1,13 @@
 extends Node2D
 ## Points of interest. Landing within LAND_DIST triggers the reward; nests are enemies instead.
 
-const LABELS := {"survivors": "settlement", "hideout": "hideout", "crate": "supply cache", "nest": "zombie den", "radio_tower": "relay tower", "wreck": "crash site", "upgrade": "weapons cache"}
+const LABELS := {"survivors": "settlement", "hideout": "hideout", "crate": "supply cache", "nest": "zombie den", "radio_tower": "relay tower", "wreck": "crash site", "upgrade": "weapons cache", "water_tower": "water tower", "pharmacy": "pharmacy"}
 const DIRS := ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"]
 const LAND_DIST := 48.0
 const Weapons := preload("res://scripts/weapons.gd")
 
 var kind := ""
+var count := 0 # > 0: fixed number of survivors (tutorial)
 var force_weapon := false # tests: weapons cache always yields a weapon
 var drop_level := 0 # crate from the Supply Drop system (item level): reduced contents
 var discovered := false
@@ -36,8 +37,9 @@ static func where(from: Vector2, to: Vector2) -> String:
 	return "%d m %s" % [v.length() / 10.0, DIRS[wrapi(roundi(v.angle() / (TAU / 8)), 0, 8)]]
 
 
-func setup(k: String, pos: Vector2, r: RandomNumberGenerator) -> void:
+func setup(k: String, pos: Vector2, r: RandomNumberGenerator, n := 0) -> void:
 	kind = k
+	count = n
 	position = pos
 	rng = r
 	label = LABELS[kind]
@@ -48,7 +50,7 @@ func _ready() -> void:
 	Game.heli.landed_changed.connect(_on_landed)
 	if kind == "survivors" or kind == "hideout":
 		# hideout: 1-3 people hiding in a lone house; they stay out of sight (and off the zombies' list) until you land
-		for i in rng.randi_range(1, 3) if kind == "hideout" else rng.randi_range(2, 6):
+		for i in count if count > 0 else rng.randi_range(1, 3) if kind == "hideout" else rng.randi_range(2, 6):
 			var s: Node2D = preload("res://scripts/survivor.gd").new()
 			s.position = Vector2(rng.randf_range(-20, 20), rng.randf_range(-14, 14))
 			s.arrived.connect(_board.bind(s))
@@ -56,10 +58,13 @@ func _ready() -> void:
 			add_child(s)
 			survivors.append(s)
 		return
-	sprite = Art.sprite({"upgrade": "crate", "nest": "den"}.get(kind, kind))
+	sprite = Art.sprite({"upgrade": "crate", "nest": "den", "pharmacy": "crate"}.get(kind, kind))
 	add_child(sprite)
 	match kind:
 		"upgrade": sprite.modulate = Color(0.6, 0.8, 1.0)
+		"pharmacy":
+			sprite.modulate = Color(0.5, 1.0, 0.55)
+			sprite.show_behind_parent = true # the cross in _draw goes on top
 		"radio_tower": sprite.offset = Vector2(0, -16) / Art.SCALE # offset is in texture px
 		"nest": add_to_group("enemies")
 
@@ -84,6 +89,9 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	if kind == "pharmacy" and not done:
+		draw_rect(Rect2(-5, -1.5, 10, 3), Color.WHITE)
+		draw_rect(Rect2(-1.5, -5, 3, 10), Color.WHITE)
 	if not ring_shown:
 		return
 	for i in 24:
@@ -111,6 +119,17 @@ func _on_landed(landed: bool) -> void:
 			for s in survivors:
 				s.visible = true
 			Game.radio("Gunner: people coming out of the house!")
+			if Game.world.chunks.region(Vector2i((position / 16.0).floor())) == preload("res://scripts/chunk_manager.gd").R.LAKE:
+				Game.base_water += 20.0
+				Game.radio("Gunner: lake hut, they filled jerrycans. Base water +20.")
+		"water_tower":
+			Game.base_water += 40.0
+			Game.radio("Water tower: tanks filled, base water +40.")
+			_finish(false)
+		"pharmacy":
+			Game.base_medicine += 4.0
+			Game.radio("Pharmacy: shelves cleared, base medicine +4.")
+			_finish(true)
 		"crate":
 			var k := 1.0 if drop_level == 0 else 0.3 + 0.1 * drop_level
 			var a := int(rng.randi_range(30, 60) * k)
@@ -125,10 +144,14 @@ func _on_landed(landed: bool) -> void:
 				Game.base_food += 15.0 # rations go straight to the base larder
 				Game.base_fuel = minf(Game.base_fuel_cap, Game.base_fuel + 50.0)
 				Game.base_ammo = minf(Game.base_ammo_cap, Game.base_ammo + 100.0)
-				Game.radio("Supply cache: +%d ammo, +%d fuel, +%d scrap. Base stock +50 fuel, +100 ammo." % [a, f, s])
+				Game.base_water += 10.0
+				Game.base_medicine += 1.0
+				Game.radio("Supply cache: +%d ammo, +%d fuel, +%d scrap. Base stock +50 fuel, +100 ammo, +15 food, +10 water, +1 medicine." % [a, f, s])
 			_finish(true)
 		"upgrade":
 			Game.scrap += 10
+			Game.base_rifles += 2.0
+			Game.radio("Weapons cache: 2 rifles for the militia.")
 			_finish(true)
 			var pool: Array = Weapons.unowned()
 			if pool.is_empty() or (not force_weapon and rng.randf() < 0.4):
@@ -169,7 +192,9 @@ func _on_landed(landed: bool) -> void:
 					var id: String = pool[rng.randi() % pool.size()]
 					Game.add_weapon(id)
 					line = "recovered a %s" % Weapons.TABLE[id]["name"]
-			Game.radio("Crash site: %s, +%d scrap." % [line, s])
+			Game.base_medicine += 2.0
+			Game.base_rifles += 1.0
+			Game.radio("Crash site: %s, +%d scrap, 2 medkits and a rifle." % [line, s])
 			_finish(false)
 
 
@@ -199,6 +224,8 @@ func _dispatch() -> void:
 	for s in survivors:
 		if s.target == null:
 			s.target = Game.heli
+			if s.injured:
+				load_cd *= 2.0 # helping the wounded aboard takes twice as long
 			return
 
 
@@ -207,6 +234,8 @@ func _board(s: Node2D) -> void:
 		_full()
 		return
 	Game.passengers += 1
+	if s.injured:
+		Game.passengers_injured += 1
 	Game.add_xp(4)
 	Sfx.play("board")
 	survivors.erase(s)
@@ -228,7 +257,7 @@ func winch_one() -> bool:
 	return true
 
 
-## Zombies raiding the settlement kill one survivor at a time.
+## Zombies raiding the settlement hit one survivor at a time: half the time a healthy one is only wounded.
 func lose_survivor(silent := false) -> void:
 	if kind != "survivors" or done or survivors.is_empty():
 		return
@@ -237,6 +266,10 @@ func lose_survivor(silent := false) -> void:
 	if not silent and now_ms - last_raid_ms < 8000:
 		return
 	last_raid_ms = now_ms
+	var healthy: Array = survivors.filter(func(x): return not x.injured)
+	if not healthy.is_empty() and randf() < 0.5:
+		healthy.back().injured = true
+		return
 	var s: Node2D = survivors.pop_back()
 	if s.target != null:
 		s.target = null

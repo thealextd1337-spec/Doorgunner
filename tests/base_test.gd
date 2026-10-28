@@ -1,7 +1,8 @@
 extends Node
 ## Headless base test. main.gd adds this node when env SMOKE=base:
 ##   SMOKE=base godot --headless --path . --quit-after 8000
-## Landing services from stock, base menu purchase, turret fire, weapon find + Q cycle, loadout, workers, sandbags, militia.
+## Landing services from stock, base menu purchase, turret fire, weapon find + Q cycle, loadout, workers, sandbags, militia,
+## then block 2: rifles, perimeter, barracks/campers, water, sickness, clinic, generator.
 
 
 func _ready() -> void:
@@ -31,7 +32,6 @@ func _run() -> void:
 	assert(Game.base_level["turrets"] == 1, "turret level stored")
 	assert(Game.scrap < scrap0, "scrap spent")
 	assert(main.base.turrets.get_child_count() == 1, "turret node placed")
-	assert(not main.base.ui.buy("barracks"), "barracks needs 8 rescued")
 	var e: Node2D = main.spawn_enemy("shambler", main.base.position + Vector2(100, 0), true)
 	for i in 600:
 		await process_frame
@@ -71,7 +71,7 @@ func _run() -> void:
 	assert(Game.loadout_points() == 9 and Game.weight_factor < 1.0, "weight penalty above 8 pts")
 	assert(not main.base.ui.set_loadout("armor", 1), "over budget rejected")
 	# workers: 3 rescued, 2 on fuel duty produce stock over time
-	assert(main.base.ui.set_worker("fuel", 2) and Game.idle_workers() == 1, "fuel workers assigned")
+	assert(main.base.ui.set_worker("fuel", 2) and Game.idle_workers() == 0, "fuel workers assigned (2 hangar beds, 1 camper)")
 	assert(not main.base.ui.set_worker("ammo", 2), "no idle left for two more")
 	var t0: float = Game.time
 	for i in 2000:
@@ -121,5 +121,78 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	assert(main.base.defenders.get_child_count() == 0, "defenders stood down")
+	# block 2: a militia post without a rifle never fires
+	assert(main.base.ui.set_worker("militia", 1), "one militia")
+	Game.base_rifles = 0.0
+	Game.attack_active = true
+	Game.base_attack_started.emit(3)
+	main.spawner.wave_left = 0
+	var post: Node2D = main.base.defenders.get_child(0)
+	assert(not post.armed, "no rifle, unarmed")
+	var z2: Node2D = main.spawn_enemy("shambler", post.global_position + Vector2(40, 0), true)
+	z2.hp = 1e6
+	for i in 20:
+		await process_frame
+	assert(post.cd <= 0.0, "unarmed militia never fired")
+	z2.free()
+	Game.attack_active = false
+	await process_frame
+	# perimeter stage: 60 scrap, 60 s of building, +60 px
+	assert(main.base.ui.set_worker("militia", 0) and main.base.ui.set_worker("build", 1), "builder assigned")
+	Game.scrap = 300
+	assert(main.base.expand_perimeter() and Game.scrap == 240, "perimeter stage for 60 scrap")
+	assert(not main.base.expand_perimeter(), "one stage at a time")
+	Game.buildings[0]["progress"] = 59.99
+	await process_frame
+	await process_frame
+	assert(Game.base_radius == 220.0, "perimeter grew: %s" % Game.base_radius)
+	# barracks: blueprint, built by the worker, 4 more beds, no landing on it
+	assert(Game.campers() == 1, "3 rescued, 2 hangar beds")
+	var bcell := Vector2i(((main.base.position + Vector2(-20, 60)) / 16.0).floor())
+	assert(main.base.place_building("barracks", bcell) and Game.scrap == 200, "barracks blueprint for 40")
+	assert(not main.base.place_sandbag(bcell + Vector2i(1, 1)), "no sandbag on a blueprint")
+	Game.buildings[1]["progress"] = 89.99
+	await process_frame
+	await process_frame
+	assert(Game.housing() == 6 and Game.campers() == 0, "barracks built")
+	assert(not main.is_landable(main.base.cell_pos(bcell)), "no landing on a building")
+	# water: 3 drink 1 a day each; a dry dawn makes one sick
+	var w0: float = Game.base_water
+	for i in 5:
+		await process_frame
+	assert(Game.base_water < w0, "water drunk")
+	Game.base_water = 0.0
+	Game.time = 0.99999
+	await process_frame
+	assert(Game.injured == 1, "sick without water")
+	Game.buildings.append({"kind": "well", "cell": Vector2i(-99, -99), "built": true, "progress": 0.0})
+	w0 = Game.base_water
+	for i in 5:
+		await process_frame
+	assert(Game.base_water > w0, "a well (8/day) outpaces 3 drinkers")
+	# clinic: a bed for 1 medicine, then the patient recovers
+	Game.buildings.append({"kind": "clinic", "cell": Vector2i(-99, -90), "built": true, "progress": 0.0})
+	Game.base_medicine = 1.0
+	await process_frame
+	assert(Game.treating.size() == 1 and Game.base_medicine == 0.0, "patient in bed for 1 medicine")
+	Game.treating[0] = 0.00001
+	await process_frame
+	assert(Game.injured == 0 and Game.treating.is_empty(), "clinic healed the patient")
+	# generator: burns base fuel, power while it lasts
+	Game.buildings.append({"kind": "generator", "cell": Vector2i(-99, -80), "built": true, "progress": 0.0})
+	Game.base_fuel = 100.0
+	for i in 3:
+		await process_frame
+	assert(Game.power and Game.base_fuel < 100.0, "generator burns fuel, power on")
+	Game.base_fuel = 0.0
+	await process_frame
+	assert(not Game.power, "no fuel, no power")
+	# campers outside the wire get hurt when the assault starts
+	Game.rescued = 8
+	Game.tutorial_wave = 1
+	Game.attack_pending = true
+	Game.time = 0.8
+	await process_frame
+	assert(Game.attack_active and Game.injured == 1, "a camper was hurt by the wave")
 	print("BASE OK  scrap=%d base_hp=%d weapon=%s base_fuel=%.2f" % [Game.scrap, Game.base_hp, Game.weapon, Game.base_fuel])
 	get_tree().quit(0)

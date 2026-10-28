@@ -18,6 +18,7 @@ var deco_call: Label
 var hangar: PanelContainer
 var hangar_grid: GridContainer
 var t := 0.0
+var tutorial := false # TUTORIAL button: main.gd starts the tutorial with the run
 
 
 func _ready() -> void:
@@ -101,6 +102,15 @@ func _ready() -> void:
 	hangar_btn.add_theme_font_size_override("font_size", 16)
 	hangar_btn.pressed.connect(_toggle_hangar)
 	btn_row.add_child(hangar_btn)
+	var tut := Button.new()
+	tut.text = "TUTORIAL"
+	tut.custom_minimum_size = Vector2(140, 56)
+	tut.add_theme_font_override("font", mono)
+	tut.add_theme_font_size_override("font_size", 16)
+	tut.pressed.connect(func():
+		tutorial = true
+		_start())
+	btn_row.add_child(tut)
 	_build_hangar()
 	hint = _label("press ENTER", 14, SAND, mono)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
