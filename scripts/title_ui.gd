@@ -13,6 +13,7 @@ var stats: Label
 var hint: Label
 var rotor: Sprite2D
 var t := 0.0
+var tutorial := false # TUTORIAL button: main.gd starts the tutorial with the run
 
 
 func _ready() -> void:
@@ -82,7 +83,18 @@ func _ready() -> void:
 	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		btn.add_theme_color_override(c, Color(0.06, 0.07, 0.03))
 	btn.pressed.connect(_start)
-	v.add_child(btn)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var row := HBoxContainer.new()
+	v.add_child(row)
+	row.add_child(btn)
+	var tut := Button.new()
+	tut.text = "TUTORIAL"
+	tut.custom_minimum_size = Vector2(140, 56)
+	tut.add_theme_font_size_override("font_size", 18)
+	tut.pressed.connect(func():
+		tutorial = true
+		_start())
+	row.add_child(tut)
 	hint = _label("press ENTER", 14, SAND, mono)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hint)

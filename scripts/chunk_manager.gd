@@ -392,6 +392,11 @@ func _paint_town(origin: Vector2i, rng: RandomNumberGenerator, dist: float, reg:
 	var world_center := _mid(ends[2], ends[2])
 	town_centers.append(world_center)
 	Game.world.spawn_poi("survivors", world_center, rng)
+	for p: Array in [["water_tower", 0.5, ROADS], ["pharmacy", 0.35, [T.BUILDING]]]: # on a road / a house roof
+		if rng.randf() < p[1]:
+			var at := _find(ends[2], size * 2, p[2], rng)
+			if at != NONE:
+				Game.world.spawn_poi(p[0], _mid(at, at), rng)
 	if rng.randf() < 0.5:
 		var off := Vector2(rng.randf_range(-size, size), rng.randf_range(-size, size)) * TILE * 2
 		Game.world.spawn_poi("crate", world_center + off, rng)
@@ -403,6 +408,15 @@ func _paint_town(origin: Vector2i, rng: RandomNumberGenerator, dist: float, reg:
 				Game.world.spawn_poi("nest", at, rng)
 				break
 	return true
+
+
+## A random cell of one of `tiles` within `rad` of `center`, NONE after 30 misses.
+func _find(center: Vector2i, rad: int, tiles: Array, rng: RandomNumberGenerator) -> Vector2i:
+	for _i in 30:
+		var c := center + Vector2i(rng.randi_range(-rad, rad), rng.randi_range(-rad, rad))
+		if _tile(c) in tiles:
+			return c
+	return NONE
 
 
 func _dir(along: bool) -> Vector2i:

@@ -16,7 +16,7 @@ func _process(delta: float) -> void:
 		world.radio_target = null
 	hint_cd -= delta
 	if hint_cd <= 0.0:
-		hint_cd = HINT_INTERVAL
+		hint_cd = 30.0 if Game.power else HINT_INTERVAL # powered base radio reaches further
 		_hint()
 	fuel_cd -= delta
 	if fuel_cd <= 0.0 and Game.fuel < 0.25 * Game.max_fuel:

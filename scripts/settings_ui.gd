@@ -6,6 +6,7 @@ const ROWS := {"vol_master": "Master", "vol_sfx": "Effects", "vol_music": "Music
 var panel: PanelContainer
 var sliders := {}
 var mute_btn: CheckButton
+var skip_btn: Button
 var prev_ui_open := false
 
 
@@ -44,6 +45,12 @@ func _ready() -> void:
 	mute_btn.button_pressed = Game.meta["muted"] == 1
 	mute_btn.toggled.connect(func(on: bool): set_volume("muted", 1 if on else 0))
 	box.add_child(mute_btn)
+	skip_btn = Button.new()
+	skip_btn.text = "Skip tutorial"
+	skip_btn.pressed.connect(func():
+		Game.world.tutorial.finish(false)
+		close())
+	box.add_child(skip_btn)
 	var hint := Label.new()
 	hint.text = "[ESC] resume"
 	hint.modulate = Color(0.7, 0.7, 0.7)
@@ -60,6 +67,7 @@ func open() -> void:
 	for key in sliders:
 		sliders[key].set_value_no_signal(Game.meta[key])
 	mute_btn.set_pressed_no_signal(Game.meta["muted"] == 1)
+	skip_btn.visible = is_instance_valid(Game.world.tutorial)
 	prev_ui_open = Game.world.ui_open
 	Game.world.ui_open = true
 	get_tree().paused = true

@@ -47,8 +47,11 @@ func _horde() -> void:
 		pos = heli.position + Vector2(600.0 + randf() * 200.0, 0).rotated(randf() * TAU)
 	else:
 		pos = towns[randi() % towns.size()] + Vector2(120.0 + randf() * 120.0, 0).rotated(randf() * TAU)
-	if pos.distance_to(Game.world.base.global_position) < 450.0 or not Game.world.chunks.is_landable(pos):
+	var base_d: float = pos.distance_to(Game.world.base.global_position)
+	if base_d < Game.base_radius + 300.0 or not Game.world.chunks.is_landable(pos):
 		return
+	if Game.power and Game.is_night() and base_d < 1500.0 and randf() < 0.3:
+		return # the base lights keep them away
 	for i in randi_range(6, 12):
 		Game.world.spawn_enemy(_pick(danger), pos + Vector2(randf_range(-40, 40), randf_range(-40, 40)))
 
@@ -75,10 +78,12 @@ func call_wave(pos: Vector2, count: int) -> void:
 
 
 func _on_attack(day: int) -> void:
-	wave_left = 20 + day * 6
+	wave_left = Game.tutorial_wave if Game.tutorial_wave > 0 else 20 + day * 6
 	wave_cd = 0.0
 	Sfx.play("alarm")
-	if day % (Game.ATTACK_EVERY_DAYS * 2) == 0:
+	var tutorial := Game.tutorial_wave > 0
+	Game.tutorial_wave = 0
+	if not tutorial and day % (Game.ATTACK_EVERY_DAYS * 2) == 0:
 		Game.world.spawn_enemy("boss", Game.world.base.global_position + Vector2(800, 0).rotated(randf() * TAU), true)
 
 

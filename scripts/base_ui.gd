@@ -8,9 +8,9 @@ const UPGRADES := {
 	"fuel": ["Fuel Depot", 3, 40, 0],
 	"armory": ["Armory", 3, 40, 0],
 	"workshop": ["Workshop", 3, 60, 0],
-	"clinic": ["Field Clinic", 3, 50, 5],
-	"barracks": ["Barracks", 3, 60, 8],
 }
+const BUILD_INFO := {"barracks": "+4 beds", "clinic": "2 beds for the injured", "generator": "power, 10 fuel/day",
+	"well": "+8 water/day", "watchtower": "militia post, +50 % reach"}
 # loadout key -> [label, min, max]
 const LOADOUT := {
 	"seats": ["Seats (1 pt each)", 2, 8],
@@ -18,14 +18,17 @@ const LOADOUT := {
 	"ammo_feed": ["Ammo feed +60 ammo/lv (2 pt)", 0, 3],
 	"armor": ["Armour +15 %/lv (2 pt)", 0, 3],
 }
-const JOBS := {"fuel": "Fuel +20/day", "ammo": "Ammo +40/day", "repair": "Repair +40 hp/day", "militia": "Militia -3 % dmg, mans sandbags in assaults", "farm": "Farm +6 food/day",
-	"build": "Build: builds 1 sandbag per 20 s each", "medic": "Medic: free hull repair 20 hp each per landing"}
+const JOBS := {"fuel": "Fuel +20/day", "ammo": "Ammo +40/day", "repair": "Repair +40 hp/day", "militia": "Militia -3 % dmg, mans posts in assaults", "farm": "Farm +6 food/day",
+	"build": "Build: sandbags (20 s) and buildings", "medic": "Medic: 20 hull per landing, faster clinic", "water": "Water +15/day (river or lake within 40 m)"}
 const Weapons := preload("res://scripts/weapons.gd")
 
 var header: Label
 var rows := {} # id -> [Label, Button]
 var repair_btn: Button
 var place_btn: Button
+var place_btns := {} # "sandbag" or building kind -> toggle Button
+var site_rows := {} # building kind or "perimeter" -> Label
+var perimeter_btn: Button
 var tabs := {} # name -> VBoxContainer
 var loadout_rows := {} # key -> Label
 var loadout_info: Label
@@ -42,8 +45,9 @@ func _ready() -> void:
 	sb.set_content_margin_all(12)
 	panel.add_theme_stylebox_override("panel", sb)
 	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.position = Vector2(-400, 120)
+	panel.position = Vector2(-400, 10)
 	panel.size = Vector2(390, 100)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN # wide rows push it left, not off screen
 	add_child(panel)
 	var box := VBoxContainer.new()
 	panel.add_child(box)
@@ -67,11 +71,19 @@ func _ready() -> void:
 		rows[id] = _row(tabs["BUILD"], id)
 	rows["repair"] = _row(tabs["BUILD"], "repair")
 	repair_btn = rows["repair"][1]
-	place_btn = Button.new()
-	place_btn.toggle_mode = true
-	place_btn.add_theme_font_size_override("font_size", 13)
-	place_btn.toggled.connect(func(on: bool): get_parent().placing = on)
-	tabs["BUILD"].add_child(place_btn)
+	place_btn = _place_toggle(tabs["BUILD"], "sandbag")
+	for kind in BUILD_INFO:
+		var h := HBoxContainer.new()
+		tabs["BUILD"].add_child(h)
+		site_rows[kind] = _lbl(h)
+		_place_toggle(h, kind).custom_minimum_size.x = 80
+	var ph := HBoxContainer.new()
+	tabs["BUILD"].add_child(ph)
+	site_rows["perimeter"] = _lbl(ph)
+	perimeter_btn = Button.new()
+	perimeter_btn.custom_minimum_size.x = 80
+	perimeter_btn.pressed.connect(func(): get_parent().expand_perimeter())
+	ph.add_child(perimeter_btn)
 	loadout_info = Label.new()
 	loadout_info.add_theme_font_size_override("font_size", 13)
 	tabs["HANGAR"].add_child(loadout_info)
@@ -97,6 +109,19 @@ func _row(box: VBoxContainer, id: String) -> Array:
 	b.pressed.connect(buy.bind(id))
 	h.add_child(b)
 	return [l, b]
+
+
+## Toggle button for the base's placement mode with `kind` ("sandbag" or a building).
+func _place_toggle(parent: Control, kind: String) -> Button:
+	var b := Button.new()
+	b.toggle_mode = true
+	b.add_theme_font_size_override("font_size", 13)
+	b.toggled.connect(func(on: bool):
+		get_parent().place_kind = kind
+		get_parent().placing = on)
+	parent.add_child(b)
+	place_btns[kind] = b
+	return b
 
 
 ## Label with - and + buttons; cb(key, -1 / +1) on press.
@@ -154,14 +179,28 @@ func can_buy(id: String) -> bool:
 
 
 func refresh() -> void:
-	header.text = "Scrap: %d   Rescued: %d   Idle: %d\nStock  fuel %d/%d   ammo %d/%d   food %d (eats %d/day)" % [
-		Game.scrap, Game.rescued, Game.idle_workers(), Game.base_fuel, Game.base_fuel_cap, Game.base_ammo, Game.base_ammo_cap, Game.base_food, Game.rescued]
-	if get_parent().placing:
-		header.text += "
-Click: place sandbag   RMB: remove   Blueprints are built by Build workers"
+	var base: Node2D = get_parent()
+	var eaters: int = Game.rescued + Game.campers()
+	header.text = "Scrap: %d   Rescued: %d   Beds: %d   Camping: %d   Injured: %d   Idle: %d\nStock  fuel %d/%d   ammo %d/%d   rifles %d   medicine %d\nfood %d   water %d   (-%d/day each)   power %s" % [
+		Game.scrap, Game.rescued, Game.housing(), Game.campers(), Game.injured, Game.idle_workers(), Game.base_fuel, Game.base_fuel_cap,
+		Game.base_ammo, Game.base_ammo_cap, Game.base_rifles, Game.base_medicine, Game.base_food, Game.base_water, eaters, "on" if Game.power else "off"]
+	if base.placing:
+		header.text += "\nClick: place %s   RMB: remove blueprint   Build workers build" % ("sandbag" if base.place_kind == "sandbag" else Game.BUILDINGS[base.place_kind][0])
+	for k in place_btns:
+		place_btns[k].set_pressed_no_signal(base.placing and base.place_kind == k)
+		if k != "sandbag":
+			place_btns[k].text = "Place" if not place_btns[k].button_pressed else "Placing"
 	var built: int = Game.sandbags.values().filter(func(b): return b["built"]).size()
-	place_btn.set_pressed_no_signal(get_parent().placing)
-	place_btn.text = "%s sandbags  5 scrap each  RMB removes  %d/%d built" % ["Placing" if get_parent().placing else "Place", built, Game.sandbags.size()]
+	place_btn.text = "%s sandbags  5 scrap each  RMB removes  %d/%d built" % ["Placing" if place_btn.button_pressed else "Place", built, Game.sandbags.size()]
+	for kind in BUILD_INFO:
+		var b: Array = Game.BUILDINGS[kind]
+		var planned: int = Game.buildings.filter(func(s): return s["kind"] == kind and not s["built"]).size()
+		site_rows[kind].text = "%s  %d scrap %ds  %s  (%d%s)" % [b[0], b[1], b[2], BUILD_INFO[kind], Game.built(kind), " +%d planned" % planned if planned > 0 else ""]
+		place_btns[kind].disabled = Game.scrap < b[1] and not place_btns[kind].button_pressed
+	var plvl: int = base.perimeter_level()
+	site_rows["perimeter"].text = "Perimeter %d m  Lv %d/%d  (+6 m, 60 s)" % [Game.base_radius / 10.0, plvl, Game.PERIMETER_MAX]
+	perimeter_btn.text = "MAX" if plvl >= Game.PERIMETER_MAX else "Expand %d" % base.building_cost("perimeter")
+	perimeter_btn.disabled = plvl >= Game.PERIMETER_MAX or Game.scrap < base.building_cost("perimeter") or not base.next_site("perimeter").is_empty()
 	for id in UPGRADES:
 		var u: Array = UPGRADES[id]
 		var lvl: int = Game.base_level.get(id, 0)
@@ -180,6 +219,8 @@ Click: place sandbag   RMB: remove   Blueprints are built by Build workers"
 	_refresh_weapons()
 	for j in JOBS:
 		job_rows[j].text = "%s: %d" % [JOBS[j], Game.workers[j]]
+	job_rows["militia"].text = "Militia %d (rifles %d)  -3 %% dmg each, mans posts in assaults" % [Game.workers["militia"], Game.base_rifles]
+	job_rows["militia"].modulate = Color(1, 0.4, 0.4) if Game.workers["militia"] > int(Game.base_rifles) else Color.WHITE
 
 
 func _refresh_weapons() -> void:
@@ -228,10 +269,6 @@ func buy(id: String) -> bool:
 		"workshop":
 			Game.stats["damage"] += 0.15
 			Game.loadout_budget += 1
-		"clinic":
-			Game.max_hp += 20.0
-		"barracks":
-			Game.base_seats += 1
 	Game.recompute()
 	get_parent().resupply()
 	refresh()
@@ -278,7 +315,7 @@ func mount(id: String) -> void:
 
 func set_worker(job: String, n: int) -> bool:
 	var cur: int = Game.workers[job]
-	if n < 0 or n - cur > Game.idle_workers():
+	if n < 0 or n - cur > Game.idle_workers() or (job == "water" and n > cur and not get_parent().water_near()):
 		return false
 	Game.workers[job] = n
 	refresh()

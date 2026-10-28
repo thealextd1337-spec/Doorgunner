@@ -14,7 +14,7 @@ const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
 const HELI_SLOTS := 2
 const LOADOUT_COST := {"seats": 1, "fuel_tank": 2, "ammo_feed": 2, "armor": 2} # weight points per level
-const WORKER_RATE := {"fuel": 20.0, "ammo": 40.0, "repair": 40.0, "farm": 6.0} # per worker per day
+const WORKER_RATE := {"fuel": 20.0, "ammo": 40.0, "repair": 40.0, "farm": 6.0, "water": 15.0} # per worker per day
 const BUILD_SECONDS := 20.0 # one sandbag per build worker
 const MEDIC_REPAIR := 20.0 # free hull per medic per landing
 const SANDBAG_HP := 120.0
@@ -66,9 +66,33 @@ var base_fuel := 400.0
 var base_ammo := 800.0
 var base_fuel_cap := 600.0
 var base_ammo_cap := 1200.0
-var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0}
+var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0}
 var sandbags := {} # Vector2i cell -> {"hp": float, "built": bool}; nodes live in base.gd
 var base_food := 60.0
+# base block 2 (docs/BASE.md): buildings, perimeter, water/medicine/rifles, injuries, power
+# kind -> [name, scrap, build seconds, footprint cells]; "perimeter" costs scrap x next level and has no footprint
+const BUILDINGS := {"barracks": ["Barracks", 40, 90.0, 2], "clinic": ["Field Clinic", 50, 90.0, 2], "generator": ["Generator", 60, 60.0, 1],
+	"well": ["Well", 30, 60.0, 1], "watchtower": ["Watchtower", 35, 45.0, 1], "perimeter": ["Perimeter", 60, 60.0, 0]}
+const BASE_RADIUS := 160.0
+const PERIMETER_STEP := 60.0
+const PERIMETER_MAX := 5
+const WATER_PER_PERSON := 1.0 # per day, campers twice
+const WELL_WATER := 8.0 # per well per day
+const FIELD_FOOD := 0.5 # per FIELD tile in the perimeter per day
+const GEN_FUEL := 10.0 # base fuel per generator per day
+const HEAL_DAYS := 1.5 # per clinic bed, halved by a medic (one per 2 beds) and again by power
+const UNTREATED_DEATH := 0.15 # per untreated injured per day
+var buildings: Array = [] # {"kind", "cell": Vector2i top-left, "built": bool, "progress": seconds}; nodes live in base.gd
+var base_radius := BASE_RADIUS
+var base_water := 60.0
+var base_medicine := 2.0
+var base_rifles := 2.0 # float: the armory adds a fraction every frame
+var injured := 0 # part of rescued: no work, not idle
+var passengers_injured := 0 # part of passengers, join `injured` on delivery
+var treating: Array[float] = [] # heal days left per occupied clinic bed
+var power := false
+var short_days := 0 # days in a row without food or water
+var tutorial_wave := 0 # > 0: size of the next assault (tutorial), then back to normal
 # noise: gunfire and the rotor draw zombies (Project Zomboid style)
 var noise_pos := Vector2.ZERO
 var noise_level := 0.0
@@ -80,7 +104,7 @@ var stats := {
 }
 
 var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b",
-	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1} # sound off by default for now; M or ESC menu turns it on
+	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "tutorial_done": 0} # sound off by default for now; M or ESC menu turns it on
 var radio_beep_ms := 0
 
 
@@ -108,9 +132,12 @@ func new_run() -> void:
 	base_seats = 0; base_max_fuel = 75.0; base_max_ammo = 140; base_armor = 1.0
 	loadout = {"seats": 4, "fuel_tank": 1, "ammo_feed": 1, "armor": 0}; loadout_budget = 10
 	base_fuel = 400.0; base_ammo = 800.0; base_fuel_cap = 600.0; base_ammo_cap = 1200.0
-	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0}
+	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0}
 	sandbags = {}
 	base_food = 60.0; noise_level = 0.0
+	buildings = []; base_radius = BASE_RADIUS
+	base_water = 60.0; base_medicine = 2.0; base_rifles = 2.0
+	injured = 0; passengers_injured = 0; treating = []; power = false; short_days = 0; tutorial_wave = 0
 	_apply_meta_bonus()
 	recompute()
 	fuel = max_fuel; ammo = max_ammo; hp = max_hp
@@ -144,11 +171,51 @@ func loadout_points() -> int:
 	return p
 
 
+## Housed, healthy people without a job (campers and the injured do not work).
 func idle_workers() -> int:
-	var n: int = rescued
+	var n: int = mini(rescued - injured, housing())
 	for k in workers:
 		n -= workers[k]
 	return n
+
+
+## 4 beds per built barracks + 2 in the hangar.
+func housing() -> int:
+	return 4 * built("barracks") + 2
+
+
+func campers() -> int:
+	return maxi(0, rescued - housing())
+
+
+func built(kind: String) -> int:
+	return buildings.filter(func(b): return b["kind"] == kind and b["built"]).size()
+
+
+## Healthy people get hurt; their jobs are freed.
+func injure(n: int) -> void:
+	injured += clampi(n, 0, rescued - injured)
+	_fit_workers()
+
+
+## Someone leaves or dies (an injured one if `was_injured`).
+func lose_person(was_injured := false) -> void:
+	if rescued <= 0:
+		return
+	rescued -= 1
+	injured = clampi(injured - (1 if was_injured else 0), 0, rescued)
+	if treating.size() > injured:
+		treating.resize(injured)
+	_fit_workers()
+
+
+func _fit_workers() -> void:
+	var over := -idle_workers()
+	for k in workers:
+		var cut := mini(over, workers[k])
+		if cut > 0:
+			workers[k] -= cut
+			over -= cut
 
 
 ## Q key: next carried weapon.
@@ -183,28 +250,66 @@ func _process(delta: float) -> void:
 	base_fuel = minf(base_fuel_cap, base_fuel + workers["fuel"] * WORKER_RATE["fuel"] * d)
 	base_ammo = minf(base_ammo_cap, base_ammo + workers["ammo"] * WORKER_RATE["ammo"] * d)
 	base_hp = minf(max_base_hp, base_hp + workers["repair"] * WORKER_RATE["repair"] * d)
-	base_food = maxf(0.0, base_food + (workers["farm"] * WORKER_RATE["farm"] - rescued * FOOD_PER_PERSON) * d)
+	var eaters: int = rescued + campers() # campers eat and drink double
+	base_food = maxf(0.0, base_food + (workers["farm"] * WORKER_RATE["farm"] - eaters * FOOD_PER_PERSON) * d)
+	base_water = maxf(0.0, base_water + (workers["water"] * WORKER_RATE["water"] + built("well") * WELL_WATER - eaters * WATER_PER_PERSON) * d)
+	base_rifles += base_level.get("armory", 0) * d
+	var burn: float = built("generator") * GEN_FUEL * d
+	power = burn > 0.0 and base_fuel > 0.0
+	base_fuel = maxf(0.0, base_fuel - burn)
+	_treat(d)
 	noise_level = maxf(0.0, noise_level - delta * 0.35)
 	time += d
 	if time >= 1.0:
 		time -= 1.0
 		day += 1
 		day_changed.emit(day)
-		if base_food <= 0.0 and rescued > 0:
-			rescued -= 1
-			for k in workers:
-				workers[k] = mini(workers[k], rescued)
-			radio("Base: no food left. One of the survivors walked out in the night.")
-		elif base_food < rescued * FOOD_PER_PERSON * 2.0:
-			radio("Base: food is running low, %d rations left." % int(base_food))
+		if world and world.base:
+			base_food += FIELD_FOOD * world.base.field_tiles()
+		for i in maxi(0, injured - treating.size()): # yesterday's untreated, before anyone new gets hurt
+			if randf() < UNTREATED_DEATH:
+				lose_person(true)
+				radio("Base: an injured survivor died without care.")
+		if (base_food <= 0.0 or base_water <= 0.0) and rescued > 0:
+			short_days += 1
+			injure(1)
+			radio("Base: out of %s. One of the survivors fell sick." % ("food" if base_food <= 0.0 else "water"))
+			if short_days >= 3:
+				lose_person()
+				radio("Base: three days without supplies. Someone walked out in the night.")
+		else:
+			short_days = 0
+			if base_food < eaters * FOOD_PER_PERSON * 2.0:
+				radio("Base: food is running low, %d rations left." % int(base_food))
+			if base_water < eaters * WATER_PER_PERSON * 2.0:
+				radio("Base: water is running low, %d days' worth left." % int(base_water / maxf(1.0, eaters)))
+		if injured > 0:
+			radio("%d injured, %d medicine left" % [injured, int(base_medicine)])
 		if day % ATTACK_EVERY_DAYS == 0:
 			attack_pending = true
 			radio("Intel: a horde is massing. Expect an assault on the base tonight.")
 	if attack_pending and time >= 0.8:
 		attack_pending = false
 		attack_active = true
+		if campers() > 0:
+			injure(1)
+			radio("Base: a camper outside the wire got mauled. Build barracks.")
 		base_attack_started.emit(day)
 		radio("ALERT: base under attack! Return and defend!")
+
+
+## Field clinic: 2 beds per clinic, a patient takes a bed for 1 medicine, then heals in HEAL_DAYS
+## (x2 speed with a medic for that bed pair, x2 again with power). `d` is the fraction of a day.
+func _treat(d: float) -> void:
+	while treating.size() < mini(2 * built("clinic"), injured) and base_medicine >= 1.0:
+		base_medicine -= 1.0
+		treating.append(HEAL_DAYS)
+	for i in range(treating.size() - 1, -1, -1):
+		treating[i] -= d * (2.0 if i < 2 * workers["medic"] else 1.0) * (2.0 if power else 1.0)
+		if treating[i] <= 0.0:
+			treating.remove_at(i)
+			injured -= 1
+			radio("Clinic: patient recovered.")
 
 
 ## Louder noise wins; zombies within 200 + 500 * level px investigate.

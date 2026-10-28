@@ -10,6 +10,7 @@ var choice_ui: CanvasLayer
 var night: CanvasModulate
 var radio_target: Node2D # POI currently highlighted on the HUD compass
 var ui_open := false # overlays set this so clicks do not fire the gun
+var tutorial: Node # tutorial.gd while one runs
 var pois := []
 
 const BASE_POS := Vector2(16 * 16 + 8, 16 * 16 + 8) # centre of chunk (0,0)
@@ -47,7 +48,7 @@ func _ready() -> void:
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
 	Game.day_changed.connect(_settlements_decline)
-	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot"}.get(OS.get_environment("SMOKE"), "")
+	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot", "tut": "tutorial_test"}.get(OS.get_environment("SMOKE"), "")
 	if test != "":
 		add_child(load("res://tests/%s.gd" % test).new())
 	else:
@@ -66,8 +67,15 @@ func _show_title() -> void:
 		Game.running = true
 		ui_open = false
 		hud.visible = true
+		if title.tutorial or Game.meta["tutorial_done"] == 0:
+			start_tutorial()
 		Sfx.play("ui"))
 	title.open()
+
+
+func start_tutorial() -> void:
+	tutorial = preload("res://scripts/tutorial.gd").new()
+	add_child(tutorial)
 
 
 func _process(_delta: float) -> void:
@@ -92,13 +100,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_tree().reload_current_scene()
 
 
+## Open ground that is not under a finished base building.
 func is_landable(pos: Vector2) -> bool:
-	return chunks.is_landable(pos)
+	return chunks.is_landable(pos) and not base.building_at(Vector2i((pos / 16.0).floor())).get("built", false)
 
 
-func spawn_poi(kind: String, pos: Vector2, rng: RandomNumberGenerator) -> Node2D:
+func spawn_poi(kind: String, pos: Vector2, rng: RandomNumberGenerator, count := 0) -> Node2D:
 	var p: Node2D = preload("res://scripts/poi.gd").new()
-	p.setup(kind, pos, rng)
+	p.setup(kind, pos, rng, count)
 	p.z_index = 1
 	add_child(p)
 	pois.append(p)
