@@ -109,7 +109,14 @@ func _approach(delta: float, target: Node2D, reach: float, strike: Callable, int
 	var to_target: Vector2 = target.global_position - global_position
 	_face(to_target)
 	if to_target.length() > reach:
-		position += to_target.normalized() * speed * delta
+		var next: Vector2 = position + to_target.normalized() * speed * delta
+		var cell := Vector2i((next / 16.0).floor())
+		if Game.sandbags.get(cell, {}).get("built", false): # a built sandbag blocks: chew through it first
+			if attack_cd <= 0.0:
+				attack_cd = interval
+				Game.world.base.damage_sandbag(cell, dmg)
+			return
+		position = next
 	elif attack_cd <= 0.0:
 		attack_cd = interval
 		strike.call(dmg)

@@ -15,6 +15,11 @@ const Weapons := preload("res://scripts/weapons.gd")
 const HELI_SLOTS := 2
 const LOADOUT_COST := {"seats": 1, "fuel_tank": 2, "ammo_feed": 2, "armor": 2} # weight points per level
 const WORKER_RATE := {"fuel": 20.0, "ammo": 40.0, "repair": 40.0, "farm": 6.0} # per worker per day
+const BUILD_SECONDS := 20.0 # one sandbag per build worker
+const MEDIC_REPAIR := 20.0 # free hull per medic per landing
+const SANDBAG_HP := 120.0
+const SANDBAG_COST := 5
+const SANDBAG_MAX := 80
 const FOOD_PER_PERSON := 1.0 # per day
 
 var heli: Node2D
@@ -61,7 +66,8 @@ var base_fuel := 400.0
 var base_ammo := 800.0
 var base_fuel_cap := 600.0
 var base_ammo_cap := 1200.0
-var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0}
+var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0}
+var sandbags := {} # Vector2i cell -> {"hp": float, "built": bool}; nodes live in base.gd
 var base_food := 60.0
 # noise: gunfire and the rotor draw zombies (Project Zomboid style)
 var noise_pos := Vector2.ZERO
@@ -102,7 +108,8 @@ func new_run() -> void:
 	base_seats = 0; base_max_fuel = 75.0; base_max_ammo = 140; base_armor = 1.0
 	loadout = {"seats": 4, "fuel_tank": 1, "ammo_feed": 1, "armor": 0}; loadout_budget = 10
 	base_fuel = 400.0; base_ammo = 800.0; base_fuel_cap = 600.0; base_ammo_cap = 1200.0
-	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0}
+	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0}
+	sandbags = {}
 	base_food = 60.0; noise_level = 0.0
 	_apply_meta_bonus()
 	recompute()

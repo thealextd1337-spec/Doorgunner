@@ -5,7 +5,6 @@ extends CanvasLayer
 # id -> [name, max level, scrap cost per level (x level+1), rescued required per level]
 const UPGRADES := {
 	"turrets": ["Turret", 4, 40, 0],
-	"walls": ["Sandbag Walls", 3, 50, 0],
 	"fuel": ["Fuel Depot", 3, 40, 0],
 	"armory": ["Armory", 3, 40, 0],
 	"workshop": ["Workshop", 3, 60, 0],
@@ -19,12 +18,14 @@ const LOADOUT := {
 	"ammo_feed": ["Ammo feed +60 ammo/lv (2 pt)", 0, 3],
 	"armor": ["Armour +15 %/lv (2 pt)", 0, 3],
 }
-const JOBS := {"fuel": "Fuel +20/day", "ammo": "Ammo +40/day", "repair": "Repair +40 hp/day", "militia": "Militia -3 % dmg, 2 = turret", "farm": "Farm +6 food/day"}
+const JOBS := {"fuel": "Fuel +20/day", "ammo": "Ammo +40/day", "repair": "Repair +40 hp/day", "militia": "Militia -3 % dmg, mans sandbags in assaults", "farm": "Farm +6 food/day",
+	"build": "Build: builds 1 sandbag per 20 s each", "medic": "Medic: free hull repair 20 hp each per landing"}
 const Weapons := preload("res://scripts/weapons.gd")
 
 var header: Label
 var rows := {} # id -> [Label, Button]
 var repair_btn: Button
+var place_btn: Button
 var tabs := {} # name -> VBoxContainer
 var loadout_rows := {} # key -> Label
 var loadout_info: Label
@@ -66,6 +67,11 @@ func _ready() -> void:
 		rows[id] = _row(tabs["BUILD"], id)
 	rows["repair"] = _row(tabs["BUILD"], "repair")
 	repair_btn = rows["repair"][1]
+	place_btn = Button.new()
+	place_btn.toggle_mode = true
+	place_btn.add_theme_font_size_override("font_size", 13)
+	place_btn.toggled.connect(func(on: bool): get_parent().placing = on)
+	tabs["BUILD"].add_child(place_btn)
 	loadout_info = Label.new()
 	loadout_info.add_theme_font_size_override("font_size", 13)
 	tabs["HANGAR"].add_child(loadout_info)
@@ -129,6 +135,7 @@ func open() -> void:
 func close() -> void:
 	visible = false
 	Game.world.ui_open = false
+	get_parent().placing = false
 
 
 func cost(id: String) -> int:
@@ -149,6 +156,12 @@ func can_buy(id: String) -> bool:
 func refresh() -> void:
 	header.text = "Scrap: %d   Rescued: %d   Idle: %d\nStock  fuel %d/%d   ammo %d/%d   food %d (eats %d/day)" % [
 		Game.scrap, Game.rescued, Game.idle_workers(), Game.base_fuel, Game.base_fuel_cap, Game.base_ammo, Game.base_ammo_cap, Game.base_food, Game.rescued]
+	if get_parent().placing:
+		header.text += "
+Click: place sandbag   RMB: remove   Blueprints are built by Build workers"
+	var built: int = Game.sandbags.values().filter(func(b): return b["built"]).size()
+	place_btn.set_pressed_no_signal(get_parent().placing)
+	place_btn.text = "%s sandbags  5 scrap each  RMB removes  %d/%d built" % ["Placing" if get_parent().placing else "Place", built, Game.sandbags.size()]
 	for id in UPGRADES:
 		var u: Array = UPGRADES[id]
 		var lvl: int = Game.base_level.get(id, 0)
@@ -205,10 +218,6 @@ func buy(id: String) -> bool:
 		Game.base_level[id] = Game.base_level.get(id, 0) + 1
 	match id:
 		"turrets":
-			get_parent().rebuild()
-		"walls":
-			Game.max_base_hp += 250.0
-			Game.base_hp += 250.0
 			get_parent().rebuild()
 		"fuel":
 			Game.base_max_fuel += 25.0
@@ -272,8 +281,6 @@ func set_worker(job: String, n: int) -> bool:
 	if n < 0 or n - cur > Game.idle_workers():
 		return false
 	Game.workers[job] = n
-	if job == "militia":
-		get_parent().rebuild()
 	refresh()
 	return true
 

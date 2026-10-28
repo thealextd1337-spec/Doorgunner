@@ -1,7 +1,7 @@
 extends Node
 ## Headless base test. main.gd adds this node when env SMOKE=base:
 ##   SMOKE=base godot --headless --path . --quit-after 8000
-## Landing services from stock, base menu purchase, turret fire, weapon find + Q cycle, loadout, workers.
+## Landing services from stock, base menu purchase, turret fire, weapon find + Q cycle, loadout, workers, sandbags, militia.
 
 
 func _ready() -> void:
@@ -86,5 +86,37 @@ func _run() -> void:
 	assert(main.base.ui.buy("fuel"), "fuel depot bought")
 	assert(Game.max_fuel == max0 + 25.0, "max fuel grew")
 	assert(Game.fuel == Game.max_fuel, "tank topped up right after the purchase: %s/%s" % [Game.fuel, Game.max_fuel])
+	# sandbags: a blueprint costs 5 scrap, a build worker finishes it, zombies chew on it instead of the base
+	var cell := Vector2i(((main.base.position + Vector2(100, 0)) / 16.0).floor())
+	scrap0 = Game.scrap
+	assert(main.base.place_sandbag(cell) and Game.scrap == scrap0 - 5, "blueprint placed for 5 scrap")
+	assert(Game.sandbags.has(cell) and not Game.sandbags[cell]["built"], "blueprint stored")
+	assert(not main.base.place_sandbag(cell), "no double placement")
+	assert(not main.base.place_sandbag(Vector2i((main.base.position / 16.0).floor())), "helipad rejected")
+	assert(main.base.ui.set_worker("fuel", 0) and main.base.ui.set_worker("build", 1), "build worker assigned")
+	main.base.build_progress = 1.0
+	await process_frame
+	assert(Game.sandbags[cell]["built"] and main.base.bags[cell].modulate.a == 1.0, "build worker finished the sandbag")
+	var z: Node2D = main.spawn_enemy("shambler", main.base.position + Vector2(114, 0), true)
+	z.hp = 1e6 # the turret must not kill it before it reaches the sandbag
+	var bhp: float = Game.base_hp
+	for i in 3000:
+		await process_frame
+		if not Game.sandbags.has(cell) or Game.sandbags[cell]["hp"] < Game.SANDBAG_HP:
+			break
+	assert(Game.sandbags.has(cell) and Game.sandbags[cell]["hp"] < Game.SANDBAG_HP, "zombie struck the sandbag")
+	assert(Game.base_hp == bhp, "base untouched behind the sandbag")
+	z.free()
+	main.base.remove_sandbag(cell)
+	assert(not Game.sandbags.has(cell) and Game.scrap == scrap0 - 5, "built sandbag torn down without refund")
+	# militia man the defence during an assault, stand down afterwards
+	assert(main.base.ui.set_worker("build", 0) and main.base.ui.set_worker("militia", 2), "militia assigned")
+	Game.attack_active = true
+	Game.base_attack_started.emit(3)
+	assert(main.base.defenders.get_child_count() == 2 and main.base.defenders.get_child(0).rifle, "2 defenders posted")
+	Game.attack_active = false
+	await process_frame
+	await process_frame
+	assert(main.base.defenders.get_child_count() == 0, "defenders stood down")
 	print("BASE OK  scrap=%d base_hp=%d weapon=%s base_fuel=%.2f" % [Game.scrap, Game.base_hp, Game.weapon, Game.base_fuel])
 	get_tree().quit(0)

@@ -10,7 +10,8 @@ build the base up, and hold it when the horde assaults every third night.
 - Land next to a point of interest to interact: settlements (survivors board one by one, hold the LZ),
   supply crates (fuel, ammo, scrap), weapons caches (pick an upgrade), relay towers (reveal nearby POIs),
   crash sites (scrap and a permanent boost). Zombie dens spawn an abomination boss when approached.
-- Landing on the base pad refuels, rearms, repairs, delivers passengers and opens the base menu (turrets, walls, depot, armory, workshop, clinic, barracks).
+- Landing on the base pad refuels, rearms, repairs, delivers passengers and opens the base menu (turrets, depot, armory, workshop, clinic, barracks).
+- Sandbags: toggle "Place sandbags" in the BUILD tab and click around the pad (5 scrap, RMB removes). Blueprints are built by survivors on Build duty, zombies have to chew through them, Militia man them during assaults, Medics patch the hull for free.
 - Pace is deliberate: landing and take-off spool for 1.5 s, gunfire and the rotor make NOISE that draws zombies (flying is safe, landing is not: everything within 600 px swarms a landed heli), settlements fall overnight if you leave them, the base eats food (farm workers, crates) and hull repairs cost scrap.
 - Fuel and ammo run out. Level-ups let you pick one of three upgrades. Dying ends the run; survivors rescued
   across runs unlock permanent seats, fuel and ammo capacity (saved in `user://meta.json`).

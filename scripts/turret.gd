@@ -1,16 +1,18 @@
 extends Node2D
 ## Base auto turret: every 0.5 s shoots the nearest enemy in range with a player bullet.
+## rifle = true: a militia survivor (6 dmg, 200 px, 0.8 s), posted by base.gd during assaults.
 
 const RANGE := 240.0
 const INTERVAL := 0.5
 const DAMAGE := 8.0
 
 var cd := 0.0
+var rifle := false
 var sprite: Sprite2D
 
 
 func _ready() -> void:
-	sprite = Art.sprite("turret")
+	sprite = Art.sprite("survivor" if rifle else "turret")
 	add_child(sprite)
 
 
@@ -20,9 +22,9 @@ func _process(delta: float) -> void:
 	cd -= delta
 	if cd > 0.0:
 		return
-	cd = INTERVAL
+	cd = 0.8 if rifle else INTERVAL
 	var best: Node2D
-	var best_d := RANGE * RANGE
+	var best_d := 200.0 * 200.0 if rifle else RANGE * RANGE
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var d: float = global_position.distance_squared_to(e.global_position)
 		if d < best_d:
@@ -32,7 +34,7 @@ func _process(delta: float) -> void:
 		return
 	var dir: Vector2 = (best.global_position - global_position).normalized()
 	sprite.rotation = dir.angle() + PI / 2
-	Sfx.play("gun", global_position, -10.0)
+	Sfx.play("gun", global_position, -14.0 if rifle else -10.0)
 	var b := preload("res://scripts/bullet.gd").new()
-	b.setup(global_position + dir * 10, dir, DAMAGE, 0)
+	b.setup(global_position + dir * 10, dir, 6.0 if rifle else DAMAGE, 0)
 	Game.world.add_child(b)
