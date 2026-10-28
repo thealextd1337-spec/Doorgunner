@@ -101,16 +101,30 @@ func _run() -> void:
 	main.base.build_progress = 1.0
 	await process_frame
 	assert(Game.sandbags[cell]["built"] and main.base.bags[cell].modulate.a == 1.0, "build worker finished the sandbag")
+	# walled in by houses with the sandbag as the only way to the base (an open side would just be walked around)
+	var zcell := cell + Vector2i(1, 0)
+	var walls := {}
+	for x in range(-1, 2):
+		for y in range(-1, 2):
+			var c := zcell + Vector2i(x, y)
+			if c != zcell and c != cell:
+				walls[c] = main.chunks.get_cell_atlas_coords(c)
+				main.chunks.set_cell(c, 0, Vector2i(main.T.BUILDING, 0))
+	main.nav_dirty()
 	var z: Node2D = main.spawn_enemy("shambler", main.base.position + Vector2(114, 0), true)
 	z.hp = 1e6 # the turret must not kill it before it reaches the sandbag
 	var bhp: float = Game.base_hp
-	for i in 3000:
+	var tz := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - tz < 8000: # it chews after 2 s without progress
 		await process_frame
 		if not Game.sandbags.has(cell) or Game.sandbags[cell]["hp"] < Game.SANDBAG_HP:
 			break
 	assert(Game.sandbags.has(cell) and Game.sandbags[cell]["hp"] < Game.SANDBAG_HP, "zombie struck the sandbag")
 	assert(Game.base_hp == bhp, "base untouched behind the sandbag")
 	z.free()
+	for c in walls:
+		main.chunks.set_cell(c, 0, walls[c])
+	main.nav_dirty()
 	main.base.remove_sandbag(cell)
 	assert(not Game.sandbags.has(cell) and Game.scrap == scrap0 - 5, "built sandbag torn down without refund")
 	# militia man the defence during an assault, stand down afterwards

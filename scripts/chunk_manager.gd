@@ -276,6 +276,7 @@ func _put(cell: Vector2i, t: int, alt := 0) -> void:
 ## Zombies chewed through a house wall (enemy.gd): the cell becomes rubble.
 func break_in(cell: Vector2i) -> void:
 	_put(cell, T.RUIN)
+	Game.world.nav_dirty()
 	Game.world.spawn_fx(Vector2(cell) * TILE + Vector2(TILE, TILE) / 2.0, 0.5)
 
 

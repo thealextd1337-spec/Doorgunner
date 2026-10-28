@@ -1,8 +1,9 @@
 extends Node2D
 ## Zombies. All melee, all on the ground: flying is safe, landing is not.
 ## They roam, raid settlements, follow noise, and swarm a landed heli.
-## target_base = true during base assaults. They walk around houses, water and rock (chewing into a house after
-## CHEW_TIME of pushing against it), wade slowly through forest, and are hard to see there.
+## target_base = true during base assaults. They path around houses, hedges, water, rock and sandbags (main.gd
+## nav_move); walled in, they chew through sandbags and break into houses. They wade slowly through forest and are
+## hard to see there.
 
 const KINDS := {
 	"shambler": {"hp": 45.0, "speed": 16.0, "dmg": 8.0, "xp": 4, "radius": 8.0},
@@ -17,6 +18,7 @@ const GOAL_DIST := 900.0 # how far zombies look for a settlement
 const DESPAWN_DIST := 2400.0
 const PREY_DIST := 90.0 # visible survivors closer than this get attacked
 const CHEW_TIME := 6.0 # seconds of pushing against a house before breaking in
+const STUCK_TIME := 2.0 # seconds without path progress before chewing at what blocks the way
 const T := preload("res://scripts/chunk_manager.gd").T
 
 static var break_in_ms := -100000 # last "broke into a house" radio line, shared by all zombies
@@ -42,6 +44,7 @@ var stun_left := 0.0
 var panic_left := 0.0
 var panic_from := Vector2.ZERO
 var chew_t := 0.0
+var nav := {} # main.gd nav_move state
 var concealed := false # standing in forest: faded sprite, off the minimap
 
 
@@ -101,8 +104,7 @@ func _process(delta: float) -> void:
 		var to_noise: Vector2 = Game.noise_pos - global_position
 		var nd := to_noise.length()
 		if nd > 24.0 and nd < 120.0 + 300.0 * Game.noise_level:
-			_face(to_noise)
-			_step(to_noise, delta, 0.8)
+			_walk(Game.noise_pos, delta, 0.8)
 			return
 	# 5. raid the nearest settlement
 	goal_cd -= delta
@@ -129,37 +131,60 @@ func _face(dir: Vector2) -> void:
 ## Walk to `target`; within `reach`, call `strike(dmg)` every `interval` seconds.
 func _approach(delta: float, target: Node2D, reach: float, strike: Callable, interval := MELEE_INTERVAL) -> void:
 	var to_target: Vector2 = target.global_position - global_position
-	_face(to_target)
 	if to_target.length() > reach:
-		var next: Vector2 = position + to_target.normalized() * speed * delta
-		var cell := Vector2i((next / 16.0).floor())
-		if Game.sandbags.get(cell, {}).get("built", false): # a built sandbag blocks: chew through it first
-			if attack_cd <= 0.0:
-				attack_cd = interval
-				Game.world.base.damage_sandbag(cell, dmg)
+		_walk(target.global_position, delta)
+	else:
+		_face(to_target)
+		if attack_cd <= 0.0:
+			attack_cd = interval
+			strike.call(dmg)
+
+
+## Path to `to` (main.gd nav_move); after STUCK_TIME without progress (walled in), chew through what is in the way.
+func _walk(to: Vector2, delta: float, factor := 1.0) -> void:
+	var before := position
+	Game.world.nav_move(self, to, _pace(factor), delta, nav)
+	_face(position - before)
+	if nav["stuck"] < STUCK_TIME:
+		return
+	var d := (to - position).normalized() * 10.0
+	for s in [d, Vector2(signf(d.x) * 10.0, 0), Vector2(0, signf(d.y) * 10.0)]:
+		if not Game.world.is_walkable(position + s):
+			_chew(Vector2i(((position + s) / 16.0).floor()), delta)
 			return
-		_step(to_target, delta)
-	elif attack_cd <= 0.0:
-		attack_cd = interval
-		strike.call(dmg)
 
 
-## Move along `dir` at speed * factor: half speed in forest, sliding along solid cells (main.gd slide).
+## Move along `dir` at speed * factor, sliding along solid cells (main.gd slide), chewing what stops it.
 func _step(dir: Vector2, delta: float, factor := 1.0) -> void:
+	var v := dir.normalized() * _pace(factor) * delta
+	var move: Vector2 = Game.world.slide(position, v)
+	if move != v:
+		_chew(Vector2i(((position + v) / 16.0).floor()), delta)
+	position += move
+
+
+## speed * factor, halved in forest (where the zombie is also faded and off the minimap).
+func _pace(factor: float) -> float:
 	var t: int = Game.world.chunks.tile_at(position)
 	concealed = t == T.FOREST or t == T.TREE_EDGE
 	sprite.modulate.a = 0.4 if concealed else 1.0
-	var v := dir.normalized() * speed * factor * delta * (0.5 if concealed else 1.0)
-	var move: Vector2 = Game.world.slide(position, v)
-	if move != v and Game.world.chunks.tile_at(position + v) == T.BUILDING:
+	return speed * factor * (0.5 if concealed else 1.0)
+
+
+## Pushing into `cell`: hit a built sandbag every MELEE_INTERVAL, break into a house after CHEW_TIME.
+func _chew(cell: Vector2i, delta: float) -> void:
+	if Game.sandbags.get(cell, {}).get("built", false):
+		if attack_cd <= 0.0:
+			attack_cd = MELEE_INTERVAL
+			Game.world.base.damage_sandbag(cell, dmg)
+	elif Game.world.chunks.get_cell_atlas_coords(cell).x == T.BUILDING:
 		chew_t += delta
 		if chew_t > CHEW_TIME:
 			chew_t = 0.0
-			Game.world.chunks.break_in(Vector2i(((position + v) / 16.0).floor()))
+			Game.world.chunks.break_in(cell)
 			if Game.heli.global_position.distance_to(global_position) < 600.0 and Time.get_ticks_msec() - break_in_ms > 20000:
 				break_in_ms = Time.get_ticks_msec()
 				Game.radio("Zombies broke into a house")
-	position += move
 
 
 ## Nearest visible survivor of an unfinished settlement within PREY_DIST (hideout people stay hidden until landing).

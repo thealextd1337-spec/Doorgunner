@@ -109,6 +109,7 @@ func _process(delta: float) -> void:
 		build_progress -= 1.0
 		Game.sandbags[cell]["built"] = true
 		bags[cell].modulate.a = 1.0
+		Game.world.nav_dirty()
 
 
 func _draw() -> void:
@@ -190,6 +191,7 @@ func _free_sandbag(cell: Vector2i) -> void:
 	Game.sandbags.erase(cell)
 	bags[cell].queue_free()
 	bags.erase(cell)
+	Game.world.nav_dirty()
 
 
 func _nearest_blueprint() -> Variant:
@@ -307,6 +309,7 @@ func next_site(kind := "") -> Dictionary:
 
 func _finish_site(b: Dictionary) -> void:
 	b["built"] = true
+	Game.world.nav_dirty()
 	if b["kind"] == "perimeter":
 		Game.base_radius += Game.PERIMETER_STEP
 		_fence()

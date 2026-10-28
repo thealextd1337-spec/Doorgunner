@@ -7,6 +7,7 @@ const SPEED := 45.0
 const INJURED_SPEED := 25.0
 
 var target: Node2D
+var nav := {} # main.gd nav_move state: walks around hedges and houses
 var injured := false:
 	set(v):
 		injured = v
@@ -22,7 +23,5 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if target == null:
 		return
-	var step := global_position.move_toward(target.global_position, (INJURED_SPEED if injured else SPEED) * delta) - global_position
-	global_position += Game.world.slide(global_position, step)
-	if global_position.distance_to(target.global_position) < 6.0:
+	if Game.world.nav_move(self, target.global_position, INJURED_SPEED if injured else SPEED, delta, nav):
 		arrived.emit()
