@@ -76,5 +76,17 @@ func _run() -> void:
 		assert(chunks.tile_at(s.position) != T.HEDGE, "survivor walked into the hedge at %s" % s.position)
 		await process_frame
 	assert(arrived[0], "survivor reached the heli: %s" % s.position)
+	# a zombie gives up on a target behind the hedge after LOSE_SIGHT s, and on one it never reaches after CHASE_MAX s
+	var zc: Node2D = main.spawn_enemy("shambler", Vector2(37 * 16 + 8, 38 * 16 + 8))
+	zc.set_process(false)
+	assert(zc._sees(zc.position + Vector2(0, -6 * 16)) and not zc._sees(heli.position), "the hedge blocks the view")
+	assert(zc._pursue(heli, 10.0, 1.0), "chase starts")
+	assert(not zc._pursue(heli, 10.0, zc.LOSE_SIGHT), "out of sight too long: gives up")
+	assert(not zc._pursue(heli, 10.0, 0.1), "and ignores it for a while")
+	var far := Node2D.new()
+	far.position = zc.position + Vector2(0, -6 * 16)
+	main.add_child(far)
+	assert(zc._pursue(far, 10.0, 1.0) and not zc._pursue(far, 10.0, zc.CHASE_MAX), "never reached: gives up")
+	zc.free()
 	print("NAV OK")
 	get_tree().quit(0)

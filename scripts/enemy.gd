@@ -3,7 +3,8 @@ extends Node2D
 ## They roam, raid settlements, follow noise, and swarm a landed heli.
 ## target_base = true during base assaults. They path around houses, hedges, water, rock and sandbags (main.gd
 ## nav_move); walled in, they chew through sandbags and break into houses. They wade slowly through forest and are
-## hard to see there.
+## hard to see there. A chase (survivor or landed heli) ends after CHASE_MAX s without reaching the target or
+## LOSE_SIGHT s with houses, hedges or woods in between; that target is then ignored for GIVE_UP s.
 
 const KINDS := {
 	"shambler": {"hp": 45.0, "speed": 16.0, "dmg": 8.0, "xp": 4, "radius": 8.0},
@@ -19,6 +20,10 @@ const DESPAWN_DIST := 2400.0
 const PREY_DIST := 90.0 # visible survivors closer than this get attacked
 const CHEW_TIME := 6.0 # seconds of pushing against a house before breaking in
 const STUCK_TIME := 2.0 # seconds without path progress before chewing at what blocks the way
+const CHASE_MAX := 40.0
+const LOSE_SIGHT := 4.0
+const GIVE_UP := 20.0
+const SIGHT_WALLS := [T.BUILDING, T.WAREHOUSE, T.HEDGE]
 const T := preload("res://scripts/chunk_manager.gd").T
 
 static var break_in_ms := -100000 # last "broke into a house" radio line, shared by all zombies
@@ -46,6 +51,12 @@ var panic_from := Vector2.ZERO
 var chew_t := 0.0
 var nav := {} # main.gd nav_move state
 var concealed := false # standing in forest: faded sprite, off the minimap
+var chased: Node2D # current chase target
+var chase_t := 0.0 # seconds chasing `chased` without being in reach
+var unseen_t := 0.0 # seconds `chased` has been out of sight
+var sight_cd := 0.0 # line of sight is sampled 4x a second
+var seen := true
+var ignored := {} # instance id -> msec until which that target is left alone
 
 
 func setup(kind_name: String, pos: Vector2, danger: float, base_target := false) -> void:
@@ -100,11 +111,11 @@ func _process(delta: float) -> void:
 		return
 	# 2. waiting or boarding survivors close by
 	var prey := _find_prey()
-	if prey:
+	if prey and _pursue(prey, radius + 4.0, delta):
 		_approach(delta, prey, radius + 4.0, func(_d): prey.get_parent().lose_survivor_node(prey))
 		return
 	# 3. landed heli: everything nearby converges
-	if heli.landed and to_heli.length() < AGGRO_DIST:
+	if heli.landed and to_heli.length() < AGGRO_DIST and _pursue(heli, radius + heli.RADIUS + 4.0, delta):
 		_approach(delta, heli, radius + heli.RADIUS + 4.0, heli.take_damage)
 		return
 	# 4. investigate noise (gunfire, rotor): harmless in the air, deadly once you land
@@ -129,6 +140,43 @@ func _process(delta: float) -> void:
 		wander = Vector2.RIGHT.rotated(randf() * TAU) * (0.0 if randf() < 0.4 else 1.0)
 	_face(wander)
 	_step(wander, delta, 0.5)
+
+
+## Keep after `target`? False once the chase ran CHASE_MAX s without reaching it or lost sight for LOSE_SIGHT s;
+## the target is then ignored for GIVE_UP s and the zombie falls through to its other goals.
+func _pursue(target: Node2D, reach: float, delta: float) -> bool:
+	var id := target.get_instance_id()
+	if ignored.get(id, 0) > Time.get_ticks_msec():
+		return false
+	if target != chased:
+		chased = target
+		chase_t = 0.0
+		unseen_t = 0.0
+		sight_cd = 0.0
+	sight_cd -= delta
+	if sight_cd <= 0.0:
+		sight_cd = 0.25
+		seen = _sees(target.global_position)
+	unseen_t = 0.0 if seen else unseen_t + delta
+	chase_t = 0.0 if global_position.distance_to(target.global_position) <= reach + 8.0 else chase_t + delta
+	if chase_t > CHASE_MAX or unseen_t > LOSE_SIGHT:
+		ignored[id] = Time.get_ticks_msec() + int(GIVE_UP * 1000.0)
+		chased = null
+		wander_cd = 0.0
+		return false
+	return true
+
+
+## No house, warehouse or hedge and at most 40 px of woods on the line to `at`.
+func _sees(at: Vector2) -> bool:
+	var n := ceili(global_position.distance_to(at) / 8.0)
+	var woods := 0
+	for i in range(1, n):
+		var t: int = Game.world.chunks.tile_at(global_position.lerp(at, float(i) / n))
+		woods += int(t == T.FOREST)
+		if t in SIGHT_WALLS or woods > 5:
+			return false
+	return true
 
 
 func _face(dir: Vector2) -> void:
