@@ -71,7 +71,7 @@ func apply_volumes() -> void:
 		var idx := AudioServer.get_bus_index(pair[0])
 		AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(Game.meta[pair[1]] / 100.0, 0.0001)))
 	muted = Game.meta["muted"] == 1
-	AudioServer.set_bus_mute(0, muted)
+	AudioServer.set_bus_mute(0, muted or OS.get_environment("SMOKE") != "") # test runs stay silent
 
 
 func _stream(name: String) -> AudioStreamWAV:
