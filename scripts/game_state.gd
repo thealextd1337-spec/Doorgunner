@@ -234,7 +234,7 @@ func add_xp(amount: int) -> void:
 
 
 func xp_needed() -> int:
-	return 20 + level * 12
+	return int(25.0 * pow(level, 1.4)) # grows faster than linear: 25, 66, 117, 174, 238 ... 627 at level 10
 
 
 func radio(msg: String) -> void:
