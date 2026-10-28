@@ -1,6 +1,17 @@
 extends CanvasLayer
-## Base menu, shown while the heli sits on the pad. Tabs: BUILD (upgrades), HANGAR (loadout, weapons), WORKERS (jobs).
+## Base menu, shown while the heli sits on the pad, in the title screen's look (olive/black panels, sand text, yellow accent).
+## Left: status column (population, stocks with per-day deltas, power, next assault), refreshed twice a second.
+## Right: tabs BUILD (upgrades, buildings to place), WORKERS (jobs table), HANGAR (loadout, weapons, fitted items).
 ## buy(id) applies effects to Game directly.
+
+const SAND := Color(0.91, 0.86, 0.71)
+const DIM := Color(0.64, 0.6, 0.5)
+const ACCENT := Color(0.96, 0.77, 0.18)
+const PANEL := Color(0.06, 0.08, 0.04, 0.97)
+const OLIVE := Color(0.33, 0.37, 0.2)
+const BAD := Color(1.0, 0.45, 0.38)
+const GOOD := Color(0.55, 0.85, 0.45)
+const DARK_TEXT := Color(0.06, 0.07, 0.03)
 
 # id -> [name, max level, scrap cost per level (x level+1), rescued required per level]
 const UPGRADES := {
@@ -9,9 +20,10 @@ const UPGRADES := {
 	"armory": ["Armory", 3, 40, 0],
 	"workshop": ["Workshop", 4, 60, 0],
 }
-const UPGRADE_INFO := {"workshop": "+ enables salvage processing"}
-const BUILD_INFO := {"barracks": "+4 beds", "clinic": "2 beds for the injured", "generator": "power, 10 fuel/day",
-	"well": "+8 water/day", "watchtower": "militia post, +50 % reach"}
+const UPGRADE_INFO := {"turrets": "+1 auto turret on the ring", "fuel": "+25 heli fuel, +200 depot", "armory": "+60 heli ammo, +400 store, +1 rifle/day",
+	"workshop": "salvage processing; Lv 2/3/4 add heli slots", "repair": "patch the base hull"}
+const BUILD_INFO := {"sandbag": "militia posts", "barracks": "+4 beds", "clinic": "2 patient beds", "generator": "power, 10 fuel/day",
+	"well": "+8 water/day", "watchtower": "post, +50 % reach"}
 # loadout key -> [label, min, max]
 const LOADOUT := {
 	"seats": ["Seats (1 pt each)", 2, 8],
@@ -19,156 +31,324 @@ const LOADOUT := {
 	"ammo_feed": ["Ammo feed +60 ammo/lv (2 pt)", 0, 3],
 	"armor": ["Armour +15 %/lv (2 pt)", 0, 3],
 }
-const JOBS := {"fuel": "Fuel +20/day", "ammo": "Ammo +40/day", "repair": "Repair +40 hp/day", "militia": "Militia -3 % dmg, mans posts in assaults", "farm": "Farm +6 food/day",
-	"build": "Build: sandbags (20 s) and buildings", "medic": "Medic: 20 hull per landing, faster clinic", "water": "Water +15/day (river or lake within 40 m)",
-	"workshop": "Workshop: breaks down salvage, 12/day each (needs Workshop)"}
+const JOBS := {"fuel": ["Fuel", "+20 fuel/day"], "ammo": ["Ammo", "+40 ammo/day"], "repair": ["Repair", "+40 base hull/day"],
+	"militia": ["Militia", "-3 % base damage, mans posts in assaults"], "farm": ["Farm", "+6 food/day"], "build": ["Build", "builds blueprints (sandbag 20 s)"],
+	"medic": ["Medic", "20 free hull per landing, faster clinic"], "water": ["Water", "+15 water/day (river or lake in 40 m)"],
+	"workshop": ["Workshop", "breaks down 12 salvage/day"]}
+# status column stock rows: id -> [label, bar colour]
+const STOCKS := {"fuel": ["fuel", Color(0.9, 0.75, 0.2)], "ammo": ["ammo", Color(0.7, 0.7, 0.7)], "food": ["food", Color(0.5, 0.75, 0.3)],
+	"water": ["water", Color(0.35, 0.6, 0.9)], "medicine": ["medicine", Color(0.9, 0.35, 0.35)], "rifles": ["rifles", Color(0.6, 0.65, 0.35)],
+	"scrap": ["scrap", Color(0.75, 0.5, 0.3)], "metal": ["metal", Color(0.55, 0.57, 0.6)], "parts": ["parts", Color(0.6, 0.55, 0.45)],
+	"electronics": ["electr.", Color(0.4, 0.75, 0.7)]}
 const Weapons := preload("res://scripts/weapons.gd")
 
-var header: Label
-var rows := {} # id -> [Label, Button]
-var repair_btn: Button
-var place_btn: Button
+var mono := SystemFont.new()
+var pop_label: Label
+var stock_rows := {} # id -> [fill ColorRect, value Label, delta Label]
+var power_label: Label
+var assault_label: Label
+var status_t := 0.0
+var tabs := {} # name -> content Control
+var tab_btns := {} # name -> Button
+var rows := {} # upgrade id or "repair" -> [name Label, pips HBox, Button]
 var place_btns := {} # "sandbag" or building kind -> toggle Button
-var site_rows := {} # building kind or "perimeter" -> Label
 var perimeter_btn: Button
-var tabs := {} # name -> VBoxContainer
-var loadout_rows := {} # key -> Label
+var place_bar: PanelContainer
+var place_label: Label
 var loadout_info: Label
+var loadout_rows := {} # key -> value Label
 var weapon_box: VBoxContainer
-var job_rows := {} # job -> Label, its - and + buttons are the next siblings
 var worker_info: Label
+var job_rows := {} # job -> [count Label, - Button, + Button, note Label]
 var worker_msg: Label # why the last + was refused, cleared after 3 s
 
 
 func _ready() -> void:
 	layer = 10
 	visible = false
-	var panel := PanelContainer.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.05, 0.07, 0.05, 0.9)
-	sb.set_content_margin_all(12)
-	panel.add_theme_stylebox_override("panel", sb)
-	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	panel.position = Vector2(-400, 10)
-	panel.size = Vector2(390, 100)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN # wide rows push it left, not off screen
-	add_child(panel)
-	var box := VBoxContainer.new()
-	panel.add_child(box)
-	var title := Label.new()
-	title.text = "FORWARD OPERATING BASE"
-	title.add_theme_font_size_override("font_size", 18)
-	box.add_child(title)
-	header = Label.new()
-	header.add_theme_font_size_override("font_size", 13)
-	box.add_child(header)
+	mono.font_names = PackedStringArray(["Consolas", "DejaVu Sans Mono", "monospace"])
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE # clicks between the panels place blueprints (base.gd)
+	root.theme = _theme()
+	add_child(root)
+	# left status column
+	var status := _panel(root, Vector2(10, 10), 280)
+	status.add_child(_label("// FOB STATUS", 12, ACCENT, true))
+	status.add_child(_label("FORWARD OPERATING BASE", 17))
+	status.add_child(_label("POPULATION", 12, ACCENT, true))
+	pop_label = _label("", 13, SAND, true)
+	status.add_child(pop_label)
+	status.add_child(_label("STOCK", 12, ACCENT, true))
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 2)
+	status.add_child(grid)
+	for id in STOCKS:
+		grid.add_child(_label(STOCKS[id][0], 12, DIM, true))
+		var bar := ColorRect.new()
+		bar.custom_minimum_size = Vector2(64, 6)
+		bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		bar.color = Color(0, 0, 0, 0.6)
+		grid.add_child(bar)
+		var fill := ColorRect.new()
+		fill.size = Vector2(0, 6)
+		fill.color = STOCKS[id][1]
+		bar.add_child(fill)
+		var v := _label("", 12, SAND, true)
+		v.custom_minimum_size.x = 72
+		v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		grid.add_child(v)
+		var d := _label("", 12, DIM, true)
+		grid.add_child(d)
+		stock_rows[id] = [fill, v, d]
+	power_label = _label("", 13, SAND, true)
+	status.add_child(power_label)
+	assault_label = _label("", 13, SAND, true)
+	status.add_child(assault_label)
+	# right main panel: tab bar, content, instruction bar
+	var main := _panel(root, Vector2(650, 10), 620)
 	var tab_row := HBoxContainer.new()
-	box.add_child(tab_row)
-	for t in ["BUILD", "HANGAR", "WORKERS"]:
+	tab_row.add_theme_constant_override("separation", 6)
+	main.add_child(tab_row)
+	for t in ["BUILD", "WORKERS", "HANGAR"]:
 		var b := Button.new()
 		b.text = t
+		b.custom_minimum_size = Vector2(120, 34)
+		b.add_theme_font_override("font", mono)
+		b.add_theme_font_size_override("font_size", 16)
 		b.pressed.connect(show_tab.bind(t))
 		tab_row.add_child(b)
-		tabs[t] = VBoxContainer.new()
-		box.add_child(tabs[t])
-	for id in UPGRADES:
-		rows[id] = _row(tabs["BUILD"], id)
-	rows["repair"] = _row(tabs["BUILD"], "repair")
-	repair_btn = rows["repair"][1]
-	place_btn = _place_toggle(tabs["BUILD"], "sandbag")
-	for kind in BUILD_INFO:
-		var h := HBoxContainer.new()
-		tabs["BUILD"].add_child(h)
-		site_rows[kind] = _lbl(h)
-		_place_toggle(h, kind).custom_minimum_size.x = 80
-	var ph := HBoxContainer.new()
-	tabs["BUILD"].add_child(ph)
-	site_rows["perimeter"] = _lbl(ph)
-	perimeter_btn = Button.new()
-	perimeter_btn.custom_minimum_size.x = 80
-	perimeter_btn.pressed.connect(func(): get_parent().expand_perimeter())
-	ph.add_child(perimeter_btn)
-	loadout_info = Label.new()
-	loadout_info.add_theme_font_size_override("font_size", 13)
-	tabs["HANGAR"].add_child(loadout_info)
-	for k in LOADOUT:
-		loadout_rows[k] = _pm_row(tabs["HANGAR"], _adjust_loadout, k)
-	weapon_box = VBoxContainer.new()
-	tabs["HANGAR"].add_child(weapon_box)
-	worker_info = _wrap_lbl(tabs["WORKERS"])
-	worker_msg = _wrap_lbl(tabs["WORKERS"])
-	worker_msg.modulate = Color(1, 0.5, 0.4)
-	for j in JOBS:
-		job_rows[j] = _pm_row(tabs["WORKERS"], _adjust_worker, j)
-	var unassign := Button.new()
-	unassign.text = "Unassign all"
-	unassign.pressed.connect(unassign_all)
-	tabs["WORKERS"].add_child(unassign)
-	var hint := Label.new()
-	hint.text = "[SPACE] take off closes this menu"
-	hint.modulate = Color(0.7, 0.7, 0.7)
-	box.add_child(hint)
+		tab_btns[t] = b
+	var take_off := _label("[SPACE] take off", 12, DIM, true)
+	take_off.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	take_off.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	tab_row.add_child(take_off)
+	main.add_child(_rule())
+	_build_tab(main)
+	_workers_tab(main)
+	_hangar_tab(main)
+	place_bar = PanelContainer.new()
+	place_bar.add_theme_stylebox_override("panel", _box(ACCENT, 6))
+	place_label = _label("", 14, DARK_TEXT, true)
+	place_bar.add_child(place_label)
+	main.add_child(place_bar)
 	show_tab("BUILD")
 
 
-func _row(box: VBoxContainer, id: String) -> Array:
-	var h := HBoxContainer.new()
-	box.add_child(h)
-	var l := _lbl(h)
-	var b := Button.new()
-	b.custom_minimum_size.x = 80
-	b.pressed.connect(buy.bind(id))
-	h.add_child(b)
-	return [l, b]
+func _process(delta: float) -> void:
+	status_t -= delta
+	if visible and status_t <= 0.0:
+		status_t = 0.5
+		_refresh_status()
 
 
-## Toggle button for the base's placement mode with `kind` ("sandbag" or a building).
-func _place_toggle(parent: Control, kind: String) -> Button:
-	var b := Button.new()
-	b.toggle_mode = true
-	b.add_theme_font_size_override("font_size", 13)
-	b.toggled.connect(func(on: bool):
-		get_parent().place_kind = kind
-		get_parent().placing = on)
-	parent.add_child(b)
-	place_btns[kind] = b
-	return b
+## Shared look: olive buttons, yellow when pressed / toggled on, sand text.
+func _theme() -> Theme:
+	var th := Theme.new()
+	th.default_font_size = 13
+	th.set_color("font_color", "Label", SAND)
+	th.set_stylebox("normal", "Button", _box(OLIVE.darkened(0.35), 4))
+	th.set_stylebox("hover", "Button", _box(OLIVE.darkened(0.1), 4))
+	th.set_stylebox("pressed", "Button", _box(ACCENT, 4))
+	th.set_stylebox("hover_pressed", "Button", _box(ACCENT.lightened(0.15), 4))
+	th.set_stylebox("disabled", "Button", _box(Color(0.1, 0.11, 0.07), 4))
+	var focus := StyleBoxEmpty.new()
+	th.set_stylebox("focus", "Button", focus)
+	for c in ["font_color", "font_hover_color", "font_focus_color"]:
+		th.set_color(c, "Button", SAND)
+	th.set_color("font_pressed_color", "Button", DARK_TEXT)
+	th.set_color("font_hover_pressed_color", "Button", DARK_TEXT)
+	th.set_color("font_disabled_color", "Button", SAND.darkened(0.55))
+	th.set_stylebox("panel", "TooltipPanel", _box(Color(0.04, 0.05, 0.03, 0.95), 6, ACCENT))
+	th.set_color("font_color", "TooltipLabel", SAND)
+	return th
 
 
-## Label with - and + buttons; cb(key, -1 / +1) on press.
-func _pm_row(box: VBoxContainer, cb: Callable, key: String) -> Label:
-	var h := HBoxContainer.new()
-	box.add_child(h)
-	var l := _lbl(h)
-	for d in [-1, 1]:
+func _box(bg: Color, margin: float, border := Color.TRANSPARENT) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg
+	sb.set_content_margin_all(margin)
+	sb.content_margin_left = margin + 4
+	sb.content_margin_right = margin + 4
+	if border.a > 0.0:
+		sb.border_width_left = 2
+		sb.border_color = border
+	return sb
+
+
+## Panel with the title screen's yellow top bar; returns its VBox.
+func _panel(root: Control, pos: Vector2, width: float) -> VBoxContainer:
+	var p := PanelContainer.new()
+	p.position = pos
+	p.custom_minimum_size.x = width
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = PANEL
+	sb.border_width_top = 6
+	sb.border_color = ACCENT
+	sb.set_content_margin_all(14)
+	p.add_theme_stylebox_override("panel", sb)
+	root.add_child(p)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	p.add_child(v)
+	return v
+
+
+func _label(text: String, size := 13, color := SAND, is_mono := false) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	if is_mono:
+		l.add_theme_font_override("font", mono)
+	return l
+
+
+func _rule() -> ColorRect:
+	var r := ColorRect.new()
+	r.custom_minimum_size = Vector2(0, 2)
+	r.color = OLIVE
+	return r
+
+
+func _build_tab(main: VBoxContainer) -> void:
+	var cols := HBoxContainer.new()
+	cols.add_theme_constant_override("separation", 14)
+	main.add_child(cols)
+	tabs["BUILD"] = cols
+	var up := VBoxContainer.new()
+	up.custom_minimum_size.x = 250
+	cols.add_child(up)
+	up.add_child(_label("UPGRADES", 12, ACCENT, true))
+	for id in UPGRADES.keys() + ["repair"]:
+		var h := HBoxContainer.new()
+		up.add_child(h)
+		var v := VBoxContainer.new()
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		v.add_theme_constant_override("separation", 1)
+		h.add_child(v)
+		var top := HBoxContainer.new()
+		v.add_child(top)
+		var name := _label("", 14)
+		top.add_child(name)
+		var pips := HBoxContainer.new()
+		pips.add_theme_constant_override("separation", 3)
+		pips.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		top.add_child(pips)
+		for i in (UPGRADES[id][1] if id != "repair" else 0):
+			var pip := ColorRect.new()
+			pip.custom_minimum_size = Vector2(8, 8)
+			pips.add_child(pip)
+		v.add_child(_label(UPGRADE_INFO[id], 11, DIM))
 		var b := Button.new()
-		b.text = "-" if d < 0 else "+"
-		b.custom_minimum_size.x = 30
-		b.pressed.connect(cb.bind(key, d))
+		b.custom_minimum_size = Vector2(84, 0)
+		b.add_theme_font_override("font", mono)
+		b.pressed.connect(buy.bind(id))
 		h.add_child(b)
-	return l
+		rows[id] = [name, pips, b]
+	var site := VBoxContainer.new()
+	site.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cols.add_child(site)
+	site.add_child(_label("BUILD ON THE MAP", 12, ACCENT, true))
+	for kind in BUILD_INFO:
+		var b := Button.new()
+		b.toggle_mode = true
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.toggled.connect(func(on: bool):
+			get_parent().place_kind = kind
+			get_parent().placing = on)
+		site.add_child(b)
+		place_btns[kind] = b
+	perimeter_btn = Button.new()
+	perimeter_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	perimeter_btn.pressed.connect(func(): get_parent().expand_perimeter())
+	site.add_child(perimeter_btn)
 
 
-func _lbl(h: HBoxContainer) -> Label:
-	var l := Label.new()
-	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	l.add_theme_font_size_override("font_size", 13)
-	h.add_child(l)
-	return l
+func _workers_tab(main: VBoxContainer) -> void:
+	var v := VBoxContainer.new()
+	main.add_child(v)
+	tabs["WORKERS"] = v
+	worker_info = _label("", 13, SAND, true)
+	v.add_child(worker_info)
+	var grid := GridContainer.new()
+	grid.columns = 6
+	grid.add_theme_constant_override("h_separation", 8)
+	v.add_child(grid)
+	for h in ["JOB", "EFFECT", "", "N", "", "NOTE"]:
+		grid.add_child(_label(h, 12, ACCENT, true))
+	for j in JOBS:
+		grid.add_child(_label(JOBS[j][0], 14))
+		var eff := _label(JOBS[j][1], 12, DIM)
+		eff.custom_minimum_size.x = 250
+		grid.add_child(eff)
+		var r := []
+		var n := _label("", 14, SAND, true)
+		n.custom_minimum_size.x = 26
+		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		for d in [-1, 1]:
+			var b := Button.new()
+			b.text = "-" if d < 0 else "+"
+			b.custom_minimum_size = Vector2(28, 26)
+			b.pressed.connect(_adjust_worker.bind(j, d))
+			grid.add_child(b)
+			r.append(b)
+			if d < 0:
+				grid.add_child(n)
+		var note := _label("", 12, DIM, true)
+		grid.add_child(note)
+		job_rows[j] = [n, r[0], r[1], note]
+	worker_msg = _label("", 13, BAD)
+	v.add_child(worker_msg)
+	var unassign := Button.new()
+	unassign.text = "Unassign all"
+	unassign.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	unassign.pressed.connect(unassign_all)
+	v.add_child(unassign)
 
 
-func _wrap_lbl(box: VBoxContainer) -> Label:
-	var l := Label.new()
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD
-	l.custom_minimum_size.x = 360
-	l.add_theme_font_size_override("font_size", 13)
-	box.add_child(l)
-	return l
+func _hangar_tab(main: VBoxContainer) -> void:
+	var v := VBoxContainer.new()
+	main.add_child(v)
+	tabs["HANGAR"] = v
+	v.add_child(_label("LOADOUT", 12, ACCENT, true))
+	loadout_info = _label("", 13, SAND, true)
+	v.add_child(loadout_info)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 8)
+	v.add_child(grid)
+	for k in LOADOUT:
+		var name := _label(LOADOUT[k][0], 13)
+		name.custom_minimum_size.x = 260
+		grid.add_child(name)
+		for d in [-1, 1]:
+			var b := Button.new()
+			b.text = "-" if d < 0 else "+"
+			b.custom_minimum_size = Vector2(28, 26)
+			b.pressed.connect(_adjust_loadout.bind(k, d))
+			grid.add_child(b)
+			if d < 0:
+				loadout_rows[k] = _label("", 14, SAND, true)
+				loadout_rows[k].custom_minimum_size.x = 26
+				loadout_rows[k].horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				grid.add_child(loadout_rows[k])
+	weapon_box = VBoxContainer.new()
+	v.add_child(weapon_box)
 
 
 func show_tab(tab: String) -> void:
 	for t in tabs:
 		tabs[t].visible = t == tab
+		var sb := _box(OLIVE.darkened(0.2) if t == tab else Color(0.1, 0.12, 0.07), 4)
+		sb.border_width_bottom = 4 if t == tab else 0
+		sb.border_color = ACCENT
+		for s in ["normal", "hover", "pressed", "hover_pressed"]:
+			tab_btns[t].add_theme_stylebox_override(s, sb)
+		for c in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+			tab_btns[t].add_theme_color_override(c, ACCENT if t == tab else DIM)
 
 
 func open() -> void:
@@ -190,106 +370,184 @@ func cost(id: String) -> int:
 
 
 func can_buy(id: String) -> bool:
+	return _buy_refusal(id) == ""
+
+
+## Why `id` cannot be bought right now, "" if it can.
+func _buy_refusal(id: String) -> String:
+	if id == "repair" and Game.base_hp >= Game.max_base_hp:
+		return "the base hull is intact"
+	if id != "repair":
+		var lvl: int = Game.base_level.get(id, 0)
+		if lvl >= UPGRADES[id][1]:
+			return "maximum level"
+		if Game.rescued < UPGRADES[id][3] * (lvl + 1):
+			return "needs %d rescued" % (UPGRADES[id][3] * (lvl + 1))
 	if Game.scrap < cost(id):
-		return false
-	if id == "repair":
-		return Game.base_hp < Game.max_base_hp
-	var lvl: int = Game.base_level.get(id, 0)
-	return lvl < UPGRADES[id][1] and Game.rescued >= UPGRADES[id][3] * (lvl + 1)
+		return "needs %d scrap, you have %d" % [cost(id), Game.scrap]
+	return ""
+
+
+## Population, stocks with per-day change, power, next assault.
+func _refresh_status() -> void:
+	var base: Node2D = get_parent()
+	var w: Dictionary = Game.workers
+	var eff := Game.work_eff()
+	var rate: Dictionary = Game.WORKER_RATE
+	var eaters: int = Game.rescued + Game.campers()
+	pop_label.text = "rescued %3d   beds    %3d\ncamping %3d   injured %3d\nidle    %3d   assigned%3d" % [
+		Game.rescued, Game.housing(), Game.campers(), Game.injured, Game.idle_workers(), Game.assigned()]
+	var gen: float = Game.built("generator") * Game.GEN_FUEL
+	# id -> [value, bar full at, per day (null: unknown), show cap]
+	var s := {
+		"fuel": [Game.base_fuel, Game.base_fuel_cap, w["fuel"] * rate["fuel"] * eff - gen, true],
+		"ammo": [Game.base_ammo, Game.base_ammo_cap, w["ammo"] * rate["ammo"] * eff, true],
+		"food": [Game.base_food, maxf(10.0, eaters * 10.0), w["farm"] * rate["farm"] * eff + Game.FIELD_FOOD * base.field_cells().size() - eaters * Game.FOOD_PER_PERSON, false],
+		"water": [Game.base_water, maxf(10.0, eaters * 10.0), w["water"] * rate["water"] * eff + Game.built("well") * Game.WELL_WATER - eaters * Game.WATER_PER_PERSON, false],
+		"medicine": [Game.base_medicine, 10.0, null, false],
+		"rifles": [Game.base_rifles, maxf(10.0, w["militia"]), float(Game.base_level.get("armory", 0)), false],
+		"scrap": [Game.scrap, 200.0, null, false],
+		"metal": [Game.salvage["metal"], 60.0, null, false],
+		"parts": [Game.salvage["parts"], 60.0, null, false],
+		"electronics": [Game.salvage["electronics"], 60.0, null, false],
+	}
+	for id in s:
+		var r: Array = stock_rows[id]
+		var v: Array = s[id]
+		r[0].size.x = 64.0 * clampf(v[0] / v[1], 0.0, 1.0)
+		r[1].text = ("%d/%d" % [v[0], v[1]]) if v[3] else "%d" % v[0]
+		r[2].text = "" if v[2] == null else "%+.0f/d" % v[2]
+		r[2].add_theme_color_override("font_color", DIM if v[2] == null or absf(v[2]) < 0.5 else (GOOD if v[2] > 0 else BAD))
+	power_label.text = "POWER    %s" % ("ON  (gen fuel %d/day)" % gen if Game.power else ("OFF (generator has no fuel)" if gen > 0.0 else "OFF (no generator)"))
+	power_label.add_theme_color_override("font_color", GOOD if Game.power else DIM)
+	assault_label.text = "ASSAULT  %s" % _assault_eta()
+	assault_label.add_theme_color_override("font_color", BAD if Game.attack_active or Game.attack_pending else SAND)
+
+
+## "UNDER ATTACK", or in-game hours until the next assault (time 0.8 of every third day).
+func _assault_eta() -> String:
+	if Game.attack_active:
+		return "UNDER ATTACK"
+	var d: int = Game.day
+	while d % Game.ATTACK_EVERY_DAYS != 0 or (d == Game.day and Game.time >= 0.8 and not Game.attack_pending):
+		d += 1
+	var hours := ((d - Game.day) + 0.8 - Game.time) * 24.0
+	return "%s, in %dh" % ["TONIGHT" if d == Game.day else "day %d" % d, ceili(hours)]
 
 
 func refresh() -> void:
 	var base: Node2D = get_parent()
-	var eaters: int = Game.rescued + Game.campers()
-	header.text = "Scrap: %d   Rescued: %d   Beds: %d   Camping: %d   Injured: %d   Idle: %d\nStock  fuel %d/%d   ammo %d/%d   rifles %d   medicine %d\nfood %d   water %d   (-%d/day each)   power %s\nsalvage metal %d  parts %d  electronics %d" % [
-		Game.scrap, Game.rescued, Game.housing(), Game.campers(), Game.injured, Game.idle_workers(), Game.base_fuel, Game.base_fuel_cap,
-		Game.base_ammo, Game.base_ammo_cap, Game.base_rifles, Game.base_medicine, Game.base_food, Game.base_water, eaters, "on" if Game.power else "off",
-		Game.salvage["metal"], Game.salvage["parts"], Game.salvage["electronics"]]
-	if base.placing:
-		header.text += "\nClick: place %s   RMB: remove blueprint   Build workers build" % ("sandbag" if base.place_kind == "sandbag" else Game.BUILDINGS[base.place_kind][0])
-	for k in place_btns:
-		place_btns[k].set_pressed_no_signal(base.placing and base.place_kind == k)
-		if k != "sandbag":
-			place_btns[k].text = "Place" if not place_btns[k].button_pressed else "Placing"
-	var built: int = Game.sandbags.values().filter(func(b): return b["built"]).size()
-	place_btn.text = "%s sandbags  5 scrap each  RMB removes  %d/%d built" % ["Placing" if place_btn.button_pressed else "Place", built, Game.sandbags.size()]
-	for kind in BUILD_INFO:
-		var b: Array = Game.BUILDINGS[kind]
-		var planned: int = Game.buildings.filter(func(s): return s["kind"] == kind and not s["built"]).size()
-		site_rows[kind].text = "%s  %d scrap %ds  %s  (%d%s)" % [b[0], b[1], b[2], BUILD_INFO[kind], Game.built(kind), " +%d planned" % planned if planned > 0 else ""]
-		place_btns[kind].disabled = Game.scrap < b[1] and not place_btns[kind].button_pressed
-	var plvl: int = base.perimeter_level()
-	site_rows["perimeter"].text = "Perimeter %d m  Lv %d/%d  (+6 m, 60 s)" % [Game.base_radius / 10.0, plvl, Game.PERIMETER_MAX]
-	perimeter_btn.text = "MAX" if plvl >= Game.PERIMETER_MAX else "Expand %d" % base.building_cost("perimeter")
-	perimeter_btn.disabled = plvl >= Game.PERIMETER_MAX or Game.scrap < base.building_cost("perimeter") or not base.next_site("perimeter").is_empty()
-	for id in UPGRADES:
-		var u: Array = UPGRADES[id]
+	_refresh_status()
+	# BUILD
+	for id in rows:
+		var r: Array = rows[id]
 		var lvl: int = Game.base_level.get(id, 0)
-		var maxed: bool = lvl >= u[1]
-		var need: int = u[3] * (lvl + 1)
-		rows[id][0].text = "%s  Lv %d/%d" % [u[0], lvl, u[1]] + ("" if maxed or need == 0 else "  (needs %d rescued)" % need) + ("  " + UPGRADE_INFO[id] if UPGRADE_INFO.has(id) else "")
-		rows[id][1].text = "MAX" if maxed else "Buy %d" % cost(id)
-		rows[id][1].disabled = not can_buy(id)
-	rows["repair"][0].text = "Repair Base  %d/%d" % [Game.base_hp, Game.max_base_hp]
-	repair_btn.text = "Fix %d" % cost("repair")
-	repair_btn.disabled = not can_buy("repair")
-	loadout_info.text = "Weight %d/%d pts (over 8: -4 %% speed each)   Speed x%.2f\nSeats %d  Fuel %d  Ammo %d  Armour x%.2f" % [
+		var why := _buy_refusal(id)
+		if id == "repair":
+			r[0].text = "Repair base  %d/%d " % [Game.base_hp, Game.max_base_hp]
+			r[2].text = "Fix %d" % cost(id)
+		else:
+			r[0].text = UPGRADES[id][0] + " "
+			for i in r[1].get_child_count():
+				r[1].get_child(i).color = ACCENT if i < lvl else Color(0.2, 0.22, 0.14)
+			r[2].text = "MAX" if lvl >= UPGRADES[id][1] else "Buy %d" % cost(id)
+		r[2].disabled = why != ""
+		r[2].tooltip_text = why
+	for kind in place_btns:
+		var b: Button = place_btns[kind]
+		var on: bool = base.placing and base.place_kind == kind
+		b.set_pressed_no_signal(on)
+		var price: int = Game.SANDBAG_COST if kind == "sandbag" else Game.BUILDINGS[kind][1]
+		var secs: int = Game.BUILD_SECONDS if kind == "sandbag" else Game.BUILDINGS[kind][2]
+		var built: int = Game.sandbags.values().filter(func(s): return s["built"]).size() if kind == "sandbag" else Game.built(kind)
+		var plan: int = Game.sandbags.size() - built if kind == "sandbag" else Game.buildings.filter(func(s): return s["kind"] == kind and not s["built"]).size()
+		var name: String = "Sandbags" if kind == "sandbag" else Game.BUILDINGS[kind][0]
+		b.text = "%s%s  -  %s\n%d scrap  %d s   built %d  planned %d" % ["> " if on else "", name.to_upper(), BUILD_INFO[kind], price, secs, built, plan]
+		b.disabled = Game.scrap < price and not on
+		b.tooltip_text = "needs %d scrap, you have %d" % [price, Game.scrap] if b.disabled else "click, then click inside the fence to place"
+	var plvl: int = base.perimeter_level()
+	var busy: bool = not base.next_site("perimeter").is_empty()
+	perimeter_btn.text = "EXPAND PERIMETER  -  %d m to %d m\n%d scrap  60 s   level %d/%d%s" % [
+		Game.base_radius / 10.0, (Game.base_radius + Game.PERIMETER_STEP) / 10.0, base.building_cost("perimeter"), plvl, Game.PERIMETER_MAX, "   building..." if busy else ""]
+	perimeter_btn.disabled = plvl >= Game.PERIMETER_MAX or busy or Game.scrap < base.building_cost("perimeter")
+	perimeter_btn.tooltip_text = "maximum level" if plvl >= Game.PERIMETER_MAX else ("the current stage is still being built" if busy \
+		else ("needs %d scrap, you have %d" % [base.building_cost("perimeter"), Game.scrap] if perimeter_btn.disabled else "Build workers put up the next fence ring"))
+	place_bar.visible = base.placing
+	if base.placing:
+		place_label.text = "Click to place %s  ·  RMB removes  ·  ESC done" % ("sandbags" if base.place_kind == "sandbag" else Game.BUILDINGS[base.place_kind][0])
+	# HANGAR
+	loadout_info.text = "weight %d/%d pts (over 8: -4 %% speed each)  speed x%.2f\nseats %d  fuel %d  ammo %d  armour x%.2f" % [
 		Game.loadout_points(), Game.loadout_budget, Game.weight_factor, Game.seats, Game.max_fuel, Game.max_ammo, Game.stats["armor"]]
 	for k in LOADOUT:
-		loadout_rows[k].text = "%s: %d" % [LOADOUT[k][0], Game.loadout[k]]
+		loadout_rows[k].text = str(Game.loadout[k])
 	_refresh_weapons()
-	worker_info.text = "Population %d   beds %d   camping %d (work at 50 %%)   injured %d   assigned %d   idle %d" % [
+	# WORKERS
+	worker_info.text = "population %d  beds %d  camping %d (work at 50 %%)\ninjured %d  assigned %d  idle %d" % [
 		Game.rescued, Game.housing(), Game.campers(), Game.injured, Game.assigned(), Game.idle_workers()]
 	for j in JOBS:
-		job_rows[j].text = "%s: %d" % [JOBS[j], Game.workers[j]]
-		var h: Node = job_rows[j].get_parent()
-		h.get_child(1).disabled = Game.workers[j] <= 0
+		var r: Array = job_rows[j]
+		r[0].text = str(Game.workers[j])
+		r[1].disabled = Game.workers[j] <= 0
 		var why := worker_refusal(j, Game.workers[j] + 1)
-		h.get_child(2).modulate = Color(1, 1, 1, 0.35) if why != "" else Color.WHITE # greyed but clickable: a click shows why
-		h.get_child(2).tooltip_text = why
-	job_rows["militia"].text = "Militia %d (rifles %d)  -3 %% dmg each, mans posts in assaults" % [Game.workers["militia"], Game.base_rifles]
-	job_rows["militia"].modulate = Color(1, 0.4, 0.4) if Game.workers["militia"] > int(Game.base_rifles) else Color.WHITE
+		r[2].modulate = Color(1, 1, 1, 0.35) if why != "" else Color.WHITE # greyed but clickable: a click shows why
+		r[2].tooltip_text = why
+		var note := ""
+		var bad := false
+		match j:
+			"militia":
+				note = "rifles %d" % Game.base_rifles
+				bad = Game.workers[j] > int(Game.base_rifles)
+			"water":
+				bad = not base.water_near()
+				note = "no water near" if bad else ""
+			"workshop":
+				bad = Game.base_level.get("workshop", 0) < 1
+				note = "needs Workshop" if bad else "salvage %d" % (Game.salvage["metal"] + Game.salvage["parts"] + Game.salvage["electronics"])
+			"build":
+				note = "%d blueprints" % (Game.sandbags.values().filter(func(s): return not s["built"]).size() + Game.buildings.filter(func(b): return not b["built"]).size())
+			"medic":
+				note = "clinic beds %d" % (2 * Game.built("clinic"))
+		r[3].text = note
+		r[3].add_theme_color_override("font_color", BAD if bad else DIM)
 
 
 func _refresh_weapons() -> void:
 	for c in weapon_box.get_children():
 		weapon_box.remove_child(c) # a Stow/Mount button may be mid-signal, so no free()
 		c.queue_free()
-	var cap := Label.new()
-	cap.text = "Weapons  (hardpoints %d/%d, X switches in flight)" % [Game.heli_weapons.size(), Game.slots["hardpoint"]]
-	cap.add_theme_font_size_override("font_size", 13)
-	weapon_box.add_child(cap)
+	weapon_box.add_child(_rule())
+	weapon_box.add_child(_label("WEAPONS  hardpoints %d/%d  (X switches in flight)" % [Game.heli_weapons.size(), Game.slots["hardpoint"]], 12, ACCENT, true))
 	for id in Game.heli_weapons:
-		_weapon_row("HELI  %s Lv %d%s" % [Weapons.TABLE[id]["name"], Progression.level(id), "  (equipped)" if id == Game.weapon else ""], "Stow", Game.heli_weapons.size() < 2, stow.bind(id))
+		_weapon_row("HELI  %s Lv %d%s" % [Weapons.TABLE[id]["name"], Progression.level(id), "  (equipped)" if id == Game.weapon else ""], "Stow", "the heli needs one gun" if Game.heli_weapons.size() < 2 else "", stow.bind(id))
 	for id in Game.weapon_bay:
-		_weapon_row("BAY   %s Lv %d" % [Weapons.TABLE[id]["name"], Progression.level(id)], "Mount", Game.heli_weapons.size() >= Game.slots["hardpoint"], mount.bind(id))
+		_weapon_row("BAY   %s Lv %d" % [Weapons.TABLE[id]["name"], Progression.level(id)], "Mount", "no free hardpoint" if Game.heli_weapons.size() >= Game.slots["hardpoint"] else "", mount.bind(id))
 	_refresh_items()
 
 
 ## Fitted systems and modules with a scrap button; Workshop levels buy the extra slots.
 func _refresh_items() -> void:
-	var cap := Label.new()
-	cap.text = "Fitted  (systems %d/%d, modules %d/%d; Workshop 2/3/4 adds a hardpoint/system/module slot)" % [
-		Progression.used("system"), Game.slots["system"], Progression.used("module"), Game.slots["module"]]
-	cap.autowrap_mode = TextServer.AUTOWRAP_WORD
-	cap.custom_minimum_size.x = 360
-	cap.add_theme_font_size_override("font_size", 13)
-	weapon_box.add_child(cap)
+	weapon_box.add_child(_label("FITTED  systems %d/%d  modules %d/%d" % [
+		Progression.used("system"), Game.slots["system"], Progression.used("module"), Game.slots["module"]], 12, ACCENT, true))
+	weapon_box.add_child(_label("Workshop 2/3/4 adds a hardpoint / system / module slot. Scrapping refunds half the cards.", 11, DIM))
 	for id in Game.heli_items:
 		if Progression.ITEMS[id]["slot"] != "hardpoint":
 			var lv: int = Game.heli_items[id]
 			_weapon_row("%s  %s Lv %d" % [Progression.ITEMS[id]["slot"].substr(0, 3).to_upper(), Progression.ITEMS[id]["name"], lv],
-				"Scrap +%d" % (lv * Progression.CARD_SCRAP / 2), false, func(): Game.scrap_item(id); refresh())
+				"Scrap +%d" % (lv * Progression.CARD_SCRAP / 2), "", func(): Game.scrap_item(id); refresh())
 
 
-func _weapon_row(text: String, btn: String, disabled: bool, cb: Callable) -> void:
+## Row with a button; `refusal` != "" disables it and is shown on hover.
+func _weapon_row(text: String, btn: String, refusal: String, cb: Callable) -> void:
 	var h := HBoxContainer.new()
 	weapon_box.add_child(h)
-	_lbl(h).text = text
+	var l := _label(text, 13, SAND, true)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(l)
 	var b := Button.new()
 	b.text = btn
-	b.custom_minimum_size.x = 80
-	b.disabled = disabled
+	b.custom_minimum_size.x = 96
+	b.disabled = refusal != ""
+	b.tooltip_text = refusal
 	b.pressed.connect(cb)
 	h.add_child(b)
 

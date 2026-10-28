@@ -1,5 +1,6 @@
 extends Node
-## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (flight, combat, level-up cards, base, workers, hangar, settings, title hangar), quits.
+## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (flight, combat, level-up cards, base BUILD / WORKERS / HANGAR,
+## base pawns after delivering 6, settings, title hangar), quits.
 ## Time-based so it works at any refresh rate.
 
 var t := 0.0
@@ -48,6 +49,9 @@ func _process(delta: float) -> void:
 					Game.world.choice_ui.pick(0)
 				Game.heli.position = Game.world.BASE_POS
 				Game.heli.vel = Vector2.ZERO
+				Game.time = 0.35 # daylight for the base shots
+				Game.passengers = 6
+				Game.scrap = 150
 				Input.action_press("land")
 				step = 6
 		6:
@@ -55,7 +59,17 @@ func _process(delta: float) -> void:
 			step = 7
 		7:
 			if t > 8.0: # 1.5 s landing spool, then the base menu is open
+				var ui: CanvasLayer = Game.world.base.ui
+				ui.set_worker("militia", 3)
+				ui.set_worker("build", 1)
+				ui.set_worker("farm", 1)
+				Game.world.base.place_kind = "barracks"
+				Game.world.base.placing = true
+				step = 71
+		71:
+			if t > 8.1:
 				_save("shot_base.png")
+				Game.world.base.placing = false
 				Game.world.base.ui.show_tab("WORKERS")
 				step = 70
 		70:
@@ -69,12 +83,20 @@ func _process(delta: float) -> void:
 		8:
 			if t > 8.3:
 				_save("shot_hangar.png")
+				Game.world.base.ui.visible = false # the pawns walk into the barracks, change and go to work
+				Engine.time_scale = 4.0
+				step = 80
+		80:
+			if t > 20.0:
+				_save("shot_pawns.png")
+				Engine.time_scale = 1.0
+				Game.world.base.ui.visible = true
 				for c in Game.world.get_children():
 					if c is CanvasLayer and c.layer == 25:
 						c.open()
 				step = 9
 		9:
-			if t > 8.6:
+			if t > 20.3:
 				_save("shot_settings.png")
 				var title: CanvasLayer = preload("res://scripts/title_ui.gd").new()
 				Game.world.add_child(title)
@@ -82,7 +104,7 @@ func _process(delta: float) -> void:
 				title._toggle_hangar()
 				step = 10
 		10:
-			if t > 8.9:
+			if t > 20.6:
 				_save("shot_title_hangar.png")
 				get_tree().quit()
 

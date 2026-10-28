@@ -11,10 +11,17 @@ const HANGAR := Rect2(-86, -56, 32, 32) # local rect of the hangar sprite, kept 
 const WATER_REACH := 400.0 # water job needs a river or lake this close
 const TINTS := {"barracks": Color(0.62, 0.7, 0.36), "clinic": Color(1.5, 1.5, 1.5), "generator": Color(0.36, 0.36, 0.4), "well": Color(0.58, 0.68, 0.82)}
 const Chunks := preload("res://scripts/chunk_manager.gd")
+const Pawn := preload("res://scripts/base_pawn.gd")
+const PAWN_MAX := 60 # drawn people; beyond that the base only counts
 
 var turrets: Node2D
 var sandbags: Node2D # one Sprite2D per cell, keyed in bags
-var defenders: Node2D # militia posted during an assault
+var defenders: Node2D # militia posted during an assault (invisible: militia pawns stand on the posts)
+var pawns: Node2D # base_pawn.gd, one per rescued up to PAWN_MAX
+var pawn_t := 0.0 # seconds to the next sync_pawns
+var fields: Array = [] # FIELD tile centres inside the perimeter, cached per radius
+var fields_r := -1.0
+var water_spot: Variant = null # nearest river or lake cell, cached once found
 var sites: Node2D # one node per building, keyed in site_nodes
 var fence: Node2D
 var light: PointLight2D
@@ -63,6 +70,8 @@ func _ready() -> void:
 	add_child(turrets)
 	defenders = Node2D.new()
 	add_child(defenders)
+	pawns = Node2D.new()
+	add_child(pawns)
 	ui = preload("res://scripts/base_ui.gd").new()
 	add_child(ui)
 	rebuild()
@@ -91,6 +100,10 @@ func _process(delta: float) -> void:
 		for d in defenders.get_children():
 			d.queue_free()
 	light.enabled = Game.power and Game.is_night()
+	pawn_t -= delta
+	if pawn_t <= 0.0:
+		pawn_t = 0.5
+		sync_pawns()
 	if Game.workers["build"] <= 0:
 		return
 	var site: Dictionary = next_site() # buildings and perimeter work first, then sandbags
@@ -333,26 +346,98 @@ func _fence() -> void:
 
 ## FIELD tiles inside the perimeter (each feeds 0.5 a day).
 func field_tiles() -> int:
-	var n := 0
+	return _scan_fields().size()
+
+
+## Cached field tile centres for the farm pawns.
+func field_cells() -> Array:
+	if fields_r != Game.base_radius:
+		fields_r = Game.base_radius
+		fields = _scan_fields()
+	return fields
+
+
+func _scan_fields() -> Array:
+	var out := []
 	var r := int(Game.base_radius / CELL)
 	var c := Vector2i((global_position / CELL).floor())
 	for x in range(-r, r + 1):
 		for y in range(-r, r + 1):
 			var pos := cell_pos(c + Vector2i(x, y))
 			if pos.distance_to(global_position) <= Game.base_radius and Game.world.chunks.tile_at(pos) == Chunks.T.FIELD:
-				n += 1
-	return n
+				out.append(pos)
+	return out
 
 
 ## River or lake within WATER_REACH: the water job works.
 func water_near() -> bool:
+	return water_point() != null
+
+
+## Centre of the nearest water cell within WATER_REACH, null if none (cached once found).
+func water_point() -> Variant:
+	if water_spot != null:
+		return water_spot
 	var r := int(WATER_REACH / CELL)
 	var c := Vector2i((global_position / CELL).floor())
+	var best_d := INF
 	for x in range(-r, r + 1):
 		for y in range(-r, r + 1):
-			if Vector2(x, y).length() <= r and Game.world.chunks.tile_at(cell_pos(c + Vector2i(x, y))) == Chunks.T.WATER:
-				return true
-	return false
+			var d := Vector2(x, y).length()
+			if d <= r and d < best_d and Game.world.chunks.tile_at(cell_pos(c + Vector2i(x, y))) == Chunks.T.WATER:
+				best_d = d
+				water_spot = cell_pos(c + Vector2i(x, y))
+	return water_spot
+
+
+## Door of the first built `kind` ("barracks", "clinic"), else of the hangar: where pawns go in and out.
+func door(kind: String) -> Vector2:
+	for b in Game.buildings:
+		if b["kind"] == kind and b["built"]:
+			var n: int = Game.BUILDINGS[kind][3]
+			return cell_pos(b["cell"]) + Vector2(n - 1, n - 1) * CELL / 2 + Vector2(0, n * CELL / 2 + 4)
+	return global_position + HANGAR.get_center() + Vector2(0, HANGAR.size.y / 2 + 4)
+
+
+## Pawns follow the population: as many as rescued (up to PAWN_MAX), the injured first, then Game.workers, the rest idle.
+## A pawn keeps its job while that job still wants people; freed pawns take the first open job.
+func sync_pawns() -> void:
+	var list := pawns.get_children().filter(func(p): return not p.is_queued_for_deletion())
+	var n := mini(Game.rescued, PAWN_MAX)
+	while list.size() > n:
+		list.pop_back().queue_free()
+	while list.size() < n:
+		list.append(add_pawn(door("barracks"), false))
+	var want := {"injured": Game.injured}
+	want.merge(Game.workers)
+	for p in list:
+		if want.get(p.job, 0) > 0:
+			want[p.job] -= 1
+		else:
+			p.job = ""
+	var slots := {}
+	for i in list.size():
+		var p: Node2D = list[i]
+		if p.job == "":
+			p.job = "idle"
+			for k in want:
+				if want[k] > 0:
+					p.job = k
+					want[k] -= 1
+					break
+		p.slot = slots.get(p.job, 0)
+		slots[p.job] = p.slot + 1
+		p.camper = i >= Game.housing()
+
+
+## New pawn at `pos`; `arriving` ones walk into the barracks to change first.
+func add_pawn(pos: Vector2, arriving: bool) -> Node2D:
+	var p := Pawn.new()
+	p.base = self
+	p.state = "arrive" if arriving else "live"
+	pawns.add_child(p)
+	p.global_position = pos
+	return p
 
 
 ## Militia take up rifles on watchtowers first (+50 % reach), then the outermost built sandbags
@@ -369,6 +454,7 @@ func _on_attack(_day: int) -> void:
 		t.tower = i < towers.size()
 		t.armed = i < int(Game.base_rifles)
 		t.position = posts[i] - global_position if i < posts.size() else Vector2(RADIUS, 0).rotated(i * TAU / n)
+		t.visible = i >= PAWN_MAX # the militia pawn walks to this post (base_pawn.gd)
 		defenders.add_child(t)
 
 
@@ -423,6 +509,8 @@ func _on_landed(landed: bool) -> void:
 		Game.passengers_injured = 0
 		Game.scrap += 3 * n
 		Game.radio("%d survivors delivered. Total: %d" % [n, Game.rescued])
+		for i in mini(n, PAWN_MAX - pawns.get_child_count()):
+			add_pawn(Game.heli.global_position + Vector2(randf_range(-12, 12), randf_range(8, 16)), true)
 		if Game.campers() > 0:
 			Game.radio("Base: no beds left, %d camping outside. Build barracks." % Game.campers())
 		Game.add_xp(6 * n)
