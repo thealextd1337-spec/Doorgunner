@@ -1,5 +1,5 @@
 extends Node
-## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (flight, combat, level-up cards, base BUILD / WORKERS / HANGAR,
+## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (no base at the start, then founds it at the start site; flight, combat, level-up cards, base BUILD / WORKERS / HANGAR,
 ## base pawns after delivering 6, settings, title hangar), quits.
 ## Time-based so it works at any refresh rate.
 
@@ -17,6 +17,8 @@ func _process(delta: float) -> void:
 	match step:
 		0:
 			if t > 0.5:
+				_save("shot_nobase.png") # run start: no base yet
+				Game.world.found_base(Game.world.BASE_POS)
 				Input.action_press("land")
 				step = 1
 		1:

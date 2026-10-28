@@ -14,7 +14,7 @@ var tutorial: Node # tutorial.gd while one runs
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec built]
 
-const BASE_POS := Vector2(16 * 16 + 8, 16 * 16 + 8) # centre of chunk (0,0)
+var BASE_POS := Vector2(16 * 16 + 8, 16 * 16 + 8) # the heli's start (centre of chunk (0,0)) until found_base moves it
 const T := preload("res://scripts/chunk_manager.gd").T
 const SOLID := [T.WATER, T.BUILDING, T.ROCK, T.WAREHOUSE, T.HEDGE] # walkers (zombies, survivors) cannot enter
 
@@ -27,6 +27,8 @@ func _ready() -> void:
 	base = preload("res://scripts/base.gd").new()
 	base.position = BASE_POS
 	base.z_index = 1
+	base.visible = false # hidden and inactive until found_base
+	base.process_mode = Node.PROCESS_MODE_DISABLED
 	add_child(base)
 	heli = preload("res://scripts/heli.gd").new()
 	heli.position = BASE_POS
@@ -51,12 +53,16 @@ func _ready() -> void:
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
 	Game.day_changed.connect(_settlements_decline)
-	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot", "prog": "progression_test", "tut": "tutorial_test", "nav": "nav_test"}.get(OS.get_environment("SMOKE"), "")
+	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot", "prog": "progression_test", "tut": "tutorial_test", "nav": "nav_test", "found": "found_test"}.get(OS.get_environment("SMOKE"), "")
+	if test != "" and not test in ["found_test", "shot"]: # the older tests expect a founded, empty base at the start site
+		Game.passengers = 0
+		found_base(BASE_POS)
+		base.ui.close()
 	if test != "":
 		add_child(load("res://tests/%s.gd" % test).new())
 	else:
 		_show_title()
-	Game.radio("Command: you are cleared for takeoff. Rescue survivors, bring them home.")
+	Game.radio("Command: pick a site with open ground near towns and water, land and found the FOB (B).")
 	Game.radio("Controls: WASD fly, mouse aim/fire, SPACE land or take off.")
 
 
@@ -74,6 +80,30 @@ func _show_title() -> void:
 			start_tutorial()
 		Sfx.play("ui"))
 	title.open()
+
+
+## B on open ground (heli.gd): the FOB goes up at `pos` (snapped to the 16 px grid). Pad and field workshop, the founding
+## crew moves in (2 of them on Build so the barracks gets built), the assault clock starts (first on day + 2).
+func found_base(pos: Vector2) -> void:
+	var cell := Vector2i((pos / 16.0).floor())
+	BASE_POS = Vector2(cell) * 16.0 + Vector2(8, 8)
+	base.position = BASE_POS
+	chunks.paint_base_at(cell)
+	Game.base_founded = true
+	Game.base_level["workshop"] = 1
+	Game.first_assault_day = Game.day + 2
+	base.visible = true
+	base.process_mode = Node.PROCESS_MODE_INHERIT
+	Game.rescued += Game.passengers
+	Game.injured += Game.passengers_injured # hurt in flight: they need the clinic, not a job
+	Game.workers["build"] = mini(2, Game.passengers - Game.passengers_injured)
+	Game.passengers_injured = 0
+	for i in mini(Game.passengers, base.PAWN_MAX):
+		base.add_pawn(heli.global_position + Vector2(randf_range(-12, 12), randf_range(8, 16)), true)
+	Game.passengers = 0
+	Game.radio("Base: field workshop set up.")
+	Game.radio("FOB founded. Crew is setting up. Build a barracks (40 scrap) and sandbags; the first assault comes on day %d." % Game.first_assault_day)
+	base._on_landed(true) # the heli sits on the new pad: services and the base menu
 
 
 func start_tutorial() -> void:

@@ -1,7 +1,8 @@
 extends Node
 ## Headless tutorial test. main.gd adds this node when env SMOKE=tut:
 ##   SMOKE=tut godot --headless --path . --quit-after 30000
-## Steps 1-4 played through (take off, fly, land, board, fly home, land), 5-7 by direct calls, then the forced assault.
+## Step 0 (found the base) passes on the pre-founded test base, 1-4 played through (take off, fly, land, board, fly home, land),
+## 5-7 by direct calls, then the forced assault.
 
 
 func _ready() -> void:
@@ -17,16 +18,19 @@ func _run() -> void:
 	await process_frame
 	main.start_tutorial()
 	var tut: Node = main.tutorial
+	assert(tut.step == 0 and tut.settlement == null, "step 0: found the base, no settlement yet")
+	await process_frame # the base is already founded (main.gd test hook): step 0 passes, the settlement appears
+	assert(tut.step == 1, "step 0 done: base founded")
 	var s: Node2D = tut.settlement
 	assert(s.survivors.size() == 3 and main.radio_target == s, "settlement of 3 marked")
 	assert(s.position.distance_to(main.BASE_POS) < 900.0 and main.is_landable(s.position), "close, on landable ground")
 	# 1. take off
 	await _press_land(heli)
-	assert(not heli.landed and tut.step == 1, "step 1 done: airborne")
+	assert(not heli.landed and tut.step == 2, "step 1 done: airborne")
 	# 2. fly over (placed next to it; flight itself is covered by the smoke test)
 	heli.position = s.position + Vector2(100, 0)
 	await process_frame
-	assert(tut.step == 2, "step 2 done: within 160 px")
+	assert(tut.step == 3, "step 2 done: within 160 px")
 	# 3. land on the settlement, people board; zombies are cleared so the test is deterministic
 	heli.position = s.position
 	heli.vel = Vector2.ZERO
@@ -38,7 +42,7 @@ func _run() -> void:
 			e.free()
 		if Game.passengers >= 3:
 			break
-	assert(Game.passengers == 3 and tut.step == 3, "all 3 aboard, step 3 done")
+	assert(Game.passengers == 3 and tut.step == 4, "all 3 aboard, step 3 done")
 	# 4. home
 	await _press_land(heli)
 	heli.position = main.BASE_POS
@@ -48,21 +52,21 @@ func _run() -> void:
 		main.choice_ui.pick(0)
 	await process_frame
 	await process_frame
-	assert(Game.rescued == 3 and tut.step == 4, "step 4 done: delivered")
+	assert(Game.rescued == 3 and tut.step == 5, "step 4 done: delivered")
 	assert(Game.scrap >= 80, "construction scrap granted")
 	# 5-7 by direct calls
 	var cell := Vector2i(((main.BASE_POS + Vector2(-20, 60)) / 16.0).floor())
 	assert(main.base.place_building("barracks", cell), "barracks blueprint")
 	assert(main.base.ui.set_worker("build", 1), "build worker")
 	await process_frame
-	assert(tut.step == 5, "step 5 done")
+	assert(tut.step == 6, "step 5 done")
 	var n := 0
 	for y in range(-4, 4):
 		if main.base.place_sandbag(Vector2i(((main.BASE_POS + Vector2(80, y * 16)) / 16.0).floor())):
 			n += 1
 	assert(n >= 6, "6 sandbags east: %d" % n)
 	await process_frame
-	assert(tut.step == 6, "step 6 done")
+	assert(tut.step == 7, "step 6 done")
 	assert(main.base.ui.set_worker("militia", 1), "militia")
 	await process_frame
 	await process_frame

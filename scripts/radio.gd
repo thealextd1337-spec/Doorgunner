@@ -22,7 +22,7 @@ func _process(delta: float) -> void:
 	if fuel_cd <= 0.0 and Game.fuel < 0.25 * Game.max_fuel:
 		fuel_cd = 60.0
 		Game.radio("Base: you are low on fuel, return to the pad.")
-	var full: bool = Game.passengers >= Game.seats
+	var full: bool = Game.passengers >= Game.seats and Game.base_founded # the founding crew fills the cabin
 	if full and not full_said:
 		Game.radio("Pilot: we are full, head back to base.")
 	full_said = full

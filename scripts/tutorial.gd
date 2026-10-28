@@ -4,6 +4,7 @@ extends Node
 ## Ends with a small forced assault tonight. The ESC menu's "Skip tutorial" calls finish(false).
 
 const STEPS := [
+	"Land on open ground and press B to found the base.",
 	"Take off (SPACE).",
 	"Fly to the marked settlement.",
 	"Land next to it (SPACE) and hold the LZ: people board one by one. Noise draws zombies, keep the gun busy.",
@@ -15,10 +16,16 @@ const STEPS := [
 const SCRAP_GRANT := 80 # barracks 40 + 6 sandbags 30, with some spare
 
 var step := -1
-var settlement: Node2D
+var settlement: Node2D # spawned 700 px east of the base once it is founded
+var rescued0 := 0 # the founding crew does not count as rescued
 
 
 func _ready() -> void:
+	_next()
+
+
+func _spawn_settlement() -> void:
+	rescued0 = Game.rescued
 	var world: Node2D = Game.world
 	var pos: Vector2 = world.BASE_POS + Vector2(700, 0)
 	var found := false
@@ -39,7 +46,6 @@ func _ready() -> void:
 	settlement = world.spawn_poi("survivors", pos, RandomNumberGenerator.new(), 3)
 	settlement.discovered = true
 	world.radio_target = settlement
-	_next()
 
 
 func _clear(at: Vector2) -> bool:
@@ -53,17 +59,18 @@ func _clear(at: Vector2) -> bool:
 func _process(_delta: float) -> void:
 	if not Game.running:
 		return
-	if step < 3 and not settlement.done:
+	if step >= 1 and step < 4 and not settlement.done:
 		Game.world.radio_target = settlement # radio hints would point elsewhere
 	var done := false
 	match step:
-		0: done = not Game.heli.landed
-		1: done = Game.heli.position.distance_to(settlement.position) < 160.0
-		2: done = Game.passengers >= 1
-		3: done = Game.rescued >= 3 or (settlement.done and Game.passengers == 0 and Game.rescued > 0) # a raid may cost people
-		4: done = Game.buildings.any(func(b): return b["kind"] == "barracks") and Game.workers["build"] >= 1
-		5: done = Game.sandbags.size() >= 6
-		6: done = Game.workers["militia"] >= 1
+		0: done = Game.base_founded
+		1: done = not Game.heli.landed
+		2: done = Game.heli.position.distance_to(settlement.position) < 160.0
+		3: done = Game.passengers >= 1
+		4: done = Game.rescued >= rescued0 + 3 or (settlement.done and Game.passengers == 0 and Game.rescued > rescued0) # a raid may cost people
+		5: done = Game.buildings.any(func(b): return b["kind"] == "barracks") and Game.workers["build"] >= 1
+		6: done = Game.sandbags.size() >= 6
+		7: done = Game.workers["militia"] >= 1
 	if done:
 		_next()
 
@@ -73,10 +80,12 @@ func _next() -> void:
 	if step >= STEPS.size():
 		finish(true)
 		return
+	if step == 1:
+		_spawn_settlement()
 	Game.radio("TUTORIAL: " + STEPS[step])
-	if step == 3:
+	if step == 4:
 		Game.world.radio_target = null # the BASE arrow shows the way home
-	if step == 4 and Game.scrap < SCRAP_GRANT:
+	if step == 5 and Game.scrap < SCRAP_GRANT:
 		Game.scrap = SCRAP_GRANT
 		Game.radio("Command: %d scrap released for construction." % SCRAP_GRANT)
 
@@ -90,7 +99,7 @@ func finish(attack: bool) -> void:
 		Game.time = 0.79
 		Game.tutorial_wave = 8
 		Game.radio("TUTORIAL: done. A small horde is coming tonight. Hold the base.")
-	if Game.world.radio_target == settlement:
+	if settlement and Game.world.radio_target == settlement:
 		Game.world.radio_target = null
 	Game.world.tutorial = null
 	queue_free()

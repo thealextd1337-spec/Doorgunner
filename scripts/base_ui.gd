@@ -428,9 +428,9 @@ func _refresh_status() -> void:
 func _assault_eta() -> String:
 	if Game.attack_active:
 		return "UNDER ATTACK"
-	var d: int = Game.day
-	while d % Game.ATTACK_EVERY_DAYS != 0 or (d == Game.day and Game.time >= 0.8 and not Game.attack_pending):
-		d += 1
+	var d: int = Game.day + Game.days_to_assault()
+	if d == Game.day and Game.time >= 0.8 and not Game.attack_pending:
+		d += Game.ATTACK_EVERY_DAYS
 	var hours := ((d - Game.day) + 0.8 - Game.time) * 24.0
 	return "%s, in %dh" % ["TONIGHT" if d == Game.day else "day %d" % d, ceili(hours)]
 

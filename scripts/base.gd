@@ -18,6 +18,7 @@ var turrets: Node2D
 var sandbags: Node2D # one Sprite2D per cell, keyed in bags
 var defenders: Node2D # militia posted during an assault (invisible: militia pawns stand on the posts)
 var pawns: Node2D # base_pawn.gd, one per rescued up to PAWN_MAX
+var told_no_base := false # "no base yet" said once per run
 var pawn_t := 0.0 # seconds to the next sync_pawns
 var fields: Array = [] # FIELD tile centres inside the perimeter, cached per radius
 var fields_r := -1.0
@@ -487,6 +488,11 @@ func resupply() -> void:
 func _on_landed(landed: bool) -> void:
 	if not landed:
 		ui.close()
+		return
+	if not Game.base_founded: # hidden and inactive until main.found_base: no services, passengers stay aboard
+		if Game.passengers > Game.FOUNDING_CREW and not told_no_base:
+			told_no_base = true
+			Game.radio("Pilot: no base to drop them at yet. Found the FOB first (B).")
 		return
 	if Game.heli.position.distance_to(position) > PAD_REACH:
 		return

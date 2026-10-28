@@ -116,20 +116,21 @@ func _process(_delta: float) -> void:
 	_set_bar("xp", Game.xp, Game.xp_needed(), "LVL %d  XP %d/%d" % [Game.level, Game.xp, Game.xp_needed()], Color(0.3, 0.5, 0.95))
 	var h := int(Game.time * 24.0)
 	var m := int(fmod(Game.time * 24.0, 1.0) * 60.0)
-	var next_attack := Game.ATTACK_EVERY_DAYS - (Game.day % Game.ATTACK_EVERY_DAYS)
+	var next_attack := Game.days_to_assault()
 	var table: Dictionary = preload("res://scripts/weapons.gd").TABLE
 	var carried := " / ".join(Game.heli_weapons.map(func(id): return table[id]["name"].to_upper() if id == Game.weapon else table[id]["name"]))
-	info.text = "DAY %d  %02d:%02d %s\nSCRAP %d\nPASSENGERS %d/%d\nRESCUED %d   KILLS %d\nWEAPON %s  (%d m)\nBASE HP %d/%d   STOCK %d fuel  %d ammo  %d food  SALVAGE %d/%d/%d\nWATER %d  MED %d  RIFLES %d  INJURED %d\nPOWER %s (gen fuel %d/day)\nNOISE %d%%\nNext assault: %s" % [
+	info.text = "DAY %d  %02d:%02d %s\nSCRAP %d\nPASSENGERS %d/%d\nRESCUED %d   KILLS %d\nWEAPON %s  (%d m)\n" % [
 		Game.day, h, m, "NIGHT" if Game.is_night() else "",
-		Game.scrap, Game.passengers, Game.seats, Game.rescued, Game.kills, carried, Game.heli.weapon_range() / 10.0,
+		Game.scrap, Game.passengers, Game.seats, Game.rescued, Game.kills, carried, Game.heli.weapon_range() / 10.0]
+	info.text += "NO BASE: land on open ground and press B" if not Game.base_founded else "BASE HP %d/%d   STOCK %d fuel  %d ammo  %d food  SALVAGE %d/%d/%d\nWATER %d  MED %d  RIFLES %d  INJURED %d\nPOWER %s (gen fuel %d/day)\nNOISE %d%%\nNext assault: %s" % [
 		Game.base_hp, Game.max_base_hp, Game.base_fuel, Game.base_ammo, Game.base_food, Game.salvage["metal"], Game.salvage["parts"], Game.salvage["electronics"],
 		Game.base_water, Game.base_medicine, Game.base_rifles, Game.injured, "on" if Game.power else "off", Game.built("generator") * Game.GEN_FUEL, Game.noise_level * 100.0,
-		"TONIGHT" if Game.attack_pending or Game.attack_active else "in %d day(s)" % next_attack]
+		"TONIGHT" if Game.attack_pending or Game.attack_active else "in %d day(s)" % (next_attack if next_attack > 0 else Game.ATTACK_EVERY_DAYS)]
 	info.visible = not Game.world.ui_open # base menu shows the same numbers
 	slots_label.text = Progression.slot_line()
 	slots_label.visible = not Game.world.ui_open # would show through between the base menu panels
 	if Game.heli:
-		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q][E] turn   [X] weapon   [ESC] sound" + ("   [F] loudspeaker" if Game.heli_items.has("loudspeaker") else "")
+		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" + ("   [B] found the base here" if Game.heli.can_found() else "") if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q][E] turn   [X] weapon   [ESC] sound" + ("   [F] loudspeaker" if Game.heli_items.has("loudspeaker") else "")
 	alert.text = "BASE UNDER ATTACK" if Game.attack_active and fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0 else ""
 	if Game.fuel < Game.max_fuel * 0.2 and alert.text == "":
 		alert.text = "LOW FUEL"
@@ -152,7 +153,8 @@ func _draw_compass() -> void:
 	var center := compass.size / 2.0
 	compass.draw_arc(center, Game.heli.weapon_range() * 2.0, 0.0, TAU, 64, Color(1, 1, 1, 0.12), 1.0) # camera zoom 2
 	_door_arcs(Game.heli.get_global_transform_with_canvas().origin) # on the heli itself, the smoothed camera lags behind it
-	_arrow(center, Game.world.base.global_position, Color(0.9, 0.9, 0.3), "BASE")
+	if Game.base_founded:
+		_arrow(center, Game.world.base.global_position, Color(0.9, 0.9, 0.3), "BASE")
 	if is_instance_valid(Game.world.radio_target):
 		_arrow(center, Game.world.radio_target.global_position, Color(0.4, 1, 0.5), "RADIO")
 
@@ -210,7 +212,8 @@ func _draw_minimap() -> void:
 			minimap.draw_rect(Rect2(mp, Vector2(step, step)), c)
 	var to_map := func(wp: Vector2) -> Vector2:
 		return ((wp - heli_pos) / MAP_SCALE + Vector2(half, half)).clamp(Vector2(2, 2), Vector2(MAP_SIZE - 2, MAP_SIZE - 2))
-	minimap.draw_rect(Rect2(to_map.call(Game.world.base.global_position) - Vector2(3, 3), Vector2(6, 6)), Color(1, 1, 0.3))
+	if Game.base_founded:
+		minimap.draw_rect(Rect2(to_map.call(Game.world.base.global_position) - Vector2(3, 3), Vector2(6, 6)), Color(1, 1, 0.3))
 	for p in Game.world.pois:
 		if not is_instance_valid(p) or p.done:
 			continue

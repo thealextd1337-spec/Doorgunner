@@ -169,8 +169,12 @@ func _ensure(c: Vector2i) -> void:
 	for cell in pend:
 		set_cell(cell, 0, Vector2i(pend[cell].x, 0), pend[cell].y)
 	_pending.erase(c)
-	if c == Vector2i.ZERO:
-		_paint_base(origin)
+	if c == Vector2i.ZERO: # the start site: a grass patch under the heli, wide enough to found the base right here
+		for x in range(-4, 5):
+			for y in range(-4, 5):
+				var cell := origin + Vector2i(CHUNK / 2 + x, CHUNK / 2 + y)
+				if not get_cell_atlas_coords(cell).x in [T.GRASS, T.GRASS2, T.GRASS3]:
+					set_cell(cell, 0, Vector2i(T.GRASS, 0))
 		return
 	var dist := Vector2(c).length()
 	var reg := region(origin + Vector2i(CHUNK / 2, CHUNK / 2))
@@ -261,8 +265,14 @@ func _tile(cell: Vector2i) -> int:
 	return t if t >= 0 else _terrain(cell) & 0xff
 
 
+## Cell of main.BASE_POS (the heli's start site until the base is founded).
+func _base_cell() -> Vector2i:
+	return Vector2i((Game.world.BASE_POS / TILE).floor())
+
+
 func _put(cell: Vector2i, t: int, alt := 0) -> void:
-	if absi(cell.x - 16) <= 6 and absi(cell.y - 16) <= 6:
+	var b := _base_cell()
+	if absi(cell.x - b.x) <= 6 and absi(cell.y - b.y) <= 6:
 		return # never paint over the base floor
 	var c := Vector2i(floori(cell.x / float(CHUNK)), floori(cell.y / float(CHUNK)))
 	if loaded.has(c):
@@ -282,7 +292,8 @@ func break_in(cell: Vector2i) -> void:
 
 ## Open ground a house or structure may take: not water, road, town or a prop, and clear of the base.
 func _free(cell: Vector2i) -> bool:
-	return (absi(cell.x - 16) > 9 or absi(cell.y - 16) > 9) and not _taken.has(cell) and _tile(cell) in BUILDABLE
+	var b := _base_cell()
+	return (absi(cell.x - b.x) > 9 or absi(cell.y - b.y) > 9) and not _taken.has(cell) and _tile(cell) in BUILDABLE
 
 
 func _prop(name: String, pos: Vector2, rot := 0.0, tint := Color.WHITE) -> void:
@@ -315,8 +326,15 @@ func _struct_near(near: Vector2i, rad: int, sz: Vector2i, name: String, rng: Ran
 	return false
 
 
-func _paint_base(origin: Vector2i) -> void:
-	var center := origin + Vector2i(CHUNK / 2, CHUNK / 2)
+## The FOB (main.found_base): 13x13 concrete around `center`, grass cleared out to 10 cells (props there removed),
+## a road port so later towns link to it.
+func paint_base_at(center: Vector2i) -> void:
+	for o in [Vector2i(-10, -10), Vector2i(10, -10), Vector2i(-10, 10), Vector2i(10, 10)]: # loaded first, or terrain would paint over it
+		_ensure(Vector2i(floori((center.x + o.x) / float(CHUNK)), floori((center.y + o.y) / float(CHUNK))))
+	var area := Rect2(Vector2(center - Vector2i(10, 10)) * TILE, Vector2(21, 21) * TILE)
+	for n in Game.world.get_children():
+		if n.get_class() == "Node2D" and n.get_script() == null and area.has_point(n.position): # spawn_prop trees, barns...
+			n.queue_free()
 	for x in range(-10, 11):
 		for y in range(-10, 11):
 			var cell := center + Vector2i(x, y)
@@ -325,6 +343,7 @@ func _paint_base(origin: Vector2i) -> void:
 			elif not get_cell_atlas_coords(cell).x in [T.GRASS, T.GRASS2, T.GRASS3]:
 				set_cell(cell, 0, Vector2i(T.GRASS, 0))
 	_ports.append([center + Vector2i(7, 0), center + Vector2i(0, 7)])
+	Game.world.nav_dirty()
 
 
 # ---------------------------------------------------------------- towns

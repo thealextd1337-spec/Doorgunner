@@ -22,6 +22,7 @@ const SANDBAG_HP := 120.0
 const SANDBAG_COST := 5
 const SANDBAG_MAX := 80
 const FOOD_PER_PERSON := 1.0 # per day
+const FOUNDING_CREW := 4 # aboard at run start, they become the base's first people
 
 var heli: Node2D
 var world: Node2D
@@ -48,6 +49,8 @@ var base_hp := 500.0
 var max_base_hp := 500.0
 var attack_pending := false
 var attack_active := false
+var base_founded := false # the run starts without a base: land on open ground and press B (main.found_base)
+var first_assault_day := 0 # set on founding; assaults come every ATTACK_EVERY_DAYS from then
 var base_level := {} # upgrade id -> level
 
 # weapons: weapon = equipped id, heli_weapons = mounted (slots["hardpoint"]), weapon_bay = stored at base
@@ -186,13 +189,14 @@ func _ready() -> void:
 func new_run() -> void:
 	seed = randi()
 	hp = 100.0; max_hp = 100.0
-	passengers = 0
-	scrap = 0; xp = 0; level = 1
+	passengers = FOUNDING_CREW
+	scrap = 60; xp = 0; level = 1
 	day = 1; time = 0.25
 	rescued = 0; kills = 0
 	base_hp = 500.0; max_base_hp = 500.0
 	attack_pending = false; attack_active = false
-	base_level = {"workshop": 1} # the first workshop comes with the base: salvage processing from day 1
+	base_founded = false; first_assault_day = 0
+	base_level = {} # the field workshop comes with founding
 	for k in stats.keys():
 		stats[k] = 1.0 if typeof(stats[k]) == TYPE_FLOAT else 0
 	stats["shots"] = 1
@@ -355,7 +359,7 @@ func _process(delta: float) -> void:
 		time -= 1.0
 		day += 1
 		day_changed.emit(day)
-		if world and world.base:
+		if base_founded:
 			base_food += FIELD_FOOD * world.base.field_tiles()
 		for i in maxi(0, injured - treating.size()): # yesterday's untreated, before anyone new gets hurt
 			if randf() < UNTREATED_DEATH:
@@ -376,7 +380,7 @@ func _process(delta: float) -> void:
 				radio("Base: water is running low, %d days' worth left." % int(base_water / maxf(1.0, eaters)))
 		if injured > 0:
 			radio("%d injured, %d medicine left" % [injured, int(base_medicine)])
-		if day % ATTACK_EVERY_DAYS == 0:
+		if base_founded and day >= first_assault_day and (day - first_assault_day) % ATTACK_EVERY_DAYS == 0:
 			attack_pending = true
 			radio("Intel: a horde is massing. Expect an assault on the base tonight.")
 	if attack_pending and time >= 0.8:
@@ -387,6 +391,13 @@ func _process(delta: float) -> void:
 			radio("Base: a camper outside the wire got mauled. Build barracks.")
 		base_attack_started.emit(day)
 		radio("ALERT: base under attack! Return and defend!")
+
+
+## Days until the next scheduled assault (0 = today), -1 without a base.
+func days_to_assault() -> int:
+	if not base_founded:
+		return -1
+	return first_assault_day - day if day < first_assault_day else posmod(first_assault_day - day, ATTACK_EVERY_DAYS)
 
 
 ## Field clinic: 2 beds per clinic, a patient takes a bed for 1 medicine, then heals in HEAL_DAYS
@@ -483,7 +494,7 @@ func _setup_input() -> void:
 	var keys := {
 		"move_up": [KEY_W, KEY_UP], "move_down": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
-		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E],
+		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B],
 	}
 	for action in keys:
 		if not InputMap.has_action(action):

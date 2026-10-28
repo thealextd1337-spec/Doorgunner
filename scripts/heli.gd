@@ -62,6 +62,11 @@ func _process(delta: float) -> void:
 			landed = pending == 1
 			pending = 0
 			landed_changed.emit(landed)
+	if Input.is_action_just_pressed("found") and landed and pending == 0 and not Game.base_founded:
+		if can_found():
+			Game.world.found_base(position)
+		else:
+			Game.radio("Pilot: too much forest or water here. We need open ground for the FOB.")
 	if Input.is_action_just_pressed("weapon_swap"):
 		Game.cycle_weapon()
 	_move(delta)
@@ -121,6 +126,17 @@ func _toggle_landing() -> void:
 		Sfx.play("land")
 	else:
 		Game.radio("Pilot: too fast or no clear ground to land.")
+
+
+## Landed, no base yet and the 7x7 cells around the heli are landable: B founds the FOB here.
+func can_found() -> bool:
+	if not landed or pending != 0 or Game.base_founded:
+		return false
+	for x in range(-3, 4):
+		for y in range(-3, 4):
+			if not Game.world.is_landable(position + Vector2(x, y) * 16.0):
+				return false
+	return true
 
 
 ## Unit aim direction: the mouse, or aim_override in tests.

@@ -73,7 +73,7 @@ func _ready() -> void:
 	rule.custom_minimum_size = Vector2(0, 2)
 	rule.color = OLIVE
 	v.add_child(rule)
-	v.add_child(_label("> Land by towns and pick up the survivors.\n> Fly them to base. Spend scrap to build it up.\n> Every third night the horde attacks. Hold the base.", 16, SAND, mono))
+	v.add_child(_label("> Fly out, pick a site, land and found the base (B).\n> Land by towns and pick up the survivors.\n> Fly them to base. Spend scrap to build it up.\n> Every third night the horde attacks. Hold the base.", 16, SAND, mono))
 	v.add_child(_label("WASD   fly             MOUSE  aim     LMB  fire\nSPACE  land / take off  R      restart", 14, SAND.darkened(0.3), mono))
 	stats = _label("", 13, OLIVE.lightened(0.45), mono)
 	v.add_child(stats)
