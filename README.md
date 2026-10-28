@@ -6,7 +6,7 @@ build the base up, and hold it when the horde assaults every third night.
 
 ## Play
 - Open the project in Godot 4.7 (`godot --path .`) and press F5, or run `godot --path . --export`-free: just `godot --path .`.
-- **WASD / arrows** fly, **mouse** aims, **LMB** fires the door gun, **SPACE** lands / takes off, **R** restarts after a run ends.
+- **WASD / arrows** fly, **mouse** aims, **LMB** fires the door gun, **SPACE** lands / takes off, **R** restarts after a run ends, **ESC** opens the sound settings (volumes are saved).
 - Land next to a point of interest to interact: settlements (survivors board one by one, hold the LZ),
   supply crates (fuel, ammo, scrap), weapons caches (pick an upgrade), relay towers (reveal nearby POIs),
   crash sites (scrap and a permanent boost). Zombie dens spawn an abomination boss when approached.

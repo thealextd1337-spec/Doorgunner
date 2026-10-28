@@ -73,7 +73,8 @@ var stats := {
 	"armor": 1.0, "pierce": 0, "shots": 1, "bullet_speed": 1.0, "xp_gain": 1.0,
 }
 
-var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "a"}
+var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "a",
+	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 0}
 var radio_beep_ms := 0
 
 
@@ -275,7 +276,7 @@ func _setup_input() -> void:
 	var keys := {
 		"move_up": [KEY_W, KEY_UP], "move_down": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
-		"land": [KEY_SPACE], "interact": [KEY_E], "restart": [KEY_R], "weapon_swap": [KEY_Q],
+		"land": [KEY_SPACE], "interact": [KEY_E], "restart": [KEY_R], "weapon_swap": [KEY_Q], "menu": [KEY_ESCAPE],
 	}
 	for action in keys:
 		if not InputMap.has_action(action):

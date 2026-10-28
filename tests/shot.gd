@@ -54,6 +54,13 @@ func _process(delta: float) -> void:
 		7:
 			if t > 8.0: # 1.5 s landing spool, then the base menu is open
 				_save("shot_base.png")
+				for c in Game.world.get_children():
+					if c is CanvasLayer and c.layer == 25:
+						c.open()
+				step = 8
+		8:
+			if t > 8.3:
+				_save("shot_settings.png")
 				get_tree().quit()
 
 

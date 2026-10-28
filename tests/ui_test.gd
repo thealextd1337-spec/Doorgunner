@@ -40,5 +40,20 @@ func _run() -> void:
 	assert(over and over.visible, "game-over layer visible")
 	assert(main.ui_open, "ui_open after game over")
 	assert(Game.meta["runs"] >= 1, "meta saved")
+	# sound settings menu
+	var settings: CanvasLayer
+	for c in Game.world.get_children():
+		if c is CanvasLayer and c.layer == 25:
+			settings = c
+	settings.open()
+	assert(get_tree().paused and settings.visible, "settings pause the game")
+	settings.set_volume("vol_sfx", 50)
+	assert(absf(AudioServer.get_bus_volume_db(AudioServer.get_bus_index("SFX")) - linear_to_db(0.5)) < 0.01, "SFX bus follows the slider")
+	settings.set_volume("muted", 1)
+	assert(AudioServer.is_bus_mute(0), "mute toggles the master bus")
+	settings.set_volume("muted", 0)
+	settings.set_volume("vol_sfx", 100)
+	settings.close()
+	assert(not get_tree().paused and not settings.visible, "settings closed")
 	print("UI OK  picks=%d level=%d" % [picks, Game.level])
 	get_tree().quit(0)

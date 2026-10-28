@@ -21,15 +21,24 @@ var loop_cur := {}
 
 func _ready() -> void:
 	process_mode = PROCESS_MODE_ALWAYS # UI sounds must play while choice_ui pauses the tree
+	for bus in ["SFX", "Music"]:
+		var idx := AudioServer.bus_count
+		AudioServer.add_bus(idx)
+		AudioServer.set_bus_name(idx, bus)
+		AudioServer.set_bus_send(idx, "Master")
+	apply_volumes()
 	for i in POOL:
 		var p := AudioStreamPlayer.new()
+		p.bus = "SFX"
 		add_child(p)
 		players.append(p)
 	rotor_player = AudioStreamPlayer.new()
+	rotor_player.bus = "SFX"
 	add_child(rotor_player)
 	for name in LOOP_DB:
 		var p := AudioStreamPlayer.new()
 		p.stream = _loop_stream(name)
+		p.bus = "Music"
 		p.volume_db = -80.0
 		add_child(p)
 		loops[name] = p
@@ -51,8 +60,18 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_M:
-		muted = not muted
-		AudioServer.set_bus_mute(0, muted)
+		Game.meta["muted"] = 0 if Game.meta["muted"] == 1 else 1
+		apply_volumes()
+		Game._save_meta()
+
+
+## Bus volumes and mute from Game.meta (0..100 per bus); the settings menu and M call this.
+func apply_volumes() -> void:
+	for pair in [["Master", "vol_master"], ["SFX", "vol_sfx"], ["Music", "vol_music"]]:
+		var idx := AudioServer.get_bus_index(pair[0])
+		AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(Game.meta[pair[1]] / 100.0, 0.0001)))
+	muted = Game.meta["muted"] == 1
+	AudioServer.set_bus_mute(0, muted)
 
 
 func _stream(name: String) -> AudioStreamWAV:

@@ -44,6 +44,7 @@ func _ready() -> void:
 	choice_ui = preload("res://scripts/choice_ui.gd").new()
 	add_child(choice_ui)
 	add_child(preload("res://scripts/game_over_ui.gd").new())
+	add_child(preload("res://scripts/settings_ui.gd").new())
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
 	Game.day_changed.connect(_settlements_decline)
 	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot"}.get(OS.get_environment("SMOKE"), "")

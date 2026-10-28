@@ -109,7 +109,7 @@ func _process(_delta: float) -> void:
 		"TONIGHT" if Game.attack_pending or Game.attack_active else "in %d day(s)" % next_attack]
 	info.visible = not Game.world.ui_open # base menu shows the same numbers
 	if Game.heli:
-		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q] weapon"
+		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q] weapon   [ESC] sound"
 	alert.text = "BASE UNDER ATTACK" if Game.attack_active and fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0 else ""
 	if Game.fuel < Game.max_fuel * 0.2 and alert.text == "":
 		alert.text = "LOW FUEL"
