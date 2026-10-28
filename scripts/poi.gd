@@ -1,7 +1,7 @@
 extends Node2D
 ## Points of interest. Landing within LAND_DIST triggers the reward; nests are enemies instead.
 
-const LABELS := {"survivors": "settlement", "crate": "supply cache", "nest": "hive nest", "radio_tower": "relay tower", "wreck": "crash site", "upgrade": "weapons cache"}
+const LABELS := {"survivors": "settlement", "crate": "supply cache", "nest": "zombie den", "radio_tower": "relay tower", "wreck": "crash site", "upgrade": "weapons cache"}
 const DIRS := ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"]
 const LAND_DIST := 48.0
 const Weapons := preload("res://scripts/weapons.gd")
@@ -22,7 +22,7 @@ var boarded := 0
 # nest (group "enemies")
 var radius := 16.0
 var hp := 300.0
-var queen_called := false
+var boss_called := false
 var spawn_cd := 8.0
 var spawned := []
 var raid_warned := 0.0
@@ -52,7 +52,7 @@ func _ready() -> void:
 			add_child(s)
 			survivors.append(s)
 		return
-	sprite = Art.sprite("crate" if kind == "upgrade" else kind)
+	sprite = Art.sprite({"upgrade": "crate", "nest": "den"}.get(kind, kind))
 	add_child(sprite)
 	match kind:
 		"upgrade": sprite.modulate = Color(0.6, 0.8, 1.0)
@@ -205,7 +205,7 @@ func _board(s: Node2D) -> void:
 		_finish(false)
 
 
-## Ground aliens raiding the settlement kill one survivor at a time.
+## Zombies raiding the settlement kill one survivor at a time.
 func lose_survivor(silent := false) -> void:
 	if kind != "survivors" or done or survivors.is_empty():
 		return
@@ -226,10 +226,10 @@ func lose_survivor(silent := false) -> void:
 
 
 func _nest(delta: float, d2: float) -> void:
-	if not queen_called and d2 < 420.0 * 420.0:
-		queen_called = true
+	if not boss_called and d2 < 420.0 * 420.0:
+		boss_called = true
 		Game.world.spawn_enemy("boss", position + Vector2(40, 0))
-		Game.radio("Gunner: hive queen sighted!")
+		Game.radio("Gunner: abomination crawling out of the den!")
 		Sfx.play("boss_roar", position)
 	if d2 > 700.0 * 700.0:
 		return
@@ -238,8 +238,8 @@ func _nest(delta: float, d2: float) -> void:
 		return
 	spawn_cd = 8.0
 	spawned = spawned.filter(func(e): return is_instance_valid(e))
-	if spawned.size() < 6:
-		spawned.append(Game.world.spawn_enemy("walker", position + Vector2(24, 0).rotated(randf() * TAU)))
+	if spawned.size() < 12:
+		spawned.append(Game.world.spawn_enemy("shambler", position + Vector2(24, 0).rotated(randf() * TAU)))
 
 
 func hit(amount: float) -> void:
@@ -250,7 +250,7 @@ func hit(amount: float) -> void:
 		Game.add_xp(80)
 		Game.scrap += 30
 		Game.world.spawn_fx(position, 2.0)
-		Game.radio("Gunner: hive nest destroyed!")
+		Game.radio("Gunner: den cleared, burn it!")
 		Sfx.play("explosion", position)
 		remove_from_group("enemies")
 		_finish(true)

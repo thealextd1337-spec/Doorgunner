@@ -45,7 +45,7 @@ func _run() -> void:
 	Input.action_release("fire")
 	assert(Game.ammo < ammo0, "ammo consumed")
 	# spawn an enemy and hit it with a bullet
-	var e: Node2D = main.spawn_enemy("walker", Game.heli.position + Vector2(40, 0))
+	var e: Node2D = main.spawn_enemy("shambler", Game.heli.position + Vector2(40, 0))
 	var b := preload("res://scripts/bullet.gd").new()
 	b.setup(Game.heli.position, Vector2.RIGHT, 1000.0, 0)
 	main.add_child(b)

@@ -22,7 +22,7 @@ func _process(_delta: float) -> void:
 	if frames == 210:
 		Game.time = 0.9
 		for i in 8:
-			Game.world.spawn_enemy(["walker", "runner", "spitter", "flyer"][i % 4], Game.heli.position + Vector2(120, 0).rotated(i * TAU / 8))
+			Game.world.spawn_enemy(["shambler", "runner", "brute", "shambler"][i % 4], Game.heli.position + Vector2(120, 0).rotated(i * TAU / 8))
 		Input.action_press("fire")
 	if frames == 240:
 		_save("shot_night_combat.png")

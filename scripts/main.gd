@@ -74,7 +74,7 @@ func _process(_delta: float) -> void:
 	night.color = Color(1, 1, 1).lerp(Color(0.2, 0.22, 0.45), d)
 
 
-## Off-screen settlements slowly fall to the hive: rescue early or lose them.
+## Off-screen settlements slowly fall to the horde: rescue early or lose them.
 func _settlements_decline(_day: int) -> void:
 	var lost := 0
 	for p in pois:

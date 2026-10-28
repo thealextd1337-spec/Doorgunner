@@ -63,7 +63,7 @@ var base_fuel_cap := 600.0
 var base_ammo_cap := 1200.0
 var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0}
 var base_food := 60.0
-# noise: gunfire and the rotor draw ground aliens (Project Zomboid style)
+# noise: gunfire and the rotor draw zombies (Project Zomboid style)
 var noise_pos := Vector2.ZERO
 var noise_level := 0.0
 
@@ -191,7 +191,7 @@ func _process(delta: float) -> void:
 			radio("Base: food is running low, %d rations left." % int(base_food))
 		if day % ATTACK_EVERY_DAYS == 0:
 			attack_pending = true
-			radio("Intel: hive activity rising. Expect an assault on the base tonight.")
+			radio("Intel: a horde is massing. Expect an assault on the base tonight.")
 	if attack_pending and time >= 0.8:
 		attack_pending = false
 		attack_active = true
@@ -199,7 +199,7 @@ func _process(delta: float) -> void:
 		radio("ALERT: base under attack! Return and defend!")
 
 
-## Louder noise wins; ground aliens within 200 + 500 * level px investigate.
+## Louder noise wins; zombies within 200 + 500 * level px investigate.
 func make_noise(pos: Vector2, amount: float) -> void:
 	if amount >= noise_level:
 		noise_pos = pos

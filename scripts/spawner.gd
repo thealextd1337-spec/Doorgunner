@@ -1,11 +1,9 @@
 extends Node
-## Enemy spawning: ground packs near settlements, rare flyers, and the base assault waves.
+## Zombie spawning: hordes around towns, plus the base assault waves.
 
-const GROUND_INTERVAL := 4.0
-const FLYER_INTERVAL := 20.0
+const HORDE_INTERVAL := 3.0
 
-var ground_cd := 3.0
-var flyer_cd := 20.0
+var horde_cd := 3.0
 var wave_left := 0
 var wave_cd := 0.0
 
@@ -17,66 +15,46 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not Game.running or Game.heli == null:
 		return
-	ground_cd -= delta
-	if ground_cd <= 0.0:
-		ground_cd = GROUND_INTERVAL
-		_ground_pack()
-	flyer_cd -= delta
-	if flyer_cd <= 0.0:
-		flyer_cd = FLYER_INTERVAL * (0.6 if Game.is_night() else 1.0)
-		_flyer()
+	horde_cd -= delta
+	if horde_cd <= 0.0:
+		horde_cd = HORDE_INTERVAL
+		_horde()
 	if wave_left > 0:
 		wave_cd -= delta
 		if wave_cd <= 0.0:
-			wave_cd = 1.0
+			wave_cd = 0.5
 			wave_left -= 1
 			var pos: Vector2 = Game.world.base.global_position + Vector2(720, 0).rotated(randf() * TAU)
-			Game.world.spawn_enemy(_pick_ground(Game.danger_at(Vector2.ZERO)), pos, true)
+			Game.world.spawn_enemy(_pick(Game.danger_at(Vector2.ZERO)), pos, true)
 	elif Game.attack_active and _attackers_alive() == 0:
 		Game.attack_active = false
 		Game.radio("Base secured. Good work, gunner.")
 
 
-func _count(ground: bool) -> int:
-	var n := 0
-	for e in get_tree().get_nodes_in_group("enemies"):
-		if "cfg" in e and e.cfg.get("ground", true) == ground:
-			n += 1
-	return n
-
-
-## A pack of 2-4 ground aliens heading for a settlement near the heli.
-func _ground_pack() -> void:
+## A horde of 6-12 zombies spawned around a town near the heli (towns are where the dead are).
+func _horde() -> void:
 	var heli: Node2D = Game.heli
 	var danger := Game.danger_at(heli.position)
-	if _count(true) >= int(8 + danger * 4):
+	if get_tree().get_nodes_in_group("enemies").size() >= int(30 + danger * 10):
 		return
 	var towns: Array = Game.world.chunks.town_centers.filter(func(t):
 		var d: float = heli.position.distance_to(t)
-		return d > 350.0 and d < 950.0)
+		return d > 300.0 and d < 1000.0)
 	var pos: Vector2
 	if towns.is_empty():
-		pos = heli.position + Vector2(550.0 + randf() * 150.0, 0).rotated(randf() * TAU)
+		if randf() < 0.6:
+			return # open country is mostly quiet
+		pos = heli.position + Vector2(600.0 + randf() * 200.0, 0).rotated(randf() * TAU)
 	else:
-		pos = towns[randi() % towns.size()] + Vector2(180.0 + randf() * 80.0, 0).rotated(randf() * TAU)
+		pos = towns[randi() % towns.size()] + Vector2(120.0 + randf() * 120.0, 0).rotated(randf() * TAU)
 	if pos.distance_to(Game.world.base.global_position) < 450.0 or not Game.world.chunks.is_landable(pos):
 		return
-	var kind := _pick_ground(danger)
-	for i in randi_range(3, 5):
-		Game.world.spawn_enemy(kind, pos + Vector2(randf_range(-20, 20), randf_range(-20, 20)))
+	for i in randi_range(6, 12):
+		Game.world.spawn_enemy(_pick(danger), pos + Vector2(randf_range(-40, 40), randf_range(-40, 40)))
 
 
-func _flyer() -> void:
-	var heli: Node2D = Game.heli
-	if _count(false) >= (2 if Game.is_night() else 1):
-		return
-	if heli.position.distance_to(Game.world.base.global_position) < 450.0:
-		return
-	Game.world.spawn_enemy("flyer", heli.position + Vector2(650.0, 0).rotated(randf() * TAU))
-
-
-func _pick_ground(danger: float) -> String:
-	var w := {"walker": 50.0, "runner": 12.0 + danger * 6.0, "spitter": 6.0 + danger * 6.0}
+func _pick(danger: float) -> String:
+	var w := {"shambler": 70.0, "runner": 10.0 + danger * 5.0, "brute": 3.0 + danger * 3.0}
 	var total := 0.0
 	for k in w:
 		total += w[k]
@@ -85,19 +63,19 @@ func _pick_ground(danger: float) -> String:
 		r -= w[k]
 		if r <= 0.0:
 			return k
-	return "walker"
+	return "shambler"
 
 
-## Extra ground aliens converging on a hot landing zone (used by POIs).
+## Extra zombies converging on a hot landing zone (used by POIs).
 func call_wave(pos: Vector2, count: int) -> void:
 	var danger := Game.danger_at(pos)
 	for i in count:
 		var p := pos + Vector2(380.0 + randf() * 120.0, 0).rotated(randf() * TAU)
-		Game.world.spawn_enemy(_pick_ground(danger), p)
+		Game.world.spawn_enemy(_pick(danger), p)
 
 
 func _on_attack(day: int) -> void:
-	wave_left = 8 + day * 3
+	wave_left = 20 + day * 6
 	wave_cd = 0.0
 	Sfx.play("alarm")
 	if day % (Game.ATTACK_EVERY_DAYS * 2) == 0:

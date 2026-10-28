@@ -32,7 +32,7 @@ func _run() -> void:
 	assert(Game.scrap < scrap0, "scrap spent")
 	assert(main.base.turrets.get_child_count() == 1, "turret node placed")
 	assert(not main.base.ui.buy("barracks"), "barracks needs 8 rescued")
-	var e: Node2D = main.spawn_enemy("walker", main.base.position + Vector2(100, 0), true)
+	var e: Node2D = main.spawn_enemy("shambler", main.base.position + Vector2(100, 0), true)
 	for i in 600:
 		await process_frame
 		if not is_instance_valid(e) or e.hp < e.max_hp:
@@ -55,8 +55,8 @@ func _run() -> void:
 	main.base.ui.mount(found)
 	assert(Game.weapon_bay.is_empty() and Game.heli_weapons.size() == 2, "mounted again")
 	# splash bullet hits both enemies around the impact point
-	var e1: Node2D = main.spawn_enemy("walker", main.base.position + Vector2(300, 0), true)
-	var e2: Node2D = main.spawn_enemy("walker", main.base.position + Vector2(330, 0), true)
+	var e1: Node2D = main.spawn_enemy("shambler", main.base.position + Vector2(300, 0), true)
+	var e2: Node2D = main.spawn_enemy("shambler", main.base.position + Vector2(330, 0), true)
 	var b: Node2D = preload("res://scripts/bullet.gd").new()
 	b.setup(e1.position, Vector2.RIGHT, 1.0, 0, 380.0, 1.3, 60.0)
 	main.add_child(b)
