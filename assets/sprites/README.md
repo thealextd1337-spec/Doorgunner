@@ -67,7 +67,8 @@ paint are tinted in game with `modulate`. Facing up unless noted:
 - `helipad.png` 48x48: dark concrete disc, white ring and H.
 - `turret.png` 16x16: gray base, barrel up.
 - `hangar.png` 32x32: olive roof, dark door at bottom edge.
-- `wall.png` 16x16: sandbag wall, tileable.
+- `sandbag.png`, `wire.png` 256x16: 16 frames of 16x16, frame = neighbour mask (N 1, E 2, S 4, W 8): sandbag rows /
+  concertina coils along each connected side, a bag pile / wooden post in the middle.
 - `crate.png` 16x16: green supply crate, tan cross strap.
 - `radio_tower.png` 16x32: gray lattice, red tip.
 - `wreck.png` 32x32: burnt helicopter wreck with orange embers.

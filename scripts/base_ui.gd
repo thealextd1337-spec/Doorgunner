@@ -2,6 +2,7 @@ extends CanvasLayer
 ## Base menu, shown while the heli sits on the pad, in the title screen's look (olive/black panels, sand text, yellow accent).
 ## Left: status column (population, stocks with per-day deltas, power, next assault), refreshed twice a second.
 ## Right: tabs BUILD (upgrades, buildings to place), WORKERS (jobs table), HANGAR (loadout, weapons, fitted items).
+## While placing (base.placing) both give way to a compact build bar along the bottom edge (hotkeys 1-8, base.gd).
 ## buy(id) applies effects to Game directly.
 
 const SAND := Color(0.91, 0.86, 0.71)
@@ -22,8 +23,9 @@ const UPGRADES := {
 }
 const UPGRADE_INFO := {"turrets": "+1 auto turret on the ring", "fuel": "+25 heli fuel, +200 depot", "armory": "+60 heli ammo, +400 store, +1 rifle/day",
 	"workshop": "salvage processing; Lv 2/3/4 add heli slots", "repair": "patch the base hull"}
-const BUILD_INFO := {"sandbag": "militia posts", "barracks": "+4 beds", "clinic": "2 patient beds", "generator": "power, 10 fuel/day",
-	"well": "+8 water/day", "watchtower": "post, +50 % reach"}
+# placing tools in build bar order (hotkeys 1..8)
+const BUILD_INFO := {"sandbag": "militia posts", "wire": "slows and cuts zombies", "barracks": "+4 beds", "clinic": "2 patient beds",
+	"generator": "power, 10 fuel/day", "well": "+8 water/day", "watchtower": "post, +50 % reach", "demolish": "houses, hedges, fences for scrap"}
 # loadout key -> [label, min, max]
 const LOADOUT := {
 	"seats": ["Seats (1 pt each)", 2, 8],
@@ -51,10 +53,12 @@ var status_t := 0.0
 var tabs := {} # name -> content Control
 var tab_btns := {} # name -> Button
 var rows := {} # upgrade id or "repair" -> [name Label, pips HBox, Button]
-var place_btns := {} # "sandbag" or building kind -> toggle Button
+var place_btns := {} # BUILD_INFO kind -> toggle Button
 var perimeter_btn: Button
-var place_bar: PanelContainer
-var place_label: Label
+var status_panel: Control
+var main_panel: Control
+var build_bar: Control # bottom bar shown instead of the panels while placing
+var bar_btns := {} # BUILD_INFO kind -> toggle Button
 var loadout_info: Label
 var loadout_rows := {} # key -> value Label
 var weapon_box: VBoxContainer
@@ -129,11 +133,38 @@ func _ready() -> void:
 	_build_tab(main)
 	_workers_tab(main)
 	_hangar_tab(main)
-	place_bar = PanelContainer.new()
-	place_bar.add_theme_stylebox_override("panel", _box(ACCENT, 6))
-	place_label = _label("", 14, DARK_TEXT, true)
-	place_bar.add_child(place_label)
-	main.add_child(place_bar)
+	status_panel = status.get_parent()
+	main_panel = main.get_parent()
+	# bottom build bar: one button per tool, centred, growing up from the bottom edge
+	var bar := _panel(root, Vector2.ZERO, 0)
+	build_bar = bar.get_parent()
+	build_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	build_bar.offset_left = 0
+	build_bar.offset_right = 0
+	build_bar.offset_top = -10
+	build_bar.offset_bottom = -10
+	build_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	build_bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	build_bar.mouse_filter = Control.MOUSE_FILTER_STOP # clicks on the bar never place blueprints underneath
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	bar.add_child(row)
+	for i in BUILD_INFO.size():
+		var kind: String = BUILD_INFO.keys()[i]
+		var t := _tool(kind)
+		var b := Button.new()
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE # SPACE takes off, it must not click the bar
+		b.custom_minimum_size = Vector2(96, 40)
+		b.add_theme_font_override("font", mono)
+		b.text = "%d %s\n%s" % [i + 1, t[0].to_upper(), "+scrap" if kind == "demolish" else "%d scrap" % t[1]]
+		b.tooltip_text = BUILD_INFO[kind]
+		b.toggled.connect(func(_on: bool):
+			get_parent().place_kind = kind
+			refresh())
+		row.add_child(b)
+		bar_btns[kind] = b
+	bar.add_child(_label("LMB place  ·  RMB remove  ·  R rotate  ·  ESC done", 12, DIM, true))
 	show_tab("BUILD")
 
 
@@ -363,6 +394,15 @@ func close() -> void:
 	get_parent().placing = false
 
 
+## [name, scrap, build seconds] of a BUILD_INFO tool.
+func _tool(kind: String) -> Array:
+	match kind:
+		"sandbag": return ["Sandbags", Game.SANDBAG_COST, Game.BUILD_SECONDS]
+		"wire": return ["Barbed wire", Game.WIRE_COST, Game.BUILD_SECONDS]
+		"demolish": return ["Demolish", 0, 0]
+	return Game.BUILDINGS[kind].slice(0, 3)
+
+
 func cost(id: String) -> int:
 	if id == "repair":
 		return maxi(1, ceili((Game.max_base_hp - Game.base_hp) / 10.0))
@@ -457,14 +497,17 @@ func refresh() -> void:
 		var b: Button = place_btns[kind]
 		var on: bool = base.placing and base.place_kind == kind
 		b.set_pressed_no_signal(on)
-		var price: int = Game.SANDBAG_COST if kind == "sandbag" else Game.BUILDINGS[kind][1]
-		var secs: int = Game.BUILD_SECONDS if kind == "sandbag" else Game.BUILDINGS[kind][2]
-		var built: int = Game.sandbags.values().filter(func(s): return s["built"]).size() if kind == "sandbag" else Game.built(kind)
-		var plan: int = Game.sandbags.size() - built if kind == "sandbag" else Game.buildings.filter(func(s): return s["kind"] == kind and not s["built"]).size()
-		var name: String = "Sandbags" if kind == "sandbag" else Game.BUILDINGS[kind][0]
-		b.text = "%s%s  -  %s\n%d scrap  %d s   built %d  planned %d" % ["> " if on else "", name.to_upper(), BUILD_INFO[kind], price, secs, built, plan]
-		b.disabled = Game.scrap < price and not on
-		b.tooltip_text = "needs %d scrap, you have %d" % [price, Game.scrap] if b.disabled else "click, then click inside the fence to place"
+		var t := _tool(kind)
+		var pieces: Array = Game.sandbags.values().filter(func(s): return s["kind"] == kind)
+		var built: int = pieces.filter(func(s): return s["built"]).size() if kind in ["sandbag", "wire"] else Game.built(kind)
+		var plan: int = pieces.size() - built if kind in ["sandbag", "wire"] else Game.buildings.filter(func(s): return s["kind"] == kind and not s["built"]).size()
+		b.text = "%s%s  -  %s\n%d scrap  %d s   built %d  planned %d" % ["> " if on else "", t[0].to_upper(), BUILD_INFO[kind], t[1], t[2], built, plan]
+		if kind == "demolish":
+			b.text = "%sDEMOLISH  -  %s\n%d orders" % ["> " if on else "", BUILD_INFO[kind], base.demolitions.size()]
+		b.disabled = Game.scrap < t[1] and not on
+		b.tooltip_text = "needs %d scrap, you have %d" % [t[1], Game.scrap] if b.disabled else "click, then click inside the fence to place"
+		bar_btns[kind].set_pressed_no_signal(base.place_kind == kind)
+		bar_btns[kind].disabled = Game.scrap < t[1] and base.place_kind != kind
 	var plvl: int = base.perimeter_level()
 	var busy: bool = not base.next_site("perimeter").is_empty()
 	perimeter_btn.text = "EXPAND PERIMETER  -  %d m to %d m\n%d scrap  60 s   level %d/%d%s" % [
@@ -472,9 +515,9 @@ func refresh() -> void:
 	perimeter_btn.disabled = plvl >= Game.PERIMETER_MAX or busy or Game.scrap < base.building_cost("perimeter")
 	perimeter_btn.tooltip_text = "maximum level" if plvl >= Game.PERIMETER_MAX else ("the current stage is still being built" if busy \
 		else ("needs %d scrap, you have %d" % [base.building_cost("perimeter"), Game.scrap] if perimeter_btn.disabled else "Build workers put up the next fence ring"))
-	place_bar.visible = base.placing
-	if base.placing:
-		place_label.text = "Click to place %s  ·  RMB removes  ·  ESC done" % ("sandbags" if base.place_kind == "sandbag" else Game.BUILDINGS[base.place_kind][0])
+	status_panel.visible = not base.placing
+	main_panel.visible = not base.placing
+	build_bar.visible = base.placing
 	# HANGAR
 	loadout_info.text = "weight %d/%d pts (over 8: -4 %% speed each)  speed x%.2f\nseats %d  fuel %d  ammo %d  armour x%.2f" % [
 		Game.loadout_points(), Game.loadout_budget, Game.weight_factor, Game.seats, Game.max_fuel, Game.max_ammo, Game.stats["armor"]]
@@ -504,7 +547,7 @@ func refresh() -> void:
 				bad = Game.base_level.get("workshop", 0) < 1
 				note = "needs Workshop" if bad else "salvage %d" % (Game.salvage["metal"] + Game.salvage["parts"] + Game.salvage["electronics"])
 			"build":
-				note = "%d blueprints" % (Game.sandbags.values().filter(func(s): return not s["built"]).size() + Game.buildings.filter(func(b): return not b["built"]).size())
+				note = "%d blueprints" % (Game.sandbags.values().filter(func(s): return not s["built"]).size() + Game.buildings.filter(func(b): return not b["built"]).size() + base.demolitions.size())
 			"medic":
 				note = "clinic beds %d" % (2 * Game.built("clinic"))
 		r[3].text = note

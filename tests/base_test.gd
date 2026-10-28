@@ -1,7 +1,8 @@
 extends Node
 ## Headless base test. main.gd adds this node when env SMOKE=base:
 ##   SMOKE=base godot --headless --path . --quit-after 8000
-## Landing services from stock, base menu purchase, turret fire, weapon find + Q cycle, loadout, workers, sandbags, militia,
+## Landing services from stock, base menu purchase, turret fire, weapon find + Q cycle, loadout, workers, sandbags
+## (rotation, corners), barbed wire, demolition, build bar, militia,
 ## then block 2: rifles, perimeter, barracks/campers, water, sickness, clinic, generator; campers at 50 %, salvage.
 
 
@@ -14,6 +15,12 @@ func _run() -> void:
 	var process_frame := get_tree().process_frame
 	await process_frame
 	await process_frame
+	var bc := Vector2i((main.base.position / 16.0).floor())
+	for x in range(-9, 10): # founding keeps the terrain around the pad: open ground for the placements below
+		for y in range(-9, 10):
+			if not main.chunks.is_landable(main.base.cell_pos(bc + Vector2i(x, y))):
+				main.chunks.set_cell(bc + Vector2i(x, y), 0, Vector2i(main.T.GRASS, 0))
+	main.nav_dirty()
 	Game.passengers = 3
 	Game.fuel = 10.0
 	Game.ammo = 0
@@ -157,6 +164,64 @@ func _run() -> void:
 	main.nav_dirty()
 	main.base.remove_sandbag(cell)
 	assert(not Game.sandbags.has(cell) and Game.scrap == scrap0 - 5, "built sandbag torn down without refund")
+	# R turns a lone piece; an L of sandbags gets a corner (frame = neighbour mask N1 E2 S4 W8)
+	var lone := bc + Vector2i(-6, 3)
+	main.base.place_rot = 1
+	assert(main.base.place_sandbag(lone) and Game.sandbags[lone]["rot"] == 1 and main.base.bags[lone].frame == 5, "rotation stored, lone piece along y")
+	main.base.place_rot = 0
+	var a := bc + Vector2i(5, -4)
+	for c in [a, a + Vector2i(1, 0), a + Vector2i(0, 1)]:
+		assert(main.base.place_sandbag(c), "L piece placed")
+	assert(main.base.bags[a].frame == 6 and main.base.bags[a + Vector2i(1, 0)].frame == 8 and main.base.bags[a + Vector2i(0, 1)].frame == 1, "corner and ends picked")
+	for c in [lone, a, a + Vector2i(1, 0), a + Vector2i(0, 1)]:
+		main.base.remove_sandbag(c)
+	assert(Game.scrap == scrap0 - 5, "blueprints refunded")
+	# barbed wire: 3 scrap, built like sandbags, walkable, slows and cuts a zombie on it and wears down
+	var w := a
+	assert(main.base.place_sandbag(w, "wire") and Game.scrap == scrap0 - 8, "wire blueprint for 3 scrap")
+	main.base.build_progress = 1.0
+	await process_frame
+	assert(Game.sandbags[w]["built"] and main.is_walkable(main.base.cell_pos(w)), "wire built, walkable")
+	var zw: Node2D = main.spawn_enemy("shambler", main.base.cell_pos(w), true)
+	var hp0: float = zw.hp
+	var p0: Vector2 = zw.position
+	zw._process(0.1)
+	assert(is_equal_approx(zw.hp, hp0 - Game.WIRE_DPS * 0.1) and is_equal_approx(Game.sandbags[w]["hp"], Game.WIRE_HP - 0.1), "wire cuts the zombie and wears")
+	assert(zw.position.distance_to(p0) <= zw.speed * 0.1 * (1.0 - Game.WIRE_SLOW) + 0.01, "zombie slowed in the wire")
+	Game.sandbags[w]["hp"] = 0.05
+	zw._process(0.1)
+	assert(not Game.sandbags.has(w), "worn-out wire is gone")
+	zw.free()
+	# demolition: a 2-cell house inside the fence is marked, the build worker tears it down for scrap and salvage
+	var h := bc + Vector2i(-6, 5)
+	for c in [h, h + Vector2i(1, 0)]:
+		main.chunks.set_cell(c, 0, Vector2i(main.T.BUILDING, 0))
+	var roof: Node2D = main.spawn_prop("house_2x1", main.base.cell_pos(h) + Vector2(8, 0))
+	main.nav_dirty()
+	assert(not main.is_walkable(main.base.cell_pos(h)), "house is solid")
+	assert(main.base.mark_demolition(h + Vector2i(1, 0)) and main.base.demolitions[0]["cells"].size() == 2 and main.base.demolitions[0]["prop"] == roof, "house marked")
+	assert(not main.base.mark_demolition(h), "marked once")
+	main.chunks.set_cell(h + Vector2i(0, 2), 0, Vector2i(main.T.HEDGE, 0))
+	assert(main.base.mark_demolition(h + Vector2i(0, 2)) and main.base.demolitions.size() == 2, "hedge marked")
+	main.base.cancel_demolition(h + Vector2i(0, 2))
+	assert(main.base.demolitions.size() == 1, "RMB cancels the hedge order")
+	scrap0 = Game.scrap
+	var metal0: float = Game.salvage["metal"]
+	main.base.demolitions[0]["progress"] = main.base.DEMOLISH["house"][0] - 0.001
+	await process_frame
+	await process_frame
+	assert(main.base.demolitions.is_empty() and Game.scrap == scrap0 + 15 and Game.salvage["metal"] == metal0 + 4.0, "house demolished for scrap and metal")
+	assert(main.is_walkable(main.base.cell_pos(h)) and main.is_walkable(main.base.cell_pos(h + Vector2i(1, 0))) and not is_instance_valid(roof), "house cells cleared")
+	# placing swaps the menu for the bottom build bar; 2 picks wire
+	main.base.placing = true
+	assert(main.base.ui.build_bar.visible and not main.base.ui.main_panel.visible and not main.base.ui.status_panel.visible, "build bar replaces the menu")
+	var key := InputEventKey.new()
+	key.keycode = KEY_2
+	key.pressed = true
+	main.base._input(key)
+	assert(main.base.place_kind == "wire" and main.base.ui.bar_btns["wire"].button_pressed, "hotkey 2 picks wire")
+	main.base.placing = false
+	assert(main.base.ui.main_panel.visible and not main.base.ui.build_bar.visible, "menu back")
 	# militia man the defence during an assault, stand down afterwards
 	assert(main.base.ui.set_worker("build", 0) and main.base.ui.set_worker("militia", 2), "militia assigned")
 	Game.attack_active = true

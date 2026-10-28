@@ -1,7 +1,7 @@
 extends Node2D
-## Forward operating base: pad, turrets, sandbags (blueprints built by Build workers), militia defenders,
+## Forward operating base: pad, turrets, sandbags and barbed wire (blueprints built by Build workers), militia defenders,
 ## base HP, landing services and the upgrade menu. Buildings (Game.buildings) and perimeter expansions are
-## blueprints too; a generator powers a night light over the perimeter.
+## blueprints too; demolition orders clear houses, hedges and fences for scrap. A generator powers a night light.
 
 const RADIUS := 60.0
 const PAD_REACH := 48.0
@@ -12,7 +12,11 @@ const WATER_REACH := 400.0 # water job needs a river or lake this close
 const TINTS := {"barracks": Color(0.62, 0.7, 0.36), "clinic": Color(1.5, 1.5, 1.5), "generator": Color(0.36, 0.36, 0.4), "well": Color(0.58, 0.68, 0.82)}
 const Chunks := preload("res://scripts/chunk_manager.gd")
 const Pawn := preload("res://scripts/base_pawn.gd")
+const UI := preload("res://scripts/base_ui.gd")
 const PAWN_MAX := 60 # drawn people; beyond that the base only counts
+const DIRS := [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT] # neighbour bits 1 2 4 8 = sandbag / wire sprite frame
+# demolition target -> [seconds of one worker, scrap, metal, parts]
+const DEMOLISH := {"house": [40.0, 15, 4.0, 2.0], "hedge": [6.0, 2, 0.0, 0.0], "fence": [6.0, 3, 0.0, 0.0]}
 
 var turrets: Node2D
 var sandbags: Node2D # one Sprite2D per cell, keyed in bags
@@ -27,10 +31,13 @@ var sites: Node2D # one node per building, keyed in site_nodes
 var fence: Node2D
 var light: PointLight2D
 var ui: CanvasLayer
-var bags := {} # Vector2i cell -> Sprite2D
+var bags := {} # Vector2i cell -> Sprite2D (sandbag or wire)
 var site_nodes := {} # Vector2i top-left cell -> Node2D
 var build_progress := 0.0 # blueprints finished per 20 s per build worker, carried between frames
-var place_kind := "sandbag" # what LMB places: "sandbag" or a Game.BUILDINGS kind
+var place_kind := "sandbag" # what LMB places: "sandbag", "wire", a Game.BUILDINGS kind or "demolish"
+var place_rot := 0 # R: a lone sandbag / wire piece lies along x (0) or y (1)
+var demolitions := [] # {"kind": DEMOLISH key, "cells": [Vector2i], "cell", "prop": Node2D or null, "progress": seconds}
+var ghost: Node2D # build preview and demolition marks, drawn above the houses
 var placing := false: # BUILD tab toggle: LMB places a blueprint, RMB removes
 	set(v):
 		placing = v
@@ -73,7 +80,11 @@ func _ready() -> void:
 	add_child(defenders)
 	pawns = Node2D.new()
 	add_child(pawns)
-	ui = preload("res://scripts/base_ui.gd").new()
+	ghost = Node2D.new()
+	ghost.z_index = 5
+	ghost.draw.connect(_draw_ghost)
+	add_child(ghost)
+	ui = UI.new()
 	add_child(ui)
 	rebuild()
 	Game.base_attack_started.connect(_on_attack)
@@ -97,6 +108,7 @@ func rebuild() -> void:
 
 func _process(delta: float) -> void:
 	queue_redraw()
+	ghost.queue_redraw()
 	if not Game.attack_active and defenders.get_child_count() > 0:
 		for d in defenders.get_children():
 			d.queue_free()
@@ -107,11 +119,14 @@ func _process(delta: float) -> void:
 		sync_pawns()
 	if Game.workers["build"] <= 0:
 		return
-	var site: Dictionary = next_site() # buildings and perimeter work first, then sandbags
+	var site: Dictionary = next_work() # buildings and perimeter work first, then demolitions, then sandbags and wire
 	var crew: float = Game.workers["build"] * Game.work_eff() # campers build at half rate
 	if not site.is_empty():
 		site["progress"] += crew * delta
-		if site["progress"] >= Game.BUILDINGS[site["kind"]][2]:
+		if site.has("cells"):
+			if site["progress"] >= DEMOLISH[site["kind"]][0]:
+				_finish_demolition(site)
+		elif site["progress"] >= Game.BUILDINGS[site["kind"]][2]:
 			_finish_site(site)
 		return
 	build_progress += crew * delta / Game.BUILD_SECONDS
@@ -135,23 +150,98 @@ func _draw() -> void:
 	draw_rect(Rect2(-39, -45, 78 * clampf(Game.base_hp / Game.max_base_hp, 0.0, 1.0), 4), Color(0.9, 0.3, 0.3))
 
 
+## Demolition orders (hatched red) and, while placing, the tool's ghost under the mouse: green fits, red does not.
+func _draw_ghost() -> void:
+	var mark := Color(0.95, 0.35, 0.2, 0.8)
+	for d in demolitions:
+		for c in d["cells"]:
+			var r := _cell_rect(c)
+			ghost.draw_rect(r, Color(mark, 0.25))
+			ghost.draw_rect(r, mark, false, 1.0)
+			ghost.draw_line(r.position, r.end, mark, 1.0)
+	if not placing:
+		return
+	var n := footprint(place_kind)
+	var cell := mouse_cell(n)
+	var tint := Color(0.4, 1.0, 0.4, 0.6) if can_place(place_kind, cell) else Color(1.0, 0.3, 0.3, 0.6)
+	var r := Rect2(_cell_rect(cell).position, Vector2(n, n) * CELL)
+	var label := "%d scrap" % building_cost(place_kind) if Game.BUILDINGS.has(place_kind) else ""
+	if place_kind in ["sandbag", "wire"]:
+		var f := piece_frame(cell, place_kind, place_rot)
+		ghost.draw_texture_rect_region(Art.tex(place_kind), r, Rect2(f * 64, 0, 64, 64), tint)
+		label = "%d scrap" % piece_cost(place_kind)
+	elif place_kind == "demolish":
+		var d := demolish_target(cell)
+		for c in d.get("cells", [cell]):
+			ghost.draw_rect(_cell_rect(c), tint)
+		label = "+%d scrap" % DEMOLISH[d["kind"]][1] if not d.is_empty() else ""
+	else:
+		ghost.draw_rect(r, Color(tint, 0.35))
+		ghost.draw_rect(r, tint, false, 1.0)
+	ghost.draw_string(ThemeDB.fallback_font, r.end + Vector2(2, -r.size.y + 6), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(tint, 1.0))
+
+
+func _cell_rect(cell: Vector2i) -> Rect2:
+	return Rect2(cell_pos(cell) - global_position - Vector2(CELL, CELL) / 2, Vector2(CELL, CELL))
+
+
 func _input(event: InputEvent) -> void:
-	if placing and event.is_action_pressed("menu"):
+	if not placing:
+		return
+	if event.is_action_pressed("menu"):
 		placing = false
+		get_viewport().set_input_as_handled() # back to the base menu, not into the settings
+	elif event.is_action_pressed("rotate"):
+		place_rot = 1 - place_rot
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode >= KEY_1 and event.keycode < KEY_1 + UI.BUILD_INFO.size():
+		place_kind = UI.BUILD_INFO.keys()[event.keycode - KEY_1] # bottom bar hotkeys
+		ui.refresh()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not placing or not (event is InputEventMouseButton and event.pressed):
 		return
-	var cell := Vector2i((get_global_mouse_position() / CELL).floor())
-	if event.button_index == MOUSE_BUTTON_LEFT and place_kind != "sandbag":
-		var n: int = Game.BUILDINGS[place_kind][3] # the footprint is centred on the mouse
-		place_building(place_kind, Vector2i(((get_global_mouse_position() - Vector2(n - 1, n - 1) * CELL / 2) / CELL).floor()))
-	elif event.button_index == MOUSE_BUTTON_LEFT:
-		place_sandbag(cell)
+	if event.button_index == MOUSE_BUTTON_LEFT:
+		place(place_kind, mouse_cell(footprint(place_kind)))
 	elif event.button_index == MOUSE_BUTTON_RIGHT:
+		var cell := mouse_cell()
 		remove_sandbag(cell)
 		remove_blueprint(cell)
+		cancel_demolition(cell)
+
+
+## Grid cell under the mouse; for an n-cell footprint the top-left cell of the footprint centred on the mouse.
+func mouse_cell(n := 1) -> Vector2i:
+	return Vector2i(((get_global_mouse_position() - Vector2(n - 1, n - 1) * CELL / 2) / CELL).floor())
+
+
+func footprint(kind: String) -> int:
+	return Game.BUILDINGS[kind][3] if Game.BUILDINGS.has(kind) else 1
+
+
+## LMB with tool `kind` at `cell` (a building's top-left cell).
+func place(kind: String, cell: Vector2i) -> bool:
+	if kind == "demolish":
+		return mark_demolition(cell)
+	if kind in ["sandbag", "wire"]:
+		return place_sandbag(cell, kind)
+	return place_building(kind, cell)
+
+
+## Whether `kind` goes at `cell` right now: the preview's green or red, and what the place functions accept.
+func can_place(kind: String, cell: Vector2i) -> bool:
+	if kind == "demolish":
+		return not demolish_target(cell).is_empty()
+	if kind in ["sandbag", "wire"]:
+		return Game.sandbags.size() < Game.SANDBAG_MAX and Game.scrap >= piece_cost(kind) and free_cell(cell)
+	if Game.scrap < building_cost(kind):
+		return false
+	var n := footprint(kind)
+	for x in n:
+		for y in n:
+			if not free_cell(cell + Vector2i(x, y)):
+				return false
+	return true
 
 
 func cell_pos(cell: Vector2i) -> Vector2:
@@ -166,36 +256,59 @@ func free_cell(cell: Vector2i) -> bool:
 		and not Game.sandbags.has(cell) and building_at(cell).is_empty()
 
 
-## Blueprint for 5 scrap inside the perimeter, up to 80.
-func place_sandbag(cell: Vector2i) -> bool:
-	if Game.sandbags.size() >= Game.SANDBAG_MAX or Game.scrap < Game.SANDBAG_COST or not free_cell(cell):
+func piece_cost(kind: String) -> int:
+	return Game.WIRE_COST if kind == "wire" else Game.SANDBAG_COST
+
+
+## Sandbag (5 scrap) or barbed wire (3) blueprint inside the perimeter, up to SANDBAG_MAX pieces; joins its neighbours.
+func place_sandbag(cell: Vector2i, kind := "sandbag") -> bool:
+	if not can_place(kind, cell):
 		return false
-	var pos := cell_pos(cell)
-	Game.scrap -= Game.SANDBAG_COST
-	Game.sandbags[cell] = {"hp": Game.SANDBAG_HP, "built": false}
-	var s := Art.sprite("wall")
-	s.position = pos - global_position
+	Game.scrap -= piece_cost(kind)
+	Game.sandbags[cell] = {"kind": kind, "hp": Game.WIRE_HP if kind == "wire" else Game.SANDBAG_HP, "built": false, "rot": place_rot}
+	var s := Art.sprite(kind)
+	s.hframes = 16
+	s.position = cell_pos(cell) - global_position
 	s.modulate.a = 0.4
 	sandbags.add_child(s)
 	bags[cell] = s
+	_join(cell)
 	ui.refresh()
 	return true
 
 
-## RMB: blueprints are refunded, built sandbags are just torn down.
+## Sprite frame of a `kind` piece at `cell`: bit i set when neighbour DIRS[i] is the same kind (end, straight, corner,
+## T, cross); a lone piece lies along `rot`.
+func piece_frame(cell: Vector2i, kind: String, rot: int) -> int:
+	var m := 0
+	for i in 4:
+		if Game.sandbags.get(cell + DIRS[i], {}).get("kind", "") == kind:
+			m |= 1 << i
+	return m if m > 0 else (5 if rot == 1 else 10)
+
+
+## Re-picks the frames of `cell` and its neighbours after a piece came or went.
+func _join(cell: Vector2i) -> void:
+	for c in [cell] + DIRS.map(func(d): return cell + d):
+		if bags.has(c):
+			bags[c].frame = piece_frame(c, Game.sandbags[c]["kind"], Game.sandbags[c]["rot"])
+
+
+## RMB: blueprints are refunded, built pieces are just torn down.
 func remove_sandbag(cell: Vector2i) -> void:
 	if not Game.sandbags.has(cell):
 		return
 	if not Game.sandbags[cell]["built"]:
-		Game.scrap += Game.SANDBAG_COST
+		Game.scrap += piece_cost(Game.sandbags[cell]["kind"])
 	_free_sandbag(cell)
 	ui.refresh()
 
 
-## Zombies chew on a built sandbag in their way (enemy.gd); at 0 hp it is gone.
+## Zombies chew on a built sandbag in their way and wear down wire they crawl through (enemy.gd); at 0 hp it is gone.
 func damage_sandbag(cell: Vector2i, amount: float) -> void:
 	Game.sandbags[cell]["hp"] -= amount
-	Sfx.play("base_hit", cell_pos(cell), -14.0)
+	if Game.sandbags[cell]["kind"] == "sandbag":
+		Sfx.play("base_hit", cell_pos(cell), -14.0)
 	if Game.sandbags[cell]["hp"] <= 0.0:
 		Game.world.spawn_fx(cell_pos(cell), 0.5)
 		_free_sandbag(cell)
@@ -205,6 +318,7 @@ func _free_sandbag(cell: Vector2i) -> void:
 	Game.sandbags.erase(cell)
 	bags[cell].queue_free()
 	bags.erase(cell)
+	_join(cell)
 	Game.world.nav_dirty()
 
 
@@ -243,13 +357,9 @@ func perimeter_level() -> int:
 
 ## Blueprint of a building with its top-left at `cell`; workers on Build duty finish it.
 func place_building(kind: String, cell: Vector2i) -> bool:
-	var n: int = Game.BUILDINGS[kind][3]
-	if Game.scrap < building_cost(kind):
+	if not can_place(kind, cell):
 		return false
-	for x in n:
-		for y in n:
-			if not free_cell(cell + Vector2i(x, y)):
-				return false
+	var n: int = Game.BUILDINGS[kind][3]
 	Game.scrap -= building_cost(kind)
 	var b := {"kind": kind, "cell": cell, "built": false, "progress": 0.0}
 	Game.buildings.append(b)
@@ -312,6 +422,94 @@ func _site_node(b: Dictionary) -> void:
 			node.add_child(c)
 	sites.add_child(node)
 	site_nodes[b["cell"]] = node
+
+
+## What Demolish clears at `cell` inside the perimeter: a house (its connected BUILDING / RUIN cells and roof prop),
+## a hedge cell or a garden fence prop; {} if nothing is there or it is already marked.
+func demolish_target(cell: Vector2i) -> Dictionary:
+	var pos := cell_pos(cell)
+	if pos.distance_to(global_position) > Game.base_radius or not _demolition_at(cell).is_empty():
+		return {}
+	var chunks: TileMapLayer = Game.world.chunks
+	var t := chunks.get_cell_atlas_coords(cell).x
+	var d := {"kind": "fence", "cells": [cell], "cell": cell, "prop": null, "progress": 0.0}
+	if t == Chunks.T.HEDGE:
+		d["kind"] = "hedge"
+	elif t in [Chunks.T.BUILDING, Chunks.T.RUIN]:
+		var cells: Array = d["cells"]
+		var i := 0
+		while i < cells.size() and cells.size() < 24: # flood fill the house, capped
+			for dir in DIRS:
+				var c: Vector2i = cells[i] + dir
+				if not c in cells and chunks.get_cell_atlas_coords(c).x in [Chunks.T.BUILDING, Chunks.T.RUIN]:
+					cells.append(c)
+			i += 1
+		d["kind"] = "house"
+		d["prop"] = _prop_where(func(p): return Vector2i((p.position / CELL).floor()) in cells)
+	else:
+		d["prop"] = _prop_where(func(p): return p.get_child(0).texture == Art.tex("fence") and p.position.distance_to(pos) < 12.0 \
+			and not demolitions.any(func(o): return o["prop"] == p))
+		if d["prop"] == null:
+			return {}
+	return d
+
+
+## First spawn_prop node (main.gd: script-less Node2D holding a Sprite2D) matching `cond`, null if none.
+func _prop_where(cond: Callable) -> Node2D:
+	for n in Game.world.get_children():
+		if n.get_class() == "Node2D" and n.get_script() == null and n.get_child_count() > 0 and n.get_child(0) is Sprite2D \
+				and not n.is_queued_for_deletion() and cond.call(n):
+			return n
+	return null
+
+
+## Demolish tool: an order for the Build workers (after buildings, before sandbags).
+func mark_demolition(cell: Vector2i) -> bool:
+	var d := demolish_target(cell)
+	if d.is_empty():
+		return false
+	demolitions.append(d)
+	if ui:
+		ui.refresh()
+	return true
+
+
+func _demolition_at(cell: Vector2i) -> Dictionary:
+	for d in demolitions:
+		if cell in d["cells"]:
+			return d
+	return {}
+
+
+## RMB on a marked target: the order is dropped.
+func cancel_demolition(cell: Vector2i) -> void:
+	demolitions.erase(_demolition_at(cell))
+	if ui:
+		ui.refresh()
+
+
+## Order carried out: houses and hedges turn to grass, the prop goes, the material comes back.
+func _finish_demolition(d: Dictionary) -> void:
+	demolitions.erase(d)
+	if d["kind"] != "fence": # a fence stands on a yard or road cell that stays
+		for c in d["cells"]:
+			Game.world.chunks.set_cell(c, 0, Vector2i(Chunks.T.GRASS, 0))
+	if is_instance_valid(d["prop"]):
+		d["prop"].queue_free()
+	var gain: Array = DEMOLISH[d["kind"]]
+	Game.scrap += gain[1]
+	Game.salvage["metal"] += gain[2]
+	Game.salvage["parts"] += gain[3]
+	Game.world.nav_dirty()
+	Game.radio("Base: %s demolished, +%d scrap%s." % [d["kind"], gain[1], ", +%d metal, +%d parts" % [gain[2], gain[3]] if gain[2] > 0.0 else ""])
+	if ui:
+		ui.refresh()
+
+
+## What Build workers do next: building and perimeter blueprints, then demolition orders; {} if neither (sandbags come last).
+func next_work() -> Dictionary:
+	var s := next_site()
+	return s if not s.is_empty() or demolitions.is_empty() else demolitions[0]
 
 
 func next_site(kind := "") -> Dictionary:
@@ -444,11 +642,11 @@ func add_pawn(pos: Vector2, arriving: bool) -> Node2D:
 	return p
 
 
-## Militia take up rifles on watchtowers first (+50 % reach), then the outermost built sandbags
+## Militia take up rifles on watchtowers first (+50 % reach), then the outermost built sandbags (not wire)
 ## (a 60 px ring without any). Only as many fire as there are rifles.
 func _on_attack(_day: int) -> void:
 	var towers: Array = Game.buildings.filter(func(b): return b["kind"] == "watchtower" and b["built"]).map(func(b): return cell_pos(b["cell"]))
-	var posts: Array = Game.sandbags.keys().filter(func(c): return Game.sandbags[c]["built"]).map(cell_pos)
+	var posts: Array = Game.sandbags.keys().filter(func(c): return Game.sandbags[c]["built"] and Game.sandbags[c]["kind"] == "sandbag").map(cell_pos)
 	posts.sort_custom(func(a, b): return a.distance_squared_to(global_position) > b.distance_squared_to(global_position))
 	posts = towers + posts
 	var n: int = Game.workers["militia"]

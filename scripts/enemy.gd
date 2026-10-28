@@ -70,6 +70,14 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not Game.running or Game.heli == null:
 		return
+	var cell := Vector2i((position / 16.0).floor())
+	if Game.sandbags.get(cell, {}).get("kind", "") == "wire" and Game.sandbags[cell]["built"]: # barbed wire: crawl through it bleeding, wearing it down
+		slowed = maxf(slowed, Game.WIRE_SLOW)
+		Game.world.base.damage_sandbag(cell, delta)
+		hp -= Game.WIRE_DPS * delta
+		if hp <= 0.0:
+			_die()
+			return
 	delta *= 1.0 - slowed
 	slowed = 0.0
 	attack_cd -= delta

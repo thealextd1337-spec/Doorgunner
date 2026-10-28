@@ -132,8 +132,8 @@ func _toggle_landing() -> void:
 func can_found() -> bool:
 	if not landed or pending != 0 or Game.base_founded:
 		return false
-	for x in range(-3, 4):
-		for y in range(-3, 4):
+	for x in range(-2, 3): # room for the pad; fields, yards and houses around may stay
+		for y in range(-2, 3):
 			if not Game.world.is_landable(position + Vector2(x, y) * 16.0):
 				return false
 	return true

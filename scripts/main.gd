@@ -138,10 +138,11 @@ func is_landable(pos: Vector2) -> bool:
 	return chunks.is_landable(pos) and not base.building_at(Vector2i((pos / 16.0).floor())).get("built", false)
 
 
-## Ground a zombie or survivor can walk on: no solid terrain, built sandbag or finished base building.
+## Ground a zombie or survivor can walk on: no solid terrain, built sandbag (wire is walkable) or finished base building.
 func is_walkable(pos: Vector2) -> bool:
 	var cell := Vector2i((pos / 16.0).floor())
-	return not chunks.tile_at(pos) in SOLID and not Game.sandbags.get(cell, {}).get("built", false) \
+	var bag: Dictionary = Game.sandbags.get(cell, {})
+	return not chunks.tile_at(pos) in SOLID and not (bag.get("built", false) and bag["kind"] == "sandbag") \
 		and not base.building_at(cell).get("built", false)
 
 
@@ -209,7 +210,7 @@ func _nav_grid(region: Rect2i) -> AStarGrid2D:
 			if chunks.get_cell_atlas_coords(Vector2i(x, y)).x in SOLID:
 				grid.set_point_solid(Vector2i(x, y))
 	for c in Game.sandbags:
-		if Game.sandbags[c]["built"] and region.has_point(c):
+		if Game.sandbags[c]["built"] and Game.sandbags[c]["kind"] == "sandbag" and region.has_point(c):
 			grid.set_point_solid(c)
 	for b in Game.buildings:
 		var n: int = Game.BUILDINGS[b["kind"]][3]

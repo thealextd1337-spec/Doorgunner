@@ -65,8 +65,16 @@ func _process(delta: float) -> void:
 				ui.set_worker("militia", 3)
 				ui.set_worker("build", 1)
 				ui.set_worker("farm", 1)
+				var bc := Vector2i((Game.world.BASE_POS / 16.0).floor())
+				for i in 6: # a sandbag line with a corner, a wire run in front, half of it built
+					for c in [bc + Vector2i(4, i - 3), bc + Vector2i(i - 1, 3)]:
+						if Game.world.base.place_sandbag(c) and i % 2 == 0:
+							Game.sandbags[c]["built"] = true
+							Game.world.base.bags[c].modulate.a = 1.0
+					Game.world.base.place_sandbag(bc + Vector2i(6, i - 3), "wire")
 				Game.world.base.place_kind = "barracks"
 				Game.world.base.placing = true
+				get_viewport().warp_mouse(get_viewport().get_visible_rect().size / 2 + Vector2(-60, 120)) # the build preview
 				step = 71
 		71:
 			if t > 8.1:
