@@ -326,22 +326,19 @@ func _struct_near(near: Vector2i, rad: int, sz: Vector2i, name: String, rng: Ran
 	return false
 
 
-## The FOB (main.found_base): 13x13 concrete around `center`, grass cleared out to 10 cells (props there removed),
-## a road port so later towns link to it.
+## The FOB (main.found_base): concrete under the 5x5 pad and the hangar (base.HANGAR, door row included), props there
+## removed; the ground around (fields, yards, roads...) stays. A road port so later towns link to it.
 func paint_base_at(center: Vector2i) -> void:
 	for o in [Vector2i(-10, -10), Vector2i(10, -10), Vector2i(-10, 10), Vector2i(10, 10)]: # loaded first, or terrain would paint over it
 		_ensure(Vector2i(floori((center.x + o.x) / float(CHUNK)), floori((center.y + o.y) / float(CHUNK))))
-	var area := Rect2(Vector2(center - Vector2i(10, 10)) * TILE, Vector2(21, 21) * TILE)
-	for n in Game.world.get_children():
-		if n.get_class() == "Node2D" and n.get_script() == null and area.has_point(n.position): # spawn_prop trees, barns...
-			n.queue_free()
-	for x in range(-10, 11):
-		for y in range(-10, 11):
-			var cell := center + Vector2i(x, y)
-			if abs(x) <= 6 and abs(y) <= 6:
-				set_cell(cell, 0, Vector2i(T.BASE_FLOOR, 0))
-			elif not get_cell_atlas_coords(cell).x in [T.GRASS, T.GRASS2, T.GRASS3]:
-				set_cell(cell, 0, Vector2i(T.GRASS, 0))
+	for r in [Rect2i(center - Vector2i(2, 2), Vector2i(5, 5)), Rect2i(center + Vector2i(-5, -3), Vector2i(3, 3))]:
+		var area := Rect2(Vector2(r.position) * TILE, Vector2(r.size) * TILE)
+		for n in Game.world.get_children():
+			if n.get_class() == "Node2D" and n.get_script() == null and area.has_point(n.position): # spawn_prop trees, barns...
+				n.queue_free()
+		for x in range(r.position.x, r.end.x):
+			for y in range(r.position.y, r.end.y):
+				set_cell(Vector2i(x, y), 0, Vector2i(T.BASE_FLOOR, 0))
 	_ports.append([center + Vector2i(7, 0), center + Vector2i(0, 7)])
 	Game.world.nav_dirty()
 

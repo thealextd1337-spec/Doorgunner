@@ -809,16 +809,49 @@ def hangar():
     return s.drop()
 
 
-def wall():
+NESW = ((0, -1), (1, 0), (0, 1), (-1, 0))  # neighbour bits 1 2 4 8 of the sandbag / wire strips
+
+
+def connected(frame_fn):
+    """16 frames of 16x16, frame = neighbour mask (N 1, E 2, S 4, W 8): base.gd picks the one matching its neighbours."""
+    strip = Image.new("RGBA", (256 * OUT, 16 * OUT))
+    for mask in range(16):
+        strip.paste(frame_fn(mask).out(), (mask * 16 * OUT, 0))
+    return strip
+
+
+def sandbag_frame(mask):
+    """Two rows of bags along every connected side, a pile in the middle."""
     s = Spr(16, 16)
-    rnd = random.Random(3)
-    for row, y in enumerate((3.6, 8.0, 12.4)):
-        off = 2.2 if row == 1 else 0
-        for x in range(-2, 18, 5):
-            cx = x + off + 2.5
-            s.paint(s.m().rect(cx - 2.6, y - 2.2, cx + 2.6, y + 2.2, 1.8),
-                    mix(P["tan"], (0, 0, 0), rnd.uniform(0, 0.1)), sh=0.9)
+    rnd = random.Random(mask)
+
+    def bag(cx, cy, along_x):
+        w, h = (2.6, 2.2) if along_x else (2.2, 2.6)
+        s.paint(s.m().rect(cx - w, cy - h, cx + w, cy + h, 1.8), mix(P["tan"], (0, 0, 0), rnd.uniform(0, 0.12)), sh=0.9)
+
+    for bit, (dx, dy) in enumerate(NESW):
+        if mask >> bit & 1:
+            for side in (-2.3, 2.3):
+                bag(8 + dx * 5.33 + dy * side, 8 + dy * 5.33 + dx * side, dx != 0)
+    for side in (-2.3, 2.3):
+        horizontal = mask & 10 or not mask & 5
+        bag(8 + (0 if horizontal else side), 8 + (side if horizontal else 0), horizontal)
     return s.drop(0.5)
+
+
+def wire_frame(mask):
+    """Concertina coils along every connected side, a wooden post in the middle."""
+    s = Spr(16, 16)
+    steel = mix(P["metal"], (255, 255, 255), 0.35)
+    for bit, (dx, dy) in enumerate(NESW):
+        if mask >> bit & 1:
+            for k in range(5):
+                d = 1.0 + k * 1.75
+                m = s.m().ell(8 + dx * d, 8 + dy * d, 2.6)
+                m.ell(8 + dx * d, 8 + dy * d, 2.2, v=0)
+                s.paint(m, steel, sh=0, edge=False)
+    s.paint(s.m().rect(7, 7, 9, 9, 0.4), dk(P["wood"], 0.8), sh=0.4)
+    return s.drop(0.3)
 
 
 def crate():
@@ -1094,7 +1127,7 @@ def car():
 
 SPRITES = {
     "heli": heli, "rotor": rotor, "bullet": bullet, "shambler": shambler, "runner": runner, "brute": brute,
-    "boss": boss, "survivor": survivor, "helipad": helipad, "turret": turret, "hangar": hangar, "wall": wall,
+    "boss": boss, "survivor": survivor, "helipad": helipad, "turret": turret, "hangar": hangar,
     "crate": crate, "radio_tower": radio_tower, "wreck": wreck, "den": den, "muzzle": muzzle,
     "church": church, "barn": barn, "silo": silo, "tree": tree, "dead_tree": dead_tree, "fence": fence,
     "jetty": jetty, "gas_station": gas_station, "fuel_tank": fuel_tank, "woodpile": woodpile,
@@ -1103,7 +1136,7 @@ SPRITES = {
 SIZES = {  # logical sizes, see assets/sprites/README.md
     "heli": (32, 32), "rotor": (32, 32), "bullet": (4, 4), "shambler": (16, 16), "runner": (16, 16),
     "brute": (24, 24), "boss": (48, 48), "survivor": (8, 8), "tiles": (16 * len(TILES), 16), "helipad": (48, 48),
-    "turret": (16, 16), "hangar": (32, 32), "wall": (16, 16), "crate": (16, 16), "radio_tower": (16, 32),
+    "turret": (16, 16), "hangar": (32, 32), "sandbag": (256, 16), "wire": (256, 16), "crate": (16, 16), "radio_tower": (16, 32),
     "wreck": (32, 32), "den": (32, 32), "muzzle": (8, 8), "explosion": (96, 16),
     "church": (32, 40), "barn": (32, 24), "silo": (16, 24), "tree": (16, 16), "dead_tree": (16, 16), "fence": (16, 4),
     "jetty": (8, 24), "gas_station": (32, 16), "fuel_tank": (16, 16), "woodpile": (12, 8), "water_tower": (16, 24),
@@ -1122,6 +1155,8 @@ def main():
         images = {name: f().out() for name, f in SPRITES.items()}
         images["tiles"] = tiles()
         images["explosion"] = explosion()
+        images["sandbag"] = connected(sandbag_frame)
+        images["wire"] = connected(wire_frame)
         for name, im in images.items():
             w, h = SIZES[name]
             assert im.size == (w * OUT, h * OUT), (name, im.size)

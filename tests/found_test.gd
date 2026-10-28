@@ -50,7 +50,7 @@ func _run() -> void:
 			break
 	Input.action_release("move_right")
 	assert(heli.position.x > start.x + 400.0, "flew east: %s" % heli.position)
-	# land on the nearest spot with 7x7 open ground (the terrain is random)
+	# land on the nearest spot with 5x5 open ground (the terrain is random)
 	var site := Vector2.INF
 	for r in 30:
 		for i in maxi(1, r * 8):
@@ -66,11 +66,20 @@ func _run() -> void:
 		if heli.landed and heli.pending == 0:
 			break
 	assert(heli.landed and not Game.base_founded, "landed, not founded yet")
+	# a field with a hedge and crops just outside the pad's 5x5 (the old 7x7 check refused this): founded, both stay
+	var sc := Vector2i((heli.position / 16.0).floor())
+	for x in range(-2, 3):
+		for y in range(-2, 3):
+			main.chunks.set_cell(sc + Vector2i(x, y), 0, Vector2i(T.FIELD, 0))
+	main.chunks.set_cell(sc + Vector2i(3, 3), 0, Vector2i(T.HEDGE, 0))
+	main.chunks.set_cell(sc + Vector2i(0, 3), 0, Vector2i(T.FIELD, 0))
+	assert(heli.can_found(), "5x5 is enough")
 	await _press("found")
 	assert(Game.base_founded, "B founded the base")
 	assert(main.BASE_POS.distance_to(heli.position) < 20.0 and main.base.position == main.BASE_POS and main.base.visible, "base at the heli")
-	for o in [Vector2.ZERO, Vector2(-6, -6), Vector2(6, 6), Vector2(6, -6), Vector2(-6, 6)]:
+	for o in [Vector2.ZERO, Vector2(-2, -2), Vector2(2, 2), Vector2(2, -2), Vector2(-2, 2), Vector2(-4, -2)]: # pad and hangar
 		assert(main.chunks.tile_at(main.BASE_POS + o * 16.0) == T.BASE_FLOOR, "pad concrete at %s" % o)
+	assert(main.chunks.get_cell_atlas_coords(sc + Vector2i(3, 3)).x == T.HEDGE and main.chunks.get_cell_atlas_coords(sc + Vector2i(0, 3)).x == T.FIELD, "terrain around the pad stays")
 	assert(Game.rescued == 4 and Game.passengers == 0 and Game.workers["build"] == 2, "crew moved in, 2 on Build")
 	assert(Game.base_level.get("workshop", 0) == 1, "field workshop")
 	assert(Game.first_assault_day == Game.day + 2 and Game.days_to_assault() == 2, "first assault on day + 2")
@@ -84,8 +93,8 @@ func _run() -> void:
 
 
 func _open(main: Node2D, p: Vector2) -> bool:
-	for x in range(-3, 4):
-		for y in range(-3, 4):
+	for x in range(-2, 3):
+		for y in range(-2, 3):
 			if not main.is_landable(p + Vector2(x, y) * 16.0):
 				return false
 	return true

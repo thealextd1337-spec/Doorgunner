@@ -129,10 +129,10 @@ func _patrol() -> Vector2:
 	return p + (home - p).normalized() * 10.0
 
 
-## Tool jobs shuttle between the hangar, the fuel depot area and blueprints (Build workers go to the blueprint).
+## Tool jobs shuttle between the hangar, the fuel depot area and blueprints (Build workers go to the blueprint or demolition).
 func _work_spot() -> Vector2:
 	var spots: Array = [base.door("hangar"), base.global_position + DEPOT]
-	var site: Dictionary = base.next_site()
+	var site: Dictionary = base.next_work()
 	var cell: Variant = base._nearest_blueprint() if site.is_empty() else site["cell"]
 	if not site.is_empty() and site["kind"] == "perimeter":
 		spots.append(base.global_position + Vector2(Game.base_radius - 10, 0).rotated(fence_angle))

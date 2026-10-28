@@ -20,7 +20,11 @@ const BUILD_SECONDS := 20.0 # one sandbag per build worker
 const MEDIC_REPAIR := 20.0 # free hull per medic per landing
 const SANDBAG_HP := 120.0
 const SANDBAG_COST := 5
-const SANDBAG_MAX := 80
+const SANDBAG_MAX := 80 # sandbag and wire pieces together
+const WIRE_COST := 3
+const WIRE_HP := 20.0 # zombie-seconds of crawling through it
+const WIRE_SLOW := 0.7 # fraction of speed lost on a built wire cell
+const WIRE_DPS := 8.0
 const FOOD_PER_PERSON := 1.0 # per day
 const FOUNDING_CREW := 4 # aboard at run start, they become the base's first people
 
@@ -71,7 +75,7 @@ var base_ammo := 800.0
 var base_fuel_cap := 600.0
 var base_ammo_cap := 1200.0
 var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0, "workshop": 0}
-var sandbags := {} # Vector2i cell -> {"hp": float, "built": bool}; nodes live in base.gd
+var sandbags := {} # Vector2i cell -> {"kind": "sandbag" or "wire", "hp": float, "built": bool, "rot": 0 along x / 1 along y}; nodes live in base.gd
 var base_food := 60.0
 var salvage := {"metal": 0.0, "parts": 0.0, "electronics": 0.0} # crates, wrecks, scrap yards, kills; the workshop job turns it into scrap
 var workshop_progress := 0.0 # salvage units owed to the workshop, carried between frames
@@ -494,7 +498,7 @@ func _setup_input() -> void:
 	var keys := {
 		"move_up": [KEY_W, KEY_UP], "move_down": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
-		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B],
+		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R],
 	}
 	for action in keys:
 		if not InputMap.has_action(action):
