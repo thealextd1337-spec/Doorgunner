@@ -4,15 +4,15 @@ extends Node2D
 ## target_base = true during base assaults.
 
 const KINDS := {
-	"shambler": {"hp": 45.0, "speed": 22.0, "dmg": 8.0, "xp": 4, "radius": 8.0},
-	"runner": {"hp": 25.0, "speed": 80.0, "dmg": 6.0, "xp": 6, "radius": 7.0},
-	"brute": {"hp": 220.0, "speed": 18.0, "dmg": 28.0, "xp": 25, "radius": 11.0},
-	"boss": {"hp": 2200.0, "speed": 16.0, "dmg": 45.0, "xp": 300, "radius": 22.0, "boss": true},
+	"shambler": {"hp": 45.0, "speed": 16.0, "dmg": 8.0, "xp": 4, "radius": 8.0},
+	"runner": {"hp": 25.0, "speed": 58.0, "dmg": 6.0, "xp": 6, "radius": 7.0},
+	"brute": {"hp": 220.0, "speed": 13.0, "dmg": 28.0, "xp": 25, "radius": 11.0},
+	"boss": {"hp": 2200.0, "speed": 12.0, "dmg": 45.0, "xp": 300, "radius": 22.0, "boss": true},
 }
 const MELEE_INTERVAL := 1.0
 const RAID_INTERVAL := 5.0 # seconds per survivor killed at a settlement
-const AGGRO_DIST := 600.0 # landed heli closer than this gets swarmed
-const GOAL_DIST := 1500.0 # how far zombies look for a settlement
+const AGGRO_DIST := 380.0 # landed heli closer than this gets swarmed
+const GOAL_DIST := 900.0 # how far zombies look for a settlement
 const DESPAWN_DIST := 2400.0
 
 var kind := "shambler"
@@ -87,7 +87,7 @@ func _process(delta: float) -> void:
 	if Game.noise_level > 0.15:
 		var to_noise: Vector2 = Game.noise_pos - global_position
 		var nd := to_noise.length()
-		if nd > 24.0 and nd < 200.0 + 500.0 * Game.noise_level:
+		if nd > 24.0 and nd < 120.0 + 300.0 * Game.noise_level:
 			_face(to_noise)
 			position += to_noise.normalized() * speed * 0.8 * delta
 			return
