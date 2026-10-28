@@ -715,7 +715,7 @@ func _on_landed(landed: bool) -> void:
 		Game.injured += Game.passengers_injured
 		Game.passengers_injured = 0
 		Game.scrap += 3 * n
-		Game.radio("%d survivors delivered. Total: %d" % [n, Game.rescued])
+		Game.radio("%d survivors delivered." % n)
 		for i in mini(n, PAWN_MAX - pawns.get_child_count()):
 			add_pawn(Game.heli.global_position + Vector2(randf_range(-12, 12), randf_range(8, 16)), true)
 		if Game.campers() > 0:
