@@ -14,7 +14,7 @@ const MAP_SIZE := 200.0
 const MAP_SCALE := 16.0 # world px per minimap px
 const MAP_SEEN := 480.0 # POIs this close to the heli become known
 const POI_COLORS := {
-	"survivors": Color(0.4, 1, 0.5), "crate": Color(1, 0.85, 0.3), "upgrade": Color(0.5, 0.8, 1),
+	"survivors": Color(0.4, 1, 0.5), "hideout": Color(0.6, 0.9, 0.6), "crate": Color(1, 0.85, 0.3), "upgrade": Color(0.5, 0.8, 1),
 	"radio_tower": Color(1, 1, 1), "wreck": Color(1, 0.5, 0.2), "nest": Color(1, 0.3, 0.9),
 }
 

@@ -112,6 +112,17 @@ func spawn_enemy(kind: String, pos: Vector2, target_base := false) -> Node2D:
 	return e
 
 
+## Decorative sprite (church, barn, tree, fence...) placed by the chunk generator. Not interactive.
+func spawn_prop(name: String, pos: Vector2, rot := 0.0) -> Node2D:
+	var p := Node2D.new()
+	p.position = pos
+	p.rotation = rot
+	p.z_index = 1
+	p.add_child(Art.sprite(name))
+	add_child(p)
+	return p
+
+
 func spawn_fx(pos: Vector2, scale_factor := 1.0) -> void:
 	var fx: Node2D = preload("res://scripts/fx.gd").new()
 	fx.position = pos

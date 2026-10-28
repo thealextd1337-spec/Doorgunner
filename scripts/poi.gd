@@ -1,7 +1,7 @@
 extends Node2D
 ## Points of interest. Landing within LAND_DIST triggers the reward; nests are enemies instead.
 
-const LABELS := {"survivors": "settlement", "crate": "supply cache", "nest": "zombie den", "radio_tower": "relay tower", "wreck": "crash site", "upgrade": "weapons cache"}
+const LABELS := {"survivors": "settlement", "hideout": "hideout", "crate": "supply cache", "nest": "zombie den", "radio_tower": "relay tower", "wreck": "crash site", "upgrade": "weapons cache"}
 const DIRS := ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"]
 const LAND_DIST := 48.0
 const Weapons := preload("res://scripts/weapons.gd")
@@ -45,11 +45,13 @@ func setup(k: String, pos: Vector2, r: RandomNumberGenerator) -> void:
 
 func _ready() -> void:
 	Game.heli.landed_changed.connect(_on_landed)
-	if kind == "survivors":
-		for i in rng.randi_range(2, 6):
+	if kind == "survivors" or kind == "hideout":
+		# hideout: 1-3 people hiding in a lone house; they stay out of sight (and off the zombies' list) until you land
+		for i in rng.randi_range(1, 3) if kind == "hideout" else rng.randi_range(2, 6):
 			var s: Node2D = preload("res://scripts/survivor.gd").new()
 			s.position = Vector2(rng.randf_range(-20, 20), rng.randf_range(-14, 14))
 			s.arrived.connect(_board.bind(s))
+			s.visible = kind != "hideout"
 			add_child(s)
 			survivors.append(s)
 		return
@@ -93,7 +95,7 @@ func _on_landed(landed: bool) -> void:
 		return
 	if done or position.distance_to(Game.heli.position) > LAND_DIST:
 		return
-	if kind != "survivors":
+	if kind != "survivors" and kind != "hideout":
 		Sfx.play("pickup")
 	match kind:
 		"survivors":
@@ -101,6 +103,13 @@ func _on_landed(landed: bool) -> void:
 			load_cd = 2.5
 			boarded = 0
 			Game.world.spawner.call_wave(position, 2)
+		"hideout":
+			loading = true
+			load_cd = 2.5
+			boarded = 0
+			for s in survivors:
+				s.visible = true
+			Game.radio("Gunner: people coming out of the house!")
 		"crate":
 			var a := rng.randi_range(30, 60)
 			var f := rng.randi_range(20, 40)
