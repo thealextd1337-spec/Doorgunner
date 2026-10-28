@@ -321,9 +321,9 @@ func add_weapon(id: String) -> void:
 	if weapon == "mg":
 		weapon = id
 		recompute()
-		radio("Gunner: %s mounted on the door. Q switches guns." % n)
+		radio("Gunner: %s mounted on the door. X switches guns." % n)
 	else:
-		radio("Gunner: %s stowed aboard. Q switches guns." % n)
+		radio("Gunner: %s stowed aboard. X switches guns." % n)
 
 
 func _process(delta: float) -> void:
@@ -483,7 +483,7 @@ func _setup_input() -> void:
 	var keys := {
 		"move_up": [KEY_W, KEY_UP], "move_down": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
-		"land": [KEY_SPACE], "interact": [KEY_E], "restart": [KEY_R], "weapon_swap": [KEY_Q], "menu": [KEY_ESCAPE],
+		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E],
 	}
 	for action in keys:
 		if not InputMap.has_action(action):

@@ -16,6 +16,8 @@ const DMG_PER_LEVEL := {"mg": 0.12, "autocannon": 0.15, "railgun": 0.2}
 var vel := Vector2.ZERO
 var landed := false
 var fire_cd := 0.0
+var manual_yaw := 0.0 # seconds since Q/E were last held; auto-align to the flight path only after a pause
+const YAW_SPEED := deg_to_rad(110.0)
 var transition := 0.0 # time left in the current land/takeoff
 var pending := 0 # 1 landing, -1 taking off
 var heat := 0.0 # minigun spread growth 0..1, gone at Lv5
@@ -87,8 +89,15 @@ func _move(delta: float) -> void:
 	if vel.length() > max_speed:
 		vel = vel.normalized() * max_speed
 	position += vel * delta
-	if vel.length() > 20.0:
-		body.rotation = lerp_angle(body.rotation, vel.angle() + PI / 2, 3 * delta)
+	# Q/E swing the heli so the door guns bear; without input the nose drifts back toward the flight path
+	var yaw := Input.get_axis("yaw_left", "yaw_right")
+	if yaw != 0.0:
+		body.rotation += yaw * YAW_SPEED * delta
+		manual_yaw = 0.0
+	else:
+		manual_yaw += delta
+		if vel.length() > 20.0 and manual_yaw > 1.5:
+			body.rotation = lerp_angle(body.rotation, vel.angle() + PI / 2, 1.5 * delta)
 
 
 func _fuel(delta: float) -> void:

@@ -50,6 +50,13 @@ func _run() -> void:
 		await process_frame
 	Input.action_release("fire")
 	Game.heli.aim_override = Vector2.ZERO
+	# Q swings the nose
+	var rot0: float = Game.heli.body.rotation
+	Input.action_press("yaw_left")
+	for i in 400:
+		await process_frame
+	Input.action_release("yaw_left")
+	assert(absf(angle_difference(rot0, Game.heli.body.rotation)) > 0.05, "Q turned the heli")
 	assert(Game.ammo < ammo0, "ammo consumed firing sideways")
 	for c in main.get_children():
 		if c.get_script() == preload("res://scripts/bullet.gd"):

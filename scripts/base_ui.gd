@@ -256,7 +256,7 @@ func _refresh_weapons() -> void:
 		weapon_box.remove_child(c) # a Stow/Mount button may be mid-signal, so no free()
 		c.queue_free()
 	var cap := Label.new()
-	cap.text = "Weapons  (hardpoints %d/%d, Q switches in flight)" % [Game.heli_weapons.size(), Game.slots["hardpoint"]]
+	cap.text = "Weapons  (hardpoints %d/%d, X switches in flight)" % [Game.heli_weapons.size(), Game.slots["hardpoint"]]
 	cap.add_theme_font_size_override("font_size", 13)
 	weapon_box.add_child(cap)
 	for id in Game.heli_weapons:
