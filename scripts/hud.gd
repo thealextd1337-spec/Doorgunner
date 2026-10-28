@@ -46,7 +46,7 @@ func _ready() -> void:
 	slots_label = _label(root, Vector2(10, y), 860)
 	slots_label.add_theme_font_size_override("font_size", 13)
 	# logical canvas is fixed at 1280x720 (stretch mode canvas_items)
-	info = _label(root, Vector2(870, 10), 400, HORIZONTAL_ALIGNMENT_RIGHT)
+	info = _label(root, Vector2(620, 10), 650, HORIZONTAL_ALIGNMENT_RIGHT)
 	log_label = _label(root, Vector2(10, 600), 620)
 	log_label.modulate = Color(0.8, 1, 0.8)
 	hint = _label(root, Vector2(390, 690), 500, HORIZONTAL_ALIGNMENT_CENTER)
