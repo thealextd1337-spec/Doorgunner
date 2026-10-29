@@ -89,6 +89,7 @@ func _show_title() -> void:
 		Game.running = true
 		ui_open = false
 		hud.visible = true
+		Online.begin_run()
 		if title.tutorial or Game.meta["tutorial_done"] == 0:
 			start_tutorial()
 		Sfx.play("ui"))
