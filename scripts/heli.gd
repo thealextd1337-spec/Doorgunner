@@ -159,6 +159,21 @@ func _interval() -> float:
 	return Weapons.TABLE[Game.weapon]["interval"] / Game.stats["fire_rate"] / rate
 
 
+## Save hook "heli" (the weapon itself is in Game).
+func save_state() -> Dictionary:
+	return {"pos": position, "vel": vel, "rot": body.rotation, "landed": landed, "pending": pending, "transition": transition}
+
+
+func load_state(d: Dictionary) -> void:
+	position = d["pos"]
+	vel = d["vel"]
+	body.rotation = d["rot"]
+	landed = d["landed"]
+	pending = d["pending"]
+	transition = d["transition"]
+	refresh_systems() # Game loaded before this heli existed
+
+
 ## Installed system items (Progression slot "system") live as child nodes named by id.
 func refresh_systems() -> void:
 	for id in Progression.ITEMS:

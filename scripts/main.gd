@@ -21,7 +21,10 @@ const SOLID := [T.WATER, T.BUILDING, T.ROCK, T.WAREHOUSE, T.HEDGE] # walkers (zo
 
 func _ready() -> void:
 	Game.world = self
-	Game.new_run()
+	var loaded := Save.pending and Save.load_run() # CONTINUE; each hook below loads as it registers
+	if not loaded:
+		Game.new_run()
+	Save.register("game", Game.save_state, Game.load_state) # before chunks: the replay needs Game.seed
 	chunks = preload("res://scripts/chunk_manager.gd").new()
 	add_child(chunks)
 	base = preload("res://scripts/base.gd").new()
@@ -40,6 +43,11 @@ func _ready() -> void:
 	cam.position_smoothing_enabled = true
 	cam.position_smoothing_speed = 6.0
 	heli.add_child(cam)
+	Save.register("heli", heli.save_state, heli.load_state)
+	Save.register("world", chunks.save_state, chunks.load_state)
+	Save.register("pois", _save_pois, _load_pois)
+	Save.register("base", base.save_state, base.load_state)
+	Save.register("enemies", _save_enemies, _load_enemies)
 	night = CanvasModulate.new()
 	add_child(night)
 	spawner = preload("res://scripts/spawner.gd").new()
@@ -53,15 +61,20 @@ func _ready() -> void:
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
 	Game.day_changed.connect(_settlements_decline)
-	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot", "prog": "progression_test", "tut": "tutorial_test", "nav": "nav_test", "found": "found_test", "town": "town_test"}.get(OS.get_environment("SMOKE"), "")
-	if test != "" and not test in ["found_test", "shot"]: # the older tests expect a founded, empty base at the start site
+	var smoke := OS.get_environment("SMOKE")
+	var test: String = {"1": "smoke", "poi": "poi_test", "ui": "ui_test", "shot": "shot", "prog": "progression_test", "tut": "tutorial_test"}.get(smoke, "")
+	if test == "" and smoke != "" and ResourceLoader.exists("res://tests/%s_test.gd" % smoke): # SMOKE=<name> runs tests/<name>_test.gd
+		test = smoke + "_test"
+	if test != "" and not test in ["found_test", "shot", "save_test"] and not loaded: # the older tests expect a founded, empty base at the start site
 		Game.passengers = 0
 		found_base(BASE_POS)
 		base.ui.close()
 	if test != "":
 		add_child(load("res://tests/%s.gd" % test).new())
-	else:
+	elif not loaded:
 		_show_title()
+	if loaded:
+		return
 	Game.radio("Command: pick a site with open ground near towns and water, land and found the FOB (B).")
 	Game.radio("Controls: WASD fly, mouse aim/fire, SPACE land or take off.")
 
@@ -85,15 +98,10 @@ func _show_title() -> void:
 ## B on open ground (heli.gd): the FOB goes up at `pos` (snapped to the 16 px grid). Pad and field workshop, the founding
 ## crew moves in (2 of them on Build so the barracks gets built), the assault clock starts (first on day + 2).
 func found_base(pos: Vector2) -> void:
-	var cell := Vector2i((pos / 16.0).floor())
-	BASE_POS = Vector2(cell) * 16.0 + Vector2(8, 8)
-	base.position = BASE_POS
-	chunks.paint_base_at(cell)
+	place_base(Vector2i((pos / 16.0).floor()))
 	Game.base_founded = true
 	Game.base_level["workshop"] = 1
 	Game.first_assault_day = Game.day + 2
-	base.visible = true
-	base.process_mode = Node.PROCESS_MODE_INHERIT
 	Game.rescued += Game.passengers
 	Game.injured += Game.passengers_injured # hurt in flight: they need the clinic, not a job
 	Game.workers["build"] = mini(2, Game.passengers - Game.passengers_injured)
@@ -104,6 +112,15 @@ func found_base(pos: Vector2) -> void:
 	Game.radio("Base: field workshop set up.")
 	Game.radio("FOB founded. Crew is setting up. Build a barracks (40 scrap) and sandbags; the first assault comes on day %d." % Game.first_assault_day)
 	base._on_landed(true) # the heli sits on the new pad: services and the base menu
+
+
+## The world side of founding (also replayed by a loaded run, chunk_manager.load_state): pad at `cell`, base shown.
+func place_base(cell: Vector2i) -> void:
+	BASE_POS = Vector2(cell) * 16.0 + Vector2(8, 8)
+	base.position = BASE_POS
+	chunks.paint_base_at(cell)
+	base.visible = true
+	base.process_mode = Node.PROCESS_MODE_INHERIT
 
 
 func start_tutorial() -> void:
@@ -278,6 +295,7 @@ func slide(from: Vector2, step: Vector2) -> Vector2:
 func spawn_poi(kind: String, pos: Vector2, rng: RandomNumberGenerator, count := 0) -> Node2D:
 	var p: Node2D = preload("res://scripts/poi.gd").new()
 	p.setup(kind, pos, rng, count)
+	p.uid = chunks.poi_uid()
 	p.z_index = 1
 	add_child(p)
 	pois.append(p)
@@ -289,6 +307,51 @@ func spawn_enemy(kind: String, pos: Vector2, target_base := false) -> Node2D:
 	e.setup(kind, pos, Game.danger_at(pos), target_base)
 	add_child(e)
 	return e
+
+
+## Save hook "pois": changed state per uid; dynamic POIs ("dyn#n": tutorial, supply drops) whole, rebuilt on load.
+func _save_pois() -> Dictionary:
+	var out := {}
+	for p in pois:
+		if is_instance_valid(p) and not p.is_queued_for_deletion():
+			out[p.uid] = p.save_state()
+	return {"pois": out, "radio_target": radio_target.uid if is_instance_valid(radio_target) else ""}
+
+
+func _load_pois(d: Dictionary) -> void:
+	var by_uid := {}
+	for p in pois:
+		by_uid[p.uid] = p
+	for uid in d["pois"]:
+		var s: Dictionary = d["pois"][uid]
+		var p: Node2D = by_uid.get(uid)
+		if p == null and uid.begins_with("dyn#"):
+			p = spawn_poi(s["kind"], s["pos"], RandomNumberGenerator.new(), s["count"])
+			p.uid = uid
+			by_uid[uid] = p
+		if p:
+			p.load_state(s)
+	radio_target = by_uid.get(d["radio_target"])
+
+
+const ENEMIES_SAVED := 150 # the nearest to the base or heli, the rest are dropped
+
+
+## Save hook "enemies": kind, position, hp and stats, target_base.
+func _save_enemies() -> Array:
+	var list := get_tree().get_nodes_in_group("enemies").filter(func(e): return "target_base" in e and not e.is_queued_for_deletion())
+	var near := func(e: Node2D) -> float: return minf(e.position.distance_squared_to(heli.position), e.position.distance_squared_to(base.position))
+	list.sort_custom(func(a, b): return near.call(a) < near.call(b))
+	return list.slice(0, ENEMIES_SAVED).map(func(e): return [e.kind, e.position, e.hp, e.max_hp, e.speed, e.dmg, e.target_base])
+
+
+func _load_enemies(d: Array) -> void:
+	for a in d:
+		var e := spawn_enemy(a[0], a[1], a[6])
+		e.hp = a[2]
+		e.max_hp = a[3]
+		e.speed = a[4]
+		e.dmg = a[5]
 
 
 ## Decorative sprite (church, barn, tree, fence...) placed by the chunk generator. Not interactive.

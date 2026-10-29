@@ -12,6 +12,7 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 
 Game="*res://scripts/game_state.gd"
 Sfx="*res://scripts/sfx.gd"
+Save="*res://scripts/save.gd"
 
 [display]
 

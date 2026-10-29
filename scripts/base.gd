@@ -268,15 +268,20 @@ func place_sandbag(cell: Vector2i, kind := "sandbag") -> bool:
 		return false
 	Game.scrap -= piece_cost(kind)
 	Game.sandbags[cell] = {"kind": kind, "hp": Game.WIRE_HP if kind == "wire" else Game.SANDBAG_HP, "built": false, "rot": place_rot}
-	var s := Art.sprite(kind)
-	s.hframes = 16
-	s.position = cell_pos(cell) - global_position
-	s.modulate.a = 0.4
-	sandbags.add_child(s)
-	bags[cell] = s
+	_bag_node(cell)
 	_join(cell)
 	ui.refresh()
 	return true
+
+
+## Sprite for the piece in Game.sandbags[cell], faded while a blueprint.
+func _bag_node(cell: Vector2i) -> void:
+	var s := Art.sprite(Game.sandbags[cell]["kind"])
+	s.hframes = 16
+	s.position = cell_pos(cell) - global_position
+	s.modulate.a = 1.0 if Game.sandbags[cell]["built"] else 0.4
+	sandbags.add_child(s)
+	bags[cell] = s
 
 
 ## Sprite frame of a `kind` piece at `cell`: bit i set when neighbour DIRS[i] is the same kind (end, straight, corner,
@@ -370,7 +375,7 @@ func place_building(kind: String, cell: Vector2i) -> bool:
 		for y in range(-1, n + 1):
 			var c := cell + Vector2i(x, y)
 			if Game.world.chunks.is_landable(cell_pos(c)):
-				Game.world.chunks.set_cell(c, 0, Vector2i(Chunks.T.BASE_FLOOR, 0))
+				Game.world.chunks.edit(c, Chunks.T.BASE_FLOOR)
 	if ui:
 		ui.refresh()
 	return true
@@ -398,6 +403,31 @@ func remove_blueprint(cell: Vector2i) -> void:
 	site_nodes.erase(b["cell"])
 	if ui:
 		ui.refresh()
+
+
+## Save hook "base": Game holds sandbags and buildings; this rebuilds their nodes. Pawns come back via sync_pawns.
+func save_state() -> Dictionary:
+	var orders := demolitions.map(func(d): return {"kind": d["kind"], "cells": d["cells"], "cell": d["cell"], "progress": d["progress"],
+		"prop": d["prop"].position if is_instance_valid(d["prop"]) else null})
+	return {"demolitions": orders, "build_progress": build_progress, "told_no_base": told_no_base}
+
+
+func load_state(d: Dictionary) -> void:
+	for cell in Game.sandbags:
+		_bag_node(cell)
+	for cell in Game.sandbags:
+		_join(cell)
+	for b in Game.buildings:
+		if b["kind"] != "perimeter":
+			_site_node(b)
+			site_nodes[b["cell"]].modulate.a = 1.0 if b["built"] else 0.4
+	for o in d["demolitions"]:
+		o["prop"] = Game.world.chunks.prop_at(o["prop"]) if o["prop"] != null else null
+		demolitions.append(o)
+	build_progress = d["build_progress"]
+	told_no_base = d["told_no_base"]
+	if Game.heli.landed:
+		_on_landed.call_deferred(true) # saved on the pad: resupply and base menu as if just landed
 
 
 func _site_node(b: Dictionary) -> void:
@@ -495,9 +525,9 @@ func _finish_demolition(d: Dictionary) -> void:
 	demolitions.erase(d)
 	if d["kind"] != "fence": # a fence stands on a yard or road cell that stays
 		for c in d["cells"]:
-			Game.world.chunks.set_cell(c, 0, Vector2i(Chunks.T.GRASS, 0))
+			Game.world.chunks.edit(c, Chunks.T.GRASS)
 	if is_instance_valid(d["prop"]):
-		d["prop"].queue_free()
+		Game.world.chunks.cut_prop(d["prop"])
 	var gain: Array = DEMOLISH[d["kind"]]
 	Game.scrap += gain[1]
 	Game.salvage["metal"] += gain[2]
@@ -732,3 +762,4 @@ func _on_landed(landed: bool) -> void:
 		Game.add_xp(6 * n)
 		Progression.on_delivery()
 	ui.open()
+	Save.autosave()
