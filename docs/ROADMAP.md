@@ -253,6 +253,11 @@ Test: bestehende Tests anpassen, wo sie Flugzeiten oder Distanzen annehmen (`smo
   `fetch_player(id) -> signal player(stats)`, `is_online() -> bool`.
 - Warteschlange für `submit_run` in `user://profiles/<id>/outbox.json`, wird bei Fehlern später gesendet.
   Run-Ergebnis bei jedem Tageswechsel und beim Run-Ende (auch endlose Runs erscheinen live).
+- **Keine Offline-Runs in der Rangliste** (User, 2026-10-29): Der erste `upsert_run` geht beim Run-Start (Tag 1) raus.
+  Klappt er nicht, ist der Run lokal markiert (`ranked = false`, im Spielstand), läuft normal weiter und wird nie
+  gesendet; der Titel zeigt „Offline – this run is not ranked“. Ein gewerteter Run, der unterwegs die Verbindung
+  verliert, sammelt Updates in der Outbox und reicht sie nach (P2 lehnt sonst zu viele Tage auf einmal als
+  `implausible` ab). P2 hat dafür `set_avatar` zusätzlich, Fehlercodes stehen in `server/README.md`.
 - Desktop- und Web-Build (CORS bei Supabase prüfen). Test `SMOKE=online` gegen einen lokalen Stub
   (`ONLINE_URL` zeigt auf einen kleinen Python-Server in `tools/fake_supabase.py`).
 
