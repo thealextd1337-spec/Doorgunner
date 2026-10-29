@@ -23,6 +23,9 @@ var start_btn: Button
 var cont_btn: Button # CONTINUE: only with a saved run (scripts/save.gd)
 var notice: Label
 var confirm: ConfirmationDialog
+var badge: Button # active profile (portrait + name), opens PROFILES
+var profile_ui: ProfileUi
+var board_ui: LeaderboardUi
 
 
 func _ready() -> void:
@@ -57,7 +60,7 @@ func _ready() -> void:
 	add_child(ver)
 
 	var panel := PanelContainer.new()
-	panel.position = Vector2(80, 96)
+	panel.position = Vector2(80, 90)
 	panel.custom_minimum_size = Vector2(640, 0)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = PANEL
@@ -67,7 +70,7 @@ func _ready() -> void:
 	panel.add_theme_stylebox_override("panel", sb)
 	add_child(panel)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 14)
+	v.add_theme_constant_override("separation", 10)
 	panel.add_child(v)
 	v.add_child(_label("// FOB RADIO  -  CH 07  -  SECURE", 13, ACCENT, mono))
 	var title := _label("DOORGUNNER", 88, SAND)
@@ -115,6 +118,34 @@ func _ready() -> void:
 		tutorial = true
 		_start())
 	btn_row.add_child(tut)
+	var row2 := HBoxContainer.new()
+	row2.add_theme_constant_override("separation", 12)
+	v.add_child(row2)
+	for def in [["PROFILES", _open_profiles], ["LEADERBOARD [L]", _open_board]]:
+		var b := Button.new()
+		b.text = def[0]
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.custom_minimum_size = Vector2(0, 40)
+		b.add_theme_font_override("font", mono)
+		b.add_theme_font_size_override("font_size", 16)
+		b.pressed.connect(def[1])
+		row2.add_child(b)
+	badge = Button.new()
+	badge.flat = true
+	badge.position = Vector2(80, 24)
+	badge.custom_minimum_size = Vector2(0, 56)
+	badge.add_theme_font_override("font", mono)
+	badge.add_theme_font_size_override("font_size", 22)
+	badge.add_theme_color_override("font_color", SAND)
+	badge.add_theme_constant_override("icon_max_width", 48)
+	badge.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	badge.pressed.connect(_open_profiles)
+	add_child(badge)
+	profile_ui = ProfileUi.new()
+	profile_ui.changed.connect(open)
+	add_child(profile_ui)
+	board_ui = LeaderboardUi.new()
+	add_child(board_ui)
 	confirm = ConfirmationDialog.new()
 	confirm.dialog_text = "Abandon the current run? It counts as lost."
 	confirm.ok_button_text = "ABANDON"
@@ -189,8 +220,31 @@ func _label(text: String, size: int, color: Color, font: Font = null) -> Label:
 	return l
 
 
+func _open_profiles() -> void:
+	if not _overlay_open():
+		profile_ui.open_list()
+
+
+func _open_board() -> void:
+	if not _overlay_open():
+		board_ui.open()
+
+
+func _overlay_open() -> bool:
+	return profile_ui.visible or board_ui.visible
+
+
 func open() -> void:
 	var m: Dictionary = Game.meta
+	var p := Profiles.active()
+	badge.text = " " + p.get("name", "")
+	badge.icon = Profiles.avatar_tex(p.get("avatar", 0))
+	if profile_ui.visible:
+		pass
+	elif Profiles.needs_enlist():
+		profile_ui.enlist(p.get("id", ""), true) # first start (or no profile left): pick a callsign and portrait
+	elif p.get("enlisted", false) and not p.get("registered", false):
+		Profiles.push(p) # registered online later when it was created offline
 	stats.text = "NO SERVICE RECORD. FIRST SORTIE." if m["runs"] == 0 else "SERVICE RECORD  sorties %d  rescued %d  kills %d  best day %d" % [m["runs"], m["total_rescued"], m["total_kills"], m["best_day"]]
 	var h := Save.head() # an outdated run is discarded here and leaves Save.notice
 	cont_btn.visible = not h.is_empty()
@@ -213,7 +267,11 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_H:
+	if _overlay_open():
+		return # typing a name must not trigger H / SPACE / ENTER here
+	if visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_L:
+		_open_board()
+	elif visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_H:
 		_toggle_hangar()
 	elif visible and event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
 		get_viewport().set_input_as_handled()
@@ -222,14 +280,14 @@ func _input(event: InputEvent) -> void:
 
 ## The saved run: main._ready loads it after the reload.
 func _continue() -> void:
-	if not visible or confirm.visible:
+	if not visible or confirm.visible or _overlay_open():
 		return
 	Save.pending = true
 	get_tree().reload_current_scene()
 
 
 func _start() -> void:
-	if not visible or confirm.visible:
+	if not visible or confirm.visible or _overlay_open():
 		return
 	if Save.has_run(): # NEW RUN over a saved one asks first
 		confirm.popup_centered()
