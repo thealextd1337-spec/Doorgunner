@@ -13,10 +13,10 @@ const DAY_SECONDS := 900.0
 const DANGER_PER_DAY := 0.08
 const ATTACK_EVERY_DAYS := 3
 const META_PATH := "user://meta.json" # before profiles: migrated into the first profile, kept as a backup
-const PROFILES_PATH := "user://profiles.json" # {"list": [{id, name, avatar, created}], "last": id}
+const PROFILES_DIR := "user://profiles/"
+const SMOKE_NS := "_smoke" # headless tests (env SMOKE) get their own profiles.json and profile folders in PROFILES_DIR/_smoke/
 const SETTINGS_PATH := "user://settings.json" # global, not per profile
 const SETTINGS_KEYS := ["vol_master", "vol_sfx", "vol_music", "muted", "shake"]
-const TEST_PROFILE := "_smoke" # headless tests (env SMOKE) never touch a player's profile
 const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
 const People := preload("res://scripts/people.gd")
@@ -643,7 +643,7 @@ func _read_json(path: String) -> Variant:
 
 ## profiles.json; without one the old user://meta.json (if any) becomes the first profile "Gunner".
 func _load_profiles() -> void:
-	var data = _read_json(PROFILES_PATH)
+	var data = _read_json(profiles_path())
 	if data is Dictionary and data.get("list", []).size() > 0:
 		profiles = data
 		if not profiles["list"].any(func(p): return p["id"] == profiles.get("last")):
@@ -652,15 +652,15 @@ func _load_profiles() -> void:
 	if _rebuild_profiles():
 		return
 	var id := create_profile("Gunner", 0)
-	if FileAccess.file_exists(META_PATH):
+	if FileAccess.file_exists(META_PATH) and not smoke():
 		DirAccess.copy_absolute(META_PATH, profile_dir_of(id) + "meta.json")
 
 
 ## profiles.json missing or corrupt but profile folders exist: list them again instead of starting over.
 func _rebuild_profiles() -> bool:
-	var ids := DirAccess.get_directories_at("user://profiles/")
+	var ids := DirAccess.get_directories_at(profiles_root())
 	for id in ids:
-		if id != TEST_PROFILE:
+		if id != SMOKE_NS:
 			profiles["list"].append({"id": id, "name": "Gunner %d" % profiles["list"].size(), "avatar": 0, "created": ""})
 	if profiles["list"].is_empty():
 		return false
@@ -669,13 +669,27 @@ func _rebuild_profiles() -> bool:
 	return true
 
 
+func smoke() -> bool:
+	return OS.get_environment("SMOKE") != ""
+
+
+## Folder holding the profile folders: a separate one under SMOKE, so no test can touch a player's profiles.
+func profiles_root() -> String:
+	return PROFILES_DIR + SMOKE_NS + "/" if smoke() else PROFILES_DIR
+
+
+## {"list": [{id, name, avatar, created}], "last": id}
+func profiles_path() -> String:
+	return profiles_root() + "profiles.json" if smoke() else "user://profiles.json"
+
+
 func profile_dir_of(id: String) -> String:
-	return "user://profiles/%s/" % id
+	return profiles_root() + id + "/"
 
 
 ## Folder of the active profile (meta.json, run.sav).
 func profile_dir() -> String:
-	return profile_dir_of(TEST_PROFILE if OS.get_environment("SMOKE") != "" else profiles["last"])
+	return profile_dir_of(profiles["last"])
 
 
 func switch_profile(id: String) -> void:
@@ -695,7 +709,8 @@ func create_profile(pname: String, avatar: int) -> String:
 
 
 func _save_profiles() -> void:
-	FileAccess.open(PROFILES_PATH, FileAccess.WRITE).store_string(JSON.stringify(profiles))
+	DirAccess.make_dir_recursive_absolute(profiles_root())
+	FileAccess.open(profiles_path(), FileAccess.WRITE).store_string(JSON.stringify(profiles))
 
 
 ## "v0.5.0 (a3aaf6b 2026-10-28)": config/version in project.godot plus the commit and date tools/deploy_web.sh writes
