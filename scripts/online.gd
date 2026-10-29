@@ -216,6 +216,7 @@ func begin_run(modifiers := []) -> void:
 func end_run(run_day: int, run_rescued: int, run_kills: int, victory := false) -> void:
 	if not enabled:
 		return
+	_sync_profile() # after a profile switch the run in memory belongs to the other profile
 	var st := _run
 	if _run.is_empty() or _run["ended"]:
 		st = Save.read().get("systems", {}).get("online", {})
@@ -246,6 +247,7 @@ func _save_state() -> Dictionary:
 
 
 func _load_state(d: Dictionary) -> void:
+	_sync_profile() # first, so a later profile check does not drop the run just loaded
 	if d.is_empty():
 		return
 	_run = {"id": d["id"], "ranked": d["ranked"], "started": d["started"], "ended": false, "modifiers": d["modifiers"]}
@@ -330,6 +332,8 @@ func _account(rpc_name: String, body: Dictionary, on_ok := Callable()) -> void:
 		done.emit.call_deferred(false, "offline")
 		return
 	var r: Dictionary = await _call(HTTPClient.METHOD_POST, "/rest/v1/rpc/" + rpc_name, body)
+	if rpc_name == "register_player" and r["error"] == "already_registered": # row exists (crash before auth.json was saved)
+		r = {"ok": true, "error": ""}
 	if r["ok"] and on_ok.is_valid():
 		on_ok.call()
 	done.emit(r["ok"], r["error"])
@@ -465,6 +469,9 @@ func _sync_profile() -> void:
 	var dir := Game.profile_dir()
 	if dir == _dir:
 		return
+	if _dir != "": # another profile: its run is not ours (the save hook loads ours again)
+		_run = {}
+		ranked = false
 	_dir = dir
 	_auth = _read(dir + "auth.json", {})
 	_outbox = _read(dir + "outbox.json", []).map(func(e): # JSON gives floats

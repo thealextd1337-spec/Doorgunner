@@ -115,7 +115,7 @@ func _cases() -> void:
 	check(FileAccess.file_exists(Game.profile_dir() + "auth.json"), "auth.json written")
 	Online.register("Tester", 3)
 	r = await Online.done
-	check(not r[0] and r[1] == "already_registered", "second register -> already_registered, got %s" % [r])
+	check(r[0] and Online.is_registered(), "second register: already_registered counts as success, got %s" % [r])
 	Online.rename("Rival")
 	r = await Online.done
 	check(not r[0] and r[1] == "name_taken", "rename onto a taken name, got %s" % [r])
