@@ -139,6 +139,7 @@ func _spitter() -> void:
 	Game.sandbags[bag]["built"] = true
 	var at: Vector2 = base.cell_pos(bag)
 	var e := _spawn("spitter", _spot(at, 60.0))
+	e.target_base = true # only assault spitters go for the fence
 	var hp0: float = Game.sandbags[bag]["hp"]
 	_step(e, 0.5)
 	var d0: float = e.position.distance_to(at)

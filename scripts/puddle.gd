@@ -3,7 +3,7 @@ extends Node2D
 ## gas cloud of a burst bloater (hurts a landed heli). A spit first flies `delay` s from `origin`, then calls `impact`
 ## and the puddle starts. Drawn, not saved: it is gone after a few seconds anyway.
 
-const ACID_DPS := 14.0 # on sandbags and wire in the puddle
+const ACID_DPS := 7.0 # on sandbags and wire in the puddle
 const HELI_HIT := 3.0 # per second spent in it, taken once a second
 const TICK := 1.0
 

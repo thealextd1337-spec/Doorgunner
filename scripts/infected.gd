@@ -18,7 +18,7 @@ const SPIT_MIN := 80.0
 const SPIT_MAX := 120.0
 const SPIT_INTERVAL := 3.0
 const SPIT_FLIGHT := 0.6
-const SPIT_SANDBAG := 30.0 # at once, on top of the puddle
+const SPIT_SANDBAG := 15.0 # at once, on top of the puddle
 const ACID_RADIUS := 22.0
 const ACID_SECONDS := 4.0
 const GAS_RADIUS := 56.0
@@ -105,7 +105,7 @@ static func _spit_target(e: Node2D) -> Array:
 	var best_d := SPIT_SIGHT * SPIT_SIGHT
 	var base: Node2D = Game.world.base
 	var dmg: float = e.dmg # not `e` in the lambdas: the spitter may be dead when the glob lands
-	for cell in Game.sandbags:
+	for cell in Game.sandbags if e.target_base else {}: # only assault spitters: a passing horde must not eat the fence while nobody is home
 		if Game.sandbags[cell]["built"]:
 			var p: Vector2 = base.cell_pos(cell)
 			var d := e.global_position.distance_squared_to(p)
