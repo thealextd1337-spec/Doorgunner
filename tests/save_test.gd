@@ -44,7 +44,7 @@ func _run() -> void:
 	main.found_base(site)
 	main.base.ui.close()
 	assert(Game.base_founded and main.BASE_POS.distance_to(site) < 20.0, "base founded off the start site")
-	for c in [Vector2i(7, 0), Vector2i(7, 1), Vector2i(2, 2), Vector2i(4, 3), Vector2i(-1, 0)]: # towns here link to the base port
+	for c in [Vector2i(7, 0), Vector2i(7, 1), Vector2i(2, 2), Vector2i(4, 3), Vector2i(-1, 0)]: # more chunks after founding
 		chunks._ensure(c)
 	await frame
 	# sandbag (built) and a building blueprint (base floor edits)
