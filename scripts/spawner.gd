@@ -25,14 +25,14 @@ func _process(delta: float) -> void:
 			wave_cd = 0.5
 			wave_left -= 1
 			var pos: Vector2 = Game.world.base.global_position + Vector2(720, 0).rotated(randf() * TAU)
-			Game.world.spawn_enemy(_pick(Game.danger_at(Vector2.ZERO)), pos, true)
+			Game.world.spawn_enemy(SpawnTable.pick(Game.danger_at(Vector2.ZERO), SpawnTable.context(pos)), pos, true)
 	elif Game.attack_active and _attackers_alive() == 0:
 		Game.attack_active = false
 		Game.radio("Base secured. Good work, gunner.")
 		Game.meta["assaults_held"] += 1
 
 
-## A horde of 6-12 zombies spawned around a town near the heli (towns are where the dead are).
+## A horde (SpawnTable.horde: 6-12 zombies, later sometimes a runner pack) spawned around a town near the heli (towns are where the dead are).
 func _horde() -> void:
 	var heli: Node2D = Game.heli
 	var danger := Game.danger_at(heli.position)
@@ -53,21 +53,8 @@ func _horde() -> void:
 		return
 	if Game.power and Game.is_night() and base_d < 1500.0 and randf() < 0.3:
 		return # the base lights keep them away
-	for i in randi_range(6, 12):
-		Game.world.spawn_enemy(_pick(danger), pos + Vector2(randf_range(-40, 40), randf_range(-40, 40)))
-
-
-func _pick(danger: float) -> String:
-	var w := {"shambler": 70.0, "runner": 10.0 + danger * 5.0, "brute": 3.0 + danger * 3.0}
-	var total := 0.0
-	for k in w:
-		total += w[k]
-	var r := randf() * total
-	for k in w:
-		r -= w[k]
-		if r <= 0.0:
-			return k
-	return "shambler"
+	for kind in SpawnTable.horde(danger, SpawnTable.context(pos, not towns.is_empty())):
+		Game.world.spawn_enemy(kind, pos + Vector2(randf_range(-40, 40), randf_range(-40, 40)))
 
 
 ## Extra zombies converging on a hot landing zone (used by POIs).
@@ -75,7 +62,7 @@ func call_wave(pos: Vector2, count: int) -> void:
 	var danger := Game.danger_at(pos)
 	for i in count:
 		var p := pos + Vector2(380.0 + randf() * 120.0, 0).rotated(randf() * TAU)
-		Game.world.spawn_enemy(_pick(danger), p)
+		Game.world.spawn_enemy(SpawnTable.pick(danger, SpawnTable.context(p)), p)
 
 
 func _on_attack(day: int) -> void:

@@ -1193,6 +1193,7 @@ def main():
         images["sandbag"] = connected(sandbag_frame)
         images["wire"] = connected(wire_frame)
         images.update(avatars())
+        images.update(infected())
         for name, im in images.items():
             w, h = SIZES[name]
             assert im.size == (w * OUT, h * OUT), (name, im.size)
@@ -1334,6 +1335,82 @@ def avatar_sheet(images):
         im = images[name].resize((small_w, small_w), Image.LANCZOS)
         sheet.paste(im, (pad + i * (small_w + 16), 2 * (big + pad) + pad), im)
     sheet.save(os.path.join(ROOT, "..", "..", "docs", "avatars.png"))
+
+
+# ---------------------------------------------------------------- new infected (P9)
+
+def screamer():
+    """Thin, hunched, jaw hanging open; a pale throat sac and raised claws."""
+    s = Spr(16, 16)
+    skin = mix(P["zskin"], (230, 226, 210), 0.35)
+    arms = s.m().line([(5.4, 9.0), (3.8, 6.2), (4.6, 3.4)], 1.0).line([(10.6, 9.0), (12.2, 6.2), (11.4, 3.4)], 1.0)
+    zombie(s, skin, dk(P["zcloth"], 0.9), (8, 10.4, 3.0, 3.0), (8, 6.8, 2.3, 2.1), arms, tears=((7.0, 11.4, 0.8),), blood=((9.0, 11.0, 0.7),))
+    s.paint(s.m().ell(8, 9.4, 1.9, 1.4), mix(P["flesh"], (240, 200, 190), 0.4), sh=0.4, edge=False)  # throat sac
+    s.paint(s.m().ell(8, 7.6, 1.2, 1.5), (60, 28, 28), sh=0, edge=False)  # open mouth
+    return s.drop(0.6)
+
+
+def spitter():
+    """Swollen, yellow-green neck and cheeks, dripping acid; arms held low."""
+    s = Spr(16, 16)
+    skin = mix(P["zskin"], (180, 190, 70), 0.45)
+    arms = s.m().line([(5.4, 9.4), (4.6, 11.4), (5.6, 13.0)], 1.2).line([(10.6, 9.4), (11.4, 11.4), (10.4, 13.0)], 1.2)
+    zombie(s, skin, P["zcloth"], (8, 10.2, 3.6, 3.0), (8, 7.0, 2.3, 2.1), arms, tears=((6.4, 11.0, 0.8),), blood=((9.4, 11.4, 0.7),))
+    acid = (176, 200, 60)
+    s.paint(s.m().ell(5.6, 8.6, 1.4, 1.2).ell(10.4, 8.6, 1.4, 1.2), acid, sh=0.3, edge=False)  # swollen glands
+    s.paint(s.m().ell(8, 5.4, 0.9, 1.1).ell(8, 3.8, 0.5), acid, sh=0, edge=False)  # spit
+    return s.drop(0.6)
+
+
+def crawler():
+    """Flat, legless torso dragging itself forward on both arms."""
+    s = Spr(16, 16)
+    skin = dk(P["zskin"], 0.92)
+    arms = s.m().line([(4.0, 8.6), (2.6, 6.0), (4.0, 3.6)], 1.2).line([(12.0, 8.6), (13.4, 6.0), (12.0, 3.6)], 1.2)
+    zombie(s, skin, dk(P["zcloth"], 0.85), (8, 9.6, 3.3, 3.6), (8, 5.6, 1.9, 1.8), arms, tears=((6.8, 10.6, 0.8),), blood=((9.4, 11.4, 0.9), (7.2, 12.4, 0.6)))
+    s.paint(s.m().ell(8, 13.4, 1.8, 1.1), P["flesh"], sh=0, edge=False)  # torn-off stump
+    return s.drop(0.5)
+
+
+def bloater():
+    """Huge round gas bag with a taut, translucent belly and tiny limbs."""
+    s = Spr(28, 28)
+    skin = mix(P["zskin"], (170, 180, 110), 0.4)
+    s.paint(s.m().line([(8, 14), (5, 10), (6.4, 6)], 2.2).line([(20, 14), (23, 10), (21.6, 6)], 2.2), skin, sh=0.6)
+    s.paint(s.m().ell(14, 16, 10.4, 9.8), mix(skin, P["zcloth"], 0.35), sh=2.0)
+    belly = s.m().ell(14, 16.6, 8.2, 7.6)
+    s.paint(belly, mix(skin, (210, 214, 130), 0.5), sh=1.6, light=1.2, edge=False)
+    veins = s.m()
+    for x0, y0, x1, y1 in ((9, 13, 13, 17), (18, 12, 15, 18), (11, 21, 15, 19), (19, 20, 16, 17)):
+        veins.line([(x0, y0), (x1, y1)], 0.35)
+    s.paint(veins, dk(P["flesh"], 0.9), sh=0, edge=False)
+    s.paint(s.m().ell(14, 6.4, 3.0, 2.8), skin, sh=1.0)
+    s.paint(s.m().ell(14, 5.8, 1.1, 0.8), dk(skin, 0.65), sh=0, edge=False)
+    return s.drop(1.0)
+
+
+def brute_armored():
+    """Brute in welded plates: a riveted front shield and shoulder guards (the face of the sprite is up)."""
+    s = brute()
+    plate = P["metal"]
+    s.paint(s.m().ell(5.2, 11.4, 3.6, 3.2).ell(18.8, 11.4, 3.6, 3.2), plate, sh=0.9, light=0.5)  # pauldrons
+    s.paint(s.m().rect(6.4, 6.6, 17.6, 12.4, 1.6), dk(plate, 1.05), sh=1.0, light=0.6)  # front plate
+    s.paint(s.m().rect(7.6, 7.6, 16.4, 8.2, 0.2), mix(plate, (255, 255, 255), 0.25), sh=0, edge=False)
+    rivets = s.m()
+    for x, y in ((8, 10.8), (12, 11.4), (16, 10.8), (8, 7.0), (16, 7.0)):
+        rivets.ell(x, y, 0.35)
+    s.paint(rivets, mix(plate, (255, 255, 255), 0.5), sh=0, edge=False)
+    s.paint(s.m().ell(12, 5.2, 2.6, 2.0), dk(plate, 0.9), sh=0.7)  # helmet
+    s.paint(s.m().rect(10.2, 5.4, 13.8, 6.0, 0.2), P["glass"], sh=0, edge=False)
+    return s.drop(0.9)
+
+
+def infected():
+    return {n: f().out() for n, f in (("screamer", screamer), ("spitter", spitter), ("crawler", crawler),
+                                      ("bloater", bloater), ("brute_armored", brute_armored))}
+
+
+SIZES.update({"screamer": (16, 16), "spitter": (16, 16), "crawler": (16, 16), "bloater": (28, 28), "brute_armored": (24, 24)})
 
 
 if __name__ == "__main__":

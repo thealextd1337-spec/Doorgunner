@@ -11,7 +11,16 @@ const KINDS := {
 	"runner": {"hp": 25.0, "speed": 42.0, "dmg": 6.0, "xp": 6, "radius": 7.0},
 	"brute": {"hp": 220.0, "speed": 10.0, "dmg": 28.0, "xp": 25, "radius": 11.0},
 	"boss": {"hp": 2200.0, "speed": 9.0, "dmg": 45.0, "xp": 300, "radius": 22.0, "boss": true},
+	# the new infected (P9); ability / front_armor / death: scripts/infected.gd, wire_proof: crawls under barbed wire
+	"screamer": {"hp": 30.0, "speed": 14.0, "dmg": 4.0, "xp": 12, "radius": 7.0, "ability": "scream"},
+	"spitter": {"hp": 40.0, "speed": 12.0, "dmg": 6.0, "xp": 10, "radius": 7.0, "ability": "spit", "blood": Color(0.6, 0.7, 0.2)},
+	"crawler": {"hp": 35.0, "speed": 26.0, "dmg": 7.0, "xp": 8, "radius": 5.0, "wire_proof": true}, # radius 5 = 40 % less to hit
+	"bloater": {"hp": 320.0, "speed": 7.0, "dmg": 12.0, "xp": 30, "radius": 12.0, "death": "gas", "blood": Color(0.6, 0.7, 0.2)},
+	"brute_armored": {"hp": 300.0, "speed": 10.0, "dmg": 32.0, "xp": 45, "radius": 11.0, "front_armor": 0.7},
 }
+const HEAD_MULT := 2.0 # headshots (bullet.gd)
+const KNOCK := 110.0 # px/s kick of a hit on a radius-8 enemy, lighter on big ones
+const KNOCK_DECAY := 900.0
 const MELEE_INTERVAL := 1.0
 const RAID_INTERVAL := 5.0 # seconds per survivor killed at a settlement
 const AGGRO_DIST := 380.0 # landed heli closer than this gets swarmed
@@ -57,6 +66,9 @@ var unseen_t := 0.0 # seconds `chased` has been out of sight
 var sight_cd := 0.0 # line of sight is sampled 4x a second
 var seen := true
 var ignored := {} # instance id -> msec until which that target is left alone
+var state := {} # ability state (infected.gd), saved with the enemy
+var spit_target := [] # spitter: [position, impact callable], runtime only
+var kick := Vector2.ZERO # knockback velocity, fades out
 
 
 func setup(kind_name: String, pos: Vector2, danger: float, base_target := false) -> void:
@@ -81,8 +93,11 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not Game.running or Game.heli == null:
 		return
+	if kick != Vector2.ZERO:
+		position += Game.world.slide(position, kick * delta)
+		kick = kick.move_toward(Vector2.ZERO, KNOCK_DECAY * delta)
 	var cell := Vector2i((position / 16.0).floor())
-	if Game.sandbags.get(cell, {}).get("kind", "") == "wire" and Game.sandbags[cell]["built"]: # barbed wire: crawl through it bleeding, wearing it down
+	if not cfg.get("wire_proof", false) and Game.sandbags.get(cell, {}).get("kind", "") == "wire" and Game.sandbags[cell]["built"]: # barbed wire: crawl through it bleeding, wearing it down
 		slowed = maxf(slowed, Game.WIRE_SLOW)
 		Game.world.base.damage_sandbag(cell, delta)
 		hp -= Game.WIRE_DPS * delta
@@ -103,7 +118,7 @@ func _process(delta: float) -> void:
 			spawn_cd = 10.0
 			for i in 2:
 				Game.world.spawn_enemy("runner", global_position + Vector2(30, 0).rotated(randf() * TAU), target_base)
-	if _system_hooks(delta):
+	if _system_hooks(delta) or Infected.tick(self, delta):
 		return
 	# 1. base assault
 	if target_base:
@@ -268,11 +283,18 @@ func _find_settlement() -> Node2D:
 	return best
 
 
-func hit(amount: float) -> void:
-	hp -= amount
-	sprite.modulate = Color(1, 0.5, 0.5, sprite.modulate.a)
-	get_tree().create_timer(0.08).timeout.connect(func(): if is_instance_valid(self): sprite.modulate = Color(1, 1, 1, 0.4 if concealed else 1.0))
-	Sfx.play("hit", global_position, -14.0)
+func unflash() -> void:
+	sprite.modulate = Color(1, 1, 1, 0.4 if concealed else 1.0)
+
+
+## `dir`: the way the shot flies (zero for splash), `head`: a headshot. Shots into the front of an armored one count 30 %.
+func hit(amount: float, dir := Vector2.ZERO, head := false) -> void:
+	if is_queued_for_deletion():
+		return # a second pellet in the frame it died
+	var armor := Infected.armor_mult(self, dir)
+	hp -= amount * armor * (HEAD_MULT if head else 1.0)
+	kick = (kick + dir * KNOCK * clampf(amount / 14.0, 0.5, 2.0) * 8.0 / radius).limit_length(KNOCK * 2.0)
+	HitFx.hit(self, dir, head, armor < 1.0)
 	if hp <= 0.0:
 		_die()
 
@@ -287,6 +309,8 @@ func _die() -> void:
 		else: Game.salvage["metal"] += 1.0
 		if Progression.level("scavenger") >= 5:
 			Game.ammo = mini(Game.max_ammo, Game.ammo + 10)
+	HitFx.death(self)
+	Infected.on_death(self)
 	Game.world.spawn_fx(global_position, 2.0 if cfg.get("boss", false) else 0.7)
 	Sfx.play("explosion" if cfg.get("boss", false) else "enemy_die", global_position)
 	if cfg.get("boss", false):

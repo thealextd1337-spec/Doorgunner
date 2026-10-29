@@ -6,6 +6,7 @@ const ROWS := {"vol_master": "Master", "vol_sfx": "Effects", "vol_music": "Music
 var panel: PanelContainer
 var sliders := {}
 var mute_btn: CheckButton
+var shake_btn: CheckButton
 var skip_btn: Button
 var prev_ui_open := false
 
@@ -45,6 +46,11 @@ func _ready() -> void:
 	mute_btn.button_pressed = Game.meta["muted"] == 1
 	mute_btn.toggled.connect(func(on: bool): set_volume("muted", 1 if on else 0))
 	box.add_child(mute_btn)
+	shake_btn = CheckButton.new()
+	shake_btn.text = "Screen shake (heavy guns)"
+	shake_btn.button_pressed = Game.meta["shake"] == 1
+	shake_btn.toggled.connect(func(on: bool): set_volume("shake", 1 if on else 0))
+	box.add_child(shake_btn)
 	skip_btn = Button.new()
 	skip_btn.text = "Skip tutorial"
 	skip_btn.pressed.connect(func():
@@ -72,6 +78,7 @@ func open() -> void:
 	for key in sliders:
 		sliders[key].set_value_no_signal(Game.meta[key])
 	mute_btn.set_pressed_no_signal(Game.meta["muted"] == 1)
+	shake_btn.set_pressed_no_signal(Game.meta["shake"] == 1)
 	skip_btn.visible = is_instance_valid(Game.world.tutorial)
 	prev_ui_open = Game.world.ui_open
 	Game.world.ui_open = true

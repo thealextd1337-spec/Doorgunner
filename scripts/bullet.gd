@@ -12,6 +12,9 @@ var life0 := 1.3
 var chain := 0 # railgun Lv5: jumps left to further targets
 var bounce := 0 # Hard Core Lv5: ricochets left
 
+const HEAD_CHANCE := 0.04 # of a hit being a headshot (double damage), plus HEAD_PER_OPTICS per Optics level
+const HEAD_PER_OPTICS := 0.03
+
 
 func setup(pos: Vector2, d: Vector2, dmg: float, p: int, spd := 520.0, life_s := 1.3, splash_r := 0.0) -> void:
 	position = pos
@@ -40,7 +43,8 @@ func _process(delta: float) -> void:
 		if e in hit_list:
 			continue
 		if position.distance_squared_to(e.global_position) <= e.radius * e.radius:
-			e.hit(damage * (1.5 if life < life0 / 3.0 and Progression.level("optics") >= 5 else 1.0))
+			var head := randf() < HEAD_CHANCE + HEAD_PER_OPTICS * Progression.level("optics")
+			e.hit(damage * (1.5 if life < life0 / 3.0 and Progression.level("optics") >= 5 else 1.0), dir, head)
 			hit_list.append(e)
 			if chain > 0:
 				_chain(e)

@@ -13,7 +13,7 @@ const ATTACK_EVERY_DAYS := 3
 const META_PATH := "user://meta.json" # before profiles: migrated into the first profile, kept as a backup
 const PROFILES_PATH := "user://profiles.json" # {"list": [{id, name, avatar, created}], "last": id}
 const SETTINGS_PATH := "user://settings.json" # global, not per profile
-const SETTINGS_KEYS := ["vol_master", "vol_sfx", "vol_music", "muted"]
+const SETTINGS_KEYS := ["vol_master", "vol_sfx", "vol_music", "muted", "shake"]
 const TEST_PROFILE := "_smoke" # headless tests (env SMOKE) never touch a player's profile
 const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
@@ -184,7 +184,7 @@ func scrap_item(id: String) -> int:
 	return refund
 
 const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0,
-	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "tutorial_done": 0, "version": ""} # sound off by default for now; M or ESC menu turns it on
+	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "shake": 1, "tutorial_done": 0, "version": ""} # sound off by default for now; M or ESC menu turns it on
 var meta := META_DEFAULT.duplicate() # the active profile's meta.json plus the SETTINGS_KEYS of settings.json
 var profiles := {"list": [], "last": ""}
 var radio_beep_ms := 0

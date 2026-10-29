@@ -43,6 +43,7 @@ func _ready() -> void:
 	cam.position_smoothing_enabled = true
 	cam.position_smoothing_speed = 6.0
 	heli.add_child(cam)
+	cam.add_child(preload("res://scripts/shaker.gd").new())
 	Save.register("heli", heli.save_state, heli.load_state)
 	Save.register("world", chunks.save_state, chunks.load_state)
 	Save.register("pois", _save_pois, _load_pois)
@@ -342,7 +343,7 @@ func _save_enemies() -> Array:
 	var list := get_tree().get_nodes_in_group("enemies").filter(func(e): return "target_base" in e and not e.is_queued_for_deletion())
 	var near := func(e: Node2D) -> float: return minf(e.position.distance_squared_to(heli.position), e.position.distance_squared_to(base.position))
 	list.sort_custom(func(a, b): return near.call(a) < near.call(b))
-	return list.slice(0, ENEMIES_SAVED).map(func(e): return [e.kind, e.position, e.hp, e.max_hp, e.speed, e.dmg, e.target_base])
+	return list.slice(0, ENEMIES_SAVED).map(func(e): return [e.kind, e.position, e.hp, e.max_hp, e.speed, e.dmg, e.target_base, e.state.duplicate()])
 
 
 func _load_enemies(d: Array) -> void:
@@ -352,6 +353,8 @@ func _load_enemies(d: Array) -> void:
 		e.max_hp = a[3]
 		e.speed = a[4]
 		e.dmg = a[5]
+		if a.size() > 7: # runs saved before the new infected have no ability state
+			e.state = a[7] # a screamer mid-wind-up screams on
 
 
 ## Decorative sprite (church, barn, tree, fence...) placed by the chunk generator. Not interactive.
