@@ -33,7 +33,7 @@ func _process(delta: float) -> void:
 		3:
 			Game.time = 0.9
 			for i in 8:
-				Game.world.spawn_enemy(["shambler", "runner", "brute", "shambler"][i % 4], Game.heli.position + Vector2(120, 0).rotated(i * TAU / 8))
+				Game.world.spawn_enemy(["shambler", "runner", "brute", "screamer", "spitter", "crawler", "bloater", "brute_armored"][i], Game.heli.position + Vector2(120, 0).rotated(i * TAU / 8))
 			Game.heli.aim_override = Vector2(0, 1) # nose east: aim out of the right door
 			Input.action_press("fire")
 			step = 4

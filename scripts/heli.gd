@@ -208,6 +208,8 @@ func _fire() -> void:
 	Game.ammo -= w["ammo_per_shot"]
 	Sfx.play("gun", null, -4.0)
 	Game.make_noise(global_position, 1.0)
+	if dmg >= HitFx.SHAKE_MIN_DAMAGE:
+		HitFx.shake(dmg * HitFx.SHAKE_PER_DAMAGE)
 	muzzle.position = aim * 18
 	var shots: int = w["shots"] + Game.stats["shots"] - 1 + (lv - 1 if id == "shotgun" else 0)
 	var splash: float = w.get("splash", 0.0) * (1.0 + 0.15 * (lv - 1) if id == "rockets" else 1.0)
