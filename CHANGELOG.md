@@ -4,6 +4,20 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## 0.7.0 - 2026-10-30
+- Profiles and online leaderboard (P6a, P6b): on first start you enlist with a name and portrait; PROFILES on the title
+  switches, renames and deletes profiles; LEADERBOARD (**L**) shows points, days, rescued, kills and best run. Runs are
+  sent at start, each day and at the end; a run that could not reach the server at its start is not ranked.
+- Named survivors (P7): everyone has a name, a skill that speeds up the matching job (and grows with days in it) and
+  a trait. Base morale (hunger, thirst, beds, power, deaths, assaults) speeds up or slows work; very low morale makes
+  people leave. Deaths are reported by name.
+- New world (P8): one site per 2.5 km cell, towns about three times further apart, 13 landmarks (gas station,
+  checkpoint, airfield, dam, crashed airliner, prison ...), highland and river valley regions, bridges, paved roads
+  between cities, gas stations refuel the heli once.
+- New infected (P9): crawler, screamer, spitter, bloater, armored brute, runner packs; knockback, hit flash, blood,
+  corpses, headshots, screen shake for heavy guns (ESC menu option).
+- Saves from 0.6.0 cannot be continued (new world and people).
+
 ## 0.6.0 - 2026-10-29
 - Ironman save (P1): one run per profile saves itself (landing on the pad, each new day, every 120 s, on close; not during an
   assault) and is deleted on death. CONTINUE on the title; NEW RUN over a saved run counts it as lost. Profiles on disk
