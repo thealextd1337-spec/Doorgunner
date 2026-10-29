@@ -535,10 +535,27 @@ func _load_profiles() -> void:
 	var data = _read_json(PROFILES_PATH)
 	if data is Dictionary and data.get("list", []).size() > 0:
 		profiles = data
+		if not profiles["list"].any(func(p): return p["id"] == profiles.get("last")):
+			profiles["last"] = profiles["list"][0]["id"]
+		return
+	if _rebuild_profiles():
 		return
 	var id := create_profile("Gunner", 0)
 	if FileAccess.file_exists(META_PATH):
 		DirAccess.copy_absolute(META_PATH, profile_dir_of(id) + "meta.json")
+
+
+## profiles.json missing or corrupt but profile folders exist: list them again instead of starting over.
+func _rebuild_profiles() -> bool:
+	var ids := DirAccess.get_directories_at("user://profiles/")
+	for id in ids:
+		if id != TEST_PROFILE:
+			profiles["list"].append({"id": id, "name": "Gunner %d" % profiles["list"].size(), "avatar": 0, "created": ""})
+	if profiles["list"].is_empty():
+		return false
+	profiles["last"] = profiles["list"][0]["id"]
+	_save_profiles()
+	return true
 
 
 func profile_dir_of(id: String) -> String:

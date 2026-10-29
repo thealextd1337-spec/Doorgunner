@@ -314,6 +314,8 @@ func _put(cell: Vector2i, t: int, alt := 0) -> void:
 	var b := _base_cell()
 	if absi(cell.x - b.x) <= 6 and absi(cell.y - b.y) <= 6:
 		return # never paint over the base floor
+	if edits.has(cell):
+		edits[cell] = Vector2i(t, alt) # later generator paint (a new road) wins over an earlier edit, as live
 	if t in ROADS:
 		_fresh[cell] = true
 		if _owner >= 0 and not _net.has(cell):
