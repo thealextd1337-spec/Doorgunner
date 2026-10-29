@@ -70,7 +70,7 @@ func open_form(id := "", forced := false) -> void:
 		b.pressed.connect(func(): picked = i)
 		grid.add_child(b)
 	box.add_child(label("Your name and portrait are shown on the public leaderboard.", 12, SAND.darkened(0.2)))
-	box.add_child(label("Online: your callsign is registered now." if Profiles.is_online() else "Offline: saved on this device, registered online later.", 12, OLIVE.lightened(0.5)))
+	box.add_child(label("Online: your callsign is registered now." if Online.is_online() else "Offline: saved on this device, registered online later.", 12, OLIVE.lightened(0.5)))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	box.add_child(row)
@@ -107,24 +107,26 @@ func _submit() -> void:
 	var prev: String = Game.profiles["last"]
 	var id := edit_id
 	var backup := Profiles.find(id).duplicate()
-	var old := {"name": backup.get("name", ""), "avatar": backup.get("avatar", 0)}
 	if id == "":
 		id = Profiles.create(n, picked) # becomes the active profile, which Online works on
 	else:
 		Game.switch_profile(id)
 		Profiles.edit(id, n, picked)
 	var p := Profiles.find(id)
-	var err := await Profiles.push(p, old)
+	var err := await Profiles.push(p)
 	if Profiles.is_input_error(err): # rejected by the server: undo the local change
 		if edit_id == "":
 			await Profiles.delete(id)
 		else:
+			var synced: Dictionary = p.get("synced", {}) # what the server knows now, may differ from the backup after a partial push
 			p.clear()
 			p.merge(backup)
+			if not synced.is_empty():
+				p["synced"] = synced
 			Game._save_profiles()
 		_restore(prev)
 		busy = false
-		check.text = Profiles.error_text(err)
+		check.text = Online.error_text(err)
 		check.add_theme_color_override("font_color", RED)
 		ok_btn.disabled = false
 		return
@@ -162,7 +164,7 @@ func open_list() -> void:
 		var info := VBoxContainer.new()
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		info.add_child(label(p["name"], 18, ACCENT if active else SAND))
-		info.add_child(label(("ACTIVE  -  " if active else "") + ("online" if p.get("registered", false) else "local only"), 12, OLIVE.lightened(0.5)))
+		info.add_child(label(("ACTIVE  -  " if active else "") + ("online" if Profiles.registered(p["id"]) else "local only"), 12, OLIVE.lightened(0.5)))
 		row.add_child(info)
 		var sel := button("ACTIVE" if active else "SELECT", 100)
 		sel.disabled = active
@@ -194,8 +196,8 @@ func ask_delete(id: String) -> void:
 	delete_id = id
 	var p := Profiles.find(id)
 	var extra := ""
-	if p.get("registered", false):
-		extra = "\nIt is removed from the leaderboard too." if Profiles.is_online() else "\nYou are offline: its leaderboard entry stays online."
+	if Profiles.registered(id):
+		extra = "\nIt is removed from the leaderboard too." if Online.is_online() else "\nYou are offline: its leaderboard entry stays online."
 	confirm.dialog_text = "Delete profile \"%s\"?\nIts progress and saved run are lost.%s" % [p.get("name", ""), extra]
 	confirm.popup_centered()
 

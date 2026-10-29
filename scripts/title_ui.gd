@@ -22,6 +22,7 @@ var tutorial := false # TUTORIAL button: main.gd starts the tutorial with the ru
 var start_btn: Button
 var cont_btn: Button # CONTINUE: only with a saved run (scripts/save.gd)
 var notice: Label
+var online_notice: Label # Online.title_notice(): "Offline - this run is not ranked"
 var confirm: ConfirmationDialog
 var badge: Button # active profile (portrait + name), opens PROFILES
 var profile_ui: ProfileUi
@@ -91,6 +92,9 @@ func _ready() -> void:
 	v.add_child(stats)
 	notice = _label("", 13, Color(1, 0.45, 0.35), mono)
 	v.add_child(notice)
+	online_notice = _label("", 13, Color(0.96, 0.77, 0.18), mono)
+	v.add_child(online_notice)
+	Online.online_changed.connect(_on_online_changed)
 	cont_btn = _big_button()
 	cont_btn.pressed.connect(_continue)
 	v.add_child(cont_btn)
@@ -234,6 +238,25 @@ func _overlay_open() -> bool:
 	return profile_ui.visible or board_ui.visible
 
 
+func _refresh_online_notice() -> void:
+	online_notice.text = Online.title_notice()
+	online_notice.visible = online_notice.text != ""
+
+
+## Registers a profile created offline, sends a pending rename / portrait. Offline it just fails and waits for online_changed.
+func _sync_profile() -> void:
+	var p := Profiles.active()
+	if Profiles.needs_push(p) and not profile_ui.busy:
+		await Profiles.push(p)
+		_refresh_online_notice()
+
+
+func _on_online_changed(on: bool) -> void:
+	_refresh_online_notice()
+	if on:
+		_sync_profile()
+
+
 func open() -> void:
 	var m: Dictionary = Game.meta
 	var p := Profiles.active()
@@ -243,8 +266,8 @@ func open() -> void:
 		pass
 	elif Profiles.needs_enlist():
 		profile_ui.enlist(p.get("id", ""), true) # first start (or no profile left): pick a callsign and portrait
-	elif p.get("enlisted", false) and not p.get("registered", false):
-		Profiles.push(p) # registered online later when it was created offline
+	else:
+		_sync_profile()
 	stats.text = "NO SERVICE RECORD. FIRST SORTIE." if m["runs"] == 0 else "SERVICE RECORD  sorties %d  rescued %d  kills %d  best day %d" % [m["runs"], m["total_rescued"], m["total_kills"], m["best_day"]]
 	var h := Save.head() # an outdated run is discarded here and leaves Save.notice
 	cont_btn.visible = not h.is_empty()
@@ -255,6 +278,7 @@ func open() -> void:
 	notice.text = Save.notice
 	notice.visible = notice.text != ""
 	Save.notice = ""
+	_refresh_online_notice()
 	visible = true
 
 

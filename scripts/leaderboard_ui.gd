@@ -1,24 +1,22 @@
 class_name LeaderboardUi
 extends Overlay
 ## Title leaderboard (L): tabs POINTS / DAYS / RESCUED / KILLS / BEST RUN, top 50, own row always visible, click a row for
-## the player's breakdown. Online data comes from the Online autoload (P6a): fetch_board(kind, limit) -> board(rows, own_row),
-## fetch_player(id) -> player(stats). Rows: {rank, player_id, name, avatar, value, day?, victory?}. Offline: the local record.
+## the player's breakdown. Online data comes from the Online autoload (P6a): fetch_board(kind, limit) -> board(rows, own_row) /
+## board_failed(error), fetch_player(id) -> player(stats) / player_failed(error); Online drops answers of superseded requests.
+## Rows: {rank, player_id, name, avatar, value, day?, victory?}. Offline: the local record.
 
 const TABS := {"points": "POINTS", "days": "DAYS", "rescued": "RESCUED", "kills": "KILLS", "best_run": "BEST RUN"}
 const LIMIT := 50
-const TIMEOUT := 10.0
-const DETAIL := [["points", "Points"], ["days", "Best day"], ["rescued", "Rescued"], ["kills", "Kills"], ["runs", "Runs"], ["wins", "Victories"], ["best_run", "Best run (points)"]]
 
 var kind := "points"
 var own_id := ""
-var loading := false
+var failed := false # the board shown is an error / offline view: reload when the connection comes back
 var tab_btns := {}
 var list: VBoxContainer
 var own_slot: VBoxContainer # the own row, pinned below the scroll area
 var status: Label
 var detail: Label
-var player_cb := Callable()
-var ticket := 0 # invalidates the timeout of an answered request
+var player_id := "" # whose breakdown was asked for
 
 
 func _ready() -> void:
@@ -51,6 +49,11 @@ func _ready() -> void:
 	var close_btn := button("CLOSE [L]", 0, true)
 	close_btn.pressed.connect(close)
 	box.add_child(close_btn)
+	Online.board.connect(_on_board)
+	Online.board_failed.connect(_on_board_failed)
+	Online.player.connect(_on_player)
+	Online.player_failed.connect(_on_player_failed)
+	Online.online_changed.connect(_on_online)
 
 
 func open() -> void:
@@ -66,43 +69,39 @@ func _input(event: InputEvent) -> void:
 
 
 func show_kind(k: String) -> void:
-	if loading:
-		return # the tabs are disabled while a request runs, so answers cannot cross
 	kind = k
 	for t in tab_btns:
 		tab_btns[t].button_pressed = t == k
 	detail.text = ""
-	var o := Profiles.online()
-	if o == null or not o.is_online():
-		_show_offline()
-		return
-	_set_loading(true)
-	var my := ticket
-	o.board.connect(_on_board, CONNECT_ONE_SHOT)
-	o.fetch_board(k, LIMIT)
-	await get_tree().create_timer(TIMEOUT).timeout
-	if loading and my == ticket: # no answer
-		if o.board.is_connected(_on_board):
-			o.board.disconnect(_on_board)
-		_set_loading(false)
-		_fill([], {})
-		status.text = "Could not load the leaderboard."
-
-
-func _set_loading(on: bool) -> void:
-	loading = on
-	for t in tab_btns:
-		tab_btns[t].disabled = on
-	if on:
-		status.text = "Loading..."
-		_fill([], {})
+	player_id = ""
+	failed = false
+	status.text = "Loading..."
+	_fill([], {})
+	Online.fetch_board(k, LIMIT) # offline answers board_failed("offline")
 
 
 func _on_board(rows: Array, own_row: Dictionary) -> void:
-	ticket += 1
-	_set_loading(false)
+	if not visible:
+		return
+	failed = false
 	status.text = "" if not rows.is_empty() else "No entries yet."
 	_fill(rows, own_row)
+
+
+func _on_board_failed(error: String) -> void:
+	if not visible:
+		return
+	failed = true
+	if error == "offline":
+		_show_offline()
+	else:
+		status.text = Online.error_text(error)
+		_fill([], {})
+
+
+func _on_online(on: bool) -> void:
+	if on and visible and failed:
+		show_kind(kind)
 
 
 ## Shows rows without Online (tests, and _on_board).
@@ -171,24 +170,39 @@ func _value(r: Dictionary) -> String:
 
 
 func show_player(r: Dictionary) -> void:
-	var o := Profiles.online()
-	if o == null or not o.is_online() or not r.has("player_id"):
-		detail.text = ""
+	if not r.has("player_id"):
 		return
+	player_id = r["player_id"]
 	detail.text = "%s  -  loading..." % r.get("name", "?")
-	if player_cb.is_valid() and o.player.is_connected(player_cb): # only the last click is answered
-		o.player.disconnect(player_cb)
-	player_cb = func(stats: Dictionary): _on_player(r, stats)
-	o.player.connect(player_cb, CONNECT_ONE_SHOT)
-	o.fetch_player(r["player_id"])
+	Online.fetch_player(player_id)
 
 
-func _on_player(r: Dictionary, stats: Dictionary) -> void:
-	var lines: PackedStringArray = [str(r.get("name", "?"))]
-	for d in DETAIL:
-		if stats.has(d[0]):
-			lines.append("%-18s %s" % [d[1], str(int(stats[d[0]]))])
+func _on_player(stats: Dictionary) -> void:
+	if not visible or stats["player_id"] != player_id:
+		return
+	player_id = ""
+	var best: Dictionary = stats["best"]
+	var lines: PackedStringArray = [stats["name"]]
+	lines.append("%-18s %d  (#%d)" % ["Points", stats["points"], stats["points_rank"]])
+	lines.append("%-18s %d" % ["Days survived", stats["days"]]) # summed over all runs
+	lines.append("%-18s %d" % ["Rescued", stats["rescued"]])
+	lines.append("%-18s %d" % ["Kills", stats["kills"]])
+	if stats["runs"] >= 0: # only known for yourself
+		lines.append("%-18s %d" % ["Runs", stats["runs"]])
+		lines.append("%-18s %d" % ["Victories", stats["wins"]])
+	if not best.is_empty():
+		lines.append("%-18s %d  (day %d%s)" % ["Best run", best["value"], best["day"], ", victory" if best.get("victory", false) else ""])
 	detail.text = "\n".join(lines)
+
+
+func _on_player_failed(error: String) -> void:
+	if not visible or player_id == "":
+		return
+	player_id = ""
+	match error:
+		"no_runs": detail.text = "No runs on the boards yet."
+		"offline": detail.text = "Offline: no details."
+		_: detail.text = Online.error_text(error)
 
 
 ## No connection: the local record of the active profile (the server computes points, so none here).

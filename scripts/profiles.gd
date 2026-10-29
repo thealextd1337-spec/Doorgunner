@@ -1,24 +1,14 @@
 class_name Profiles
 extends RefCounted
-## Profile management on top of Game.profiles (game_state.gd, P1): rename, delete, the ENLIST rules and the guarded
-## link to the Online autoload (P6a). Everything works offline; online calls are skipped when /root/Online is missing.
+## Profile management on top of Game.profiles (game_state.gd, P1): rename, delete, the ENLIST rules and the link to the
+## Online autoload (P6a). Everything works offline: Online answers done(false, "offline") and the title pushes again when
+## online_changed(true) fires. Whether a profile is registered is Online.is_registered() (auth.json), not stored here;
+## the profile only keeps `synced` {name, avatar}: what the server knows, so a rename made offline is pushed later.
 
 const AVATARS := 12
 const DEFAULT_NAME := "Gunner"
 
-
-static var fake: Node # tests stand in for Online
-
-## The Online autoload or null (not built yet / disabled).
-static func online() -> Node:
-	if fake:
-		return fake
-	return Engine.get_main_loop().root.get_node_or_null("Online")
-
-
-static func is_online() -> bool:
-	var o := online()
-	return o != null and o.is_online()
+static var _busy := false # one account call at a time: Online.done carries no id
 
 
 static func find(id: String) -> Dictionary:
@@ -59,13 +49,25 @@ static func edit(id: String, pname: String, avatar: int) -> void:
 	Game._save_profiles()
 
 
-## Removes the profile with its folder (meta.json, run.sav, auth). A registered one also leaves the server (delete_me, only
-## when online). The active one falls back to the first that is left, or Game.profiles["last"] is "" when none is left.
-static func delete(id: String) -> void:
-	var p := find(id)
-	if p.get("registered", false) and is_online():
+## This profile has a player row on the server: Online.is_registered() for the active one, else its auth.json.
+static func registered(id: String) -> bool:
+	if id == Game.profiles["last"]:
+		return Online.is_registered()
+	var path := Game.profile_dir_of(id) + "auth.json"
+	var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
+	return d is Dictionary and d.get("registered", false)
+
+
+## Removes the profile with its folder (meta.json, run.sav, auth). A registered one also leaves the server (delete_me);
+## if that fails (offline) the local profile is deleted anyway and its online entry stays. Returns that error ("" ok).
+## The active profile stays active; when it is deleted the first left takes over, or Game.profiles["last"] is "" when none is.
+static func delete(id: String) -> String:
+	var prev: String = Game.profiles["last"]
+	var err := ""
+	if registered(id):
 		Game.switch_profile(id) # Online works on the active profile
-		await call_online("delete_me", [])
+		err = await call_online("delete_me", [], id)
+		Game.profiles["last"] = prev
 	var list: Array = Game.profiles["list"]
 	list.assign(list.filter(func(q): return q["id"] != id))
 	_remove_dir(Game.profile_dir_of(id))
@@ -74,6 +76,7 @@ static func delete(id: String) -> void:
 	Game._save_profiles()
 	if not list.is_empty():
 		Game.switch_profile(Game.profiles["last"])
+	return err
 
 
 static func _remove_dir(path: String) -> void:
@@ -84,45 +87,53 @@ static func _remove_dir(path: String) -> void:
 	DirAccess.remove_absolute(path)
 
 
-## Calls Online.<method>(args) and waits for its done(ok, error) signal. Returns "" on success, the server's error code,
-## "offline" without Online or a connection, "timeout" when no answer comes within TIMEOUT seconds.
-const TIMEOUT := 10.0
-
-static func call_online(method: String, args: Array) -> String:
-	var o := online()
-	if o == null or not o.is_online():
-		return "offline"
-	var st := {"done": false, "error": ""}
-	var cb := func(ok: bool, error: String):
-		st["done"] = true
-		st["error"] = "" if ok else (error if error != "" else "error")
-	o.done.connect(cb, CONNECT_ONE_SHOT)
-	o.callv(method, args)
-	var tree := Engine.get_main_loop() as SceneTree
-	var t0 := Time.get_ticks_msec()
-	while not st["done"] and Time.get_ticks_msec() - t0 < TIMEOUT * 1000.0:
-		await tree.process_frame
-	if not st["done"]:
-		if o.done.is_connected(cb):
-			o.done.disconnect(cb)
-		return "timeout"
-	return st["error"]
+## Calls Online.<method>(args) and waits for its done(ok, error). Returns "" on success, else the server's error code or
+## "offline" (Online has its own request timeout, so this always answers). `id`: the profile the call is for; "switched"
+## when another one became active while waiting (Online works on the active profile).
+static func call_online(method: String, args: Array, id := "") -> String:
+	var frame: Signal = Engine.get_main_loop().process_frame
+	while _busy:
+		await frame
+	if id != "" and Game.profiles["last"] != id:
+		return "switched"
+	_busy = true
+	var res := []
+	Online.done.connect(func(ok: bool, error: String): res.assign([ok, error]), CONNECT_ONE_SHOT)
+	Online.callv(method, args)
+	while res.is_empty():
+		await frame
+	_busy = false
+	return "" if res[0] else (res[1] if res[1] != "" else "error")
 
 
-## Brings the server in line with the active profile `p` (`old` = name/avatar before an edit). "" ok, "offline"/"timeout"
-## network trouble (the profile stays local, `registered` false, retried by the title), else the server's error code.
-static func push(p: Dictionary, old: Dictionary = {}) -> String:
+## The active profile `p` still has to reach the server: not registered yet, or renamed / new portrait while offline.
+static func needs_push(p: Dictionary) -> bool:
+	if not p.get("enlisted", false):
+		return false
+	var s: Dictionary = p.get("synced", {})
+	return not Online.is_registered() or (not s.is_empty() and (s["name"] != p["name"] or s["avatar"] != p["avatar"]))
+
+
+## Brings the server in line with the active profile `p`: registers it, or sends the pending rename / portrait. "" ok,
+## "offline" network trouble (the profile stays local, pushed again later), else the server's error code.
+static func push(p: Dictionary) -> String:
 	var err := ""
-	if not p.get("registered", false):
-		err = await call_online("register", [p["name"], p["avatar"]])
-		if err == "" or err == "already_registered":
-			p["registered"] = true
-			err = ""
+	if not Online.is_registered():
+		err = await call_online("register", [p["name"], p["avatar"]], p["id"])
+		if err == "":
+			p["synced"] = {"name": p["name"], "avatar": p["avatar"]}
 	else:
-		if old.has("name") and old["name"] != p["name"]:
-			err = await call_online("rename", [p["name"]])
-		if err == "" and old.has("avatar") and old["avatar"] != p["avatar"]:
-			err = await call_online("set_avatar", [p["avatar"]])
+		if not p.has("synced"):
+			p["synced"] = {"name": p["name"], "avatar": p["avatar"]}
+		var s: Dictionary = p["synced"]
+		if s["name"] != p["name"]:
+			err = await call_online("rename", [p["name"]], p["id"])
+			if err == "":
+				s["name"] = p["name"]
+		if err == "" and s["avatar"] != p["avatar"]:
+			err = await call_online("set_avatar", [p["avatar"]], p["id"])
+			if err == "":
+				s["avatar"] = p["avatar"]
 	Game._save_profiles()
 	return err
 
@@ -130,11 +141,3 @@ static func push(p: Dictionary, old: Dictionary = {}) -> String:
 ## Server errors that reject the player's input (the local change is undone), unlike network trouble.
 static func is_input_error(code: String) -> bool:
 	return code in ["name_invalid", "name_banned", "name_taken", "avatar_invalid"]
-
-
-## Error codes of server/README.md as player text.
-static func error_text(code: String) -> String:
-	return {"name_invalid": "That name is not valid.", "name_banned": "That name is not allowed.",
-		"name_taken": "That name is taken, pick another one.", "avatar_invalid": "That portrait is not valid.",
-		"offline": "Offline: saved on this device, it will be registered online later.",
-		"timeout": "No answer from the server: saved on this device, it will be registered online later."}.get(code, "Online error: %s" % code)
