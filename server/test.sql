@@ -37,9 +37,13 @@ begin
 end $$;
 
 -- seed data (rolled back) ----------------------------------------------------
-insert into public.banned_words (word, lang) values ('badword', 'en'), ('nazi', 'en'), ('ass', 'en');
-insert into public.allowed_words (word) values ('classic'), ('assassin');
-insert into public.modifiers (id, factor) values ('dense', 1.3), ('warlords', 1.25), ('big', 2.5);
+-- players.id references auth.users (001), so the fake players need auth rows (rolled back with everything else)
+insert into auth.users (id, aud, role)
+select ('00000000-0000-0000-0000-00000000000' || n)::uuid, 'authenticated', 'authenticated' from generate_series(1, 4) n
+on conflict do nothing;
+insert into public.banned_words (word, lang) values ('badword', 'en'), ('nazi', 'en'), ('ass', 'en') on conflict do nothing;
+insert into public.allowed_words (word) values ('classic'), ('assassin') on conflict do nothing;
+insert into public.modifiers (id, factor) values ('dense', 1.3), ('warlords', 1.25), ('big', 2.5) on conflict do nothing;
 
 -- 1. name filter (as postgres) ----------------------------------------------------
 select pg_temp.ok(public.name_normalize('B@d-W0rD!') = 'badword', 'normalize leet + case + symbols');
