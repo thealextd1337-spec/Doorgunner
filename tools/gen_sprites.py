@@ -1192,11 +1192,148 @@ def main():
         images["explosion"] = explosion()
         images["sandbag"] = connected(sandbag_frame)
         images["wire"] = connected(wire_frame)
+        images.update(avatars())
         for name, im in images.items():
             w, h = SIZES[name]
             assert im.size == (w * OUT, h * OUT), (name, im.size)
             im.save(os.path.join(out, name + ".png"))
+        avatar_sheet(images)
         print(variant, len(images), "images")
+
+
+# ---------------------------------------------------------------- profile portraits (P4)
+
+# One row per portrait, drawn back to front in avatar(). Sex only sets lips and jaw.
+AVATARS = (
+    dict(seed=1, bg=(160, 166, 132), skin=(206, 156, 116), hair=(52, 40, 32), jacket=(116, 124, 86), jaw=True,
+         style="buzz", head="helmet", gear=(92, 100, 70), headset=True, bandolier=True, beard="stubble"),
+    dict(seed=2, bg=(176, 160, 130), skin=(234, 196, 160), hair=(120, 84, 52), jacket=(96, 94, 84), lips=True,
+         style="long", head="helmet", gear=(176, 166, 132), headset=True),
+    dict(seed=3, bg=(146, 160, 150), skin=(176, 128, 92), hair=(70, 52, 38), jacket=(162, 140, 96), jaw=True,
+         style=None, head="cap", gear=(78, 96, 70), beard="full"),
+    dict(seed=4, bg=(164, 152, 140), skin=(232, 190, 156), hair=(186, 150, 96), jacket=(70, 98, 126), lips=True,
+         style="long", head=None, sunglasses=True),
+    dict(seed=5, bg=(150, 156, 142), skin=(120, 82, 58), hair=(40, 34, 30), jacket=(116, 124, 86), jaw=True,
+         style="short", head="cap", gear=(170, 160, 120), camo=((116, 124, 86), (64, 70, 50), (176, 160, 116))),
+    dict(seed=6, bg=(140, 148, 160), skin=(216, 168, 128), hair=(60, 46, 36), jacket=(64, 62, 60),
+         style="buzz", head="helmet", gear=(54, 54, 52), mask=True),
+    dict(seed=7, bg=(172, 164, 146), skin=(158, 108, 76), hair=(44, 32, 26), jacket=(96, 104, 70), lips=True,
+         style="ponytail", head="cap", gear=(86, 102, 118)),
+    dict(seed=8, bg=(156, 150, 130), skin=(226, 186, 150), hair=(30, 28, 26), jacket=(116, 124, 86), jaw=True,
+         style="buzz", head=None, beard="full", sunglasses=True),
+    dict(seed=9, bg=(160, 162, 150), skin=(110, 72, 50), hair=(28, 22, 20), jacket=(96, 104, 70), lips=True,
+         style="curly", head="helmet", gear=(116, 124, 86), headset=True),
+    dict(seed=10, bg=(170, 158, 138), skin=(222, 178, 136), hair=(92, 70, 48), jacket=(136, 118, 92), jaw=True,
+         style="short", head="cap", gear=(96, 104, 70), beard="stubble", camo=((116, 124, 86), (64, 70, 50), (176, 160, 116))),
+    dict(seed=11, bg=(148, 158, 160), skin=(186, 140, 100), hair=(64, 46, 34), jacket=(70, 70, 68),
+         style="long", head=None, mask=True),
+    dict(seed=12, bg=(164, 154, 156), skin=(196, 146, 108), hair=(120, 96, 70), jacket=(70, 98, 126), lips=True,
+         style="long", head=None, headset=True),
+)
+SIZES.update({f"avatar_{i:02d}": (48, 48) for i in range(len(AVATARS))})
+
+
+def camo_blobs(s, mask_im, seed, cols):
+    """Blotchy face camo: each colour is a set of random blobs clipped to the face."""
+    rnd = random.Random(seed)
+    for col in cols:
+        blobs = s.m()
+        for _ in range(12):
+            blobs.ell(rnd.uniform(13, 35), rnd.uniform(12, 30), rnd.uniform(2.4, 4.2), rnd.uniform(1.8, 3.2))
+        fill(s.img, ImageChops.multiply(blobs.im, mask_im).filter(ImageFilter.GaussianBlur(0.25 * SS)), col + (235,))
+
+
+def avatar(a):
+    """Head-and-shoulders bust, 48 px logical. Layers: backdrop, back hair, jacket, neck, head, face, hair, headgear, gear."""
+    s = Spr(48, 48)
+    skin, hair, gear, style = a["skin"], a["hair"], a.get("gear"), a["style"]
+    s.paint(s.m().rect(0, 0, 48, 48, 5), a["bg"], sh=0, edge=False)
+    if style == "long":
+        s.paint(s.m().ell(24, 24.5, 11.6, 14.2), hair, sh=0)
+    if style == "ponytail":
+        s.paint(s.m().ell(33.4, 25, 3.4, 8.2), hair, sh=0.6)
+    s.paint(s.m().rect(6.5, 37, 41.5, 52, 7), a["jacket"], sh=1.0)
+    s.paint(s.m().poly([(19.4, 37), (24, 43.2), (28.6, 37)]), dk(a["jacket"], 0.55), sh=0, edge=False)
+    if a.get("bandolier"):
+        s.paint(s.m().line([(9.6, 38), (35.5, 52)], 1.4), P["strap"], sh=0, edge=False)
+    s.paint(s.m().rect(20.6, 28, 27.4, 39.5, 1.2), dk(skin, 0.9), sh=0.3, edge=False)
+    s.paint(s.m().ell(15.4, 22.2, 1.9, 2.6).ell(32.6, 22.2, 1.9, 2.6), skin, sh=0.3)
+    head = s.m().ell(24, 20.6, 8.6, 9.8)
+    if a.get("jaw"):
+        head.ell(24, 25.6, 7.9, 5.0)
+    s.paint(head, skin, sh=0.9)
+    if a.get("camo"):
+        camo_blobs(s, head.im, a["seed"], a["camo"])
+    if a.get("beard"):  # cheeks and chin of the head silhouette, plus a chin tuft
+        zone = s.m().rect(0, 24.2, 48, 48).im
+        beard = s.m()
+        beard.im = ImageChops.lighter(ImageChops.multiply(head.im, zone), s.m().ell(24, 31.2, 5.2, 3.4).im)
+        s.paint(beard, hair if a["beard"] == "full" else mix(skin, hair, 0.3), sh=0.3, edge=False)
+    s.paint(s.m().line([(24.5, 22.6), (23.6, 25.4), (25.0, 25.7)], 0.45), dk(skin, 0.7), sh=0, edge=False)
+    if not a.get("sunglasses") and not a.get("mask"):
+        s.paint(s.m().ell(20.6, 21.4, 1.25, 1.0).ell(27.4, 21.4, 1.25, 1.0), (52, 42, 36), sh=0, edge=False)
+        fill(s.img, s.m().line([(18.4, 19.4), (22.6, 19.0)], 0.7).line([(25.4, 19.0), (29.6, 19.4)], 0.7).im,
+             dk(hair, 0.9) + (255,))
+    if style in ("short", "long", "ponytail"):
+        side = 33.5 if style == "long" else 19.2  # long hair falls past the ears
+        top = s.m().ell(24, 14.0, 9.0, 5.2).rect(14.4, 14, 17.6, side, 1.4).rect(30.4, 14, 33.6, side, 1.4)
+        s.paint(top, hair, sh=0.5)
+    elif style == "buzz":
+        s.paint(s.m().ell(24, 14.8, 8.7, 4.4), hair, sh=0.5)  # cropped, hugs the scalp
+    elif style == "curly":
+        curls = s.m()
+        for x, y in ((15.8, 16), (17.6, 11.6), (21.6, 9.4), (26.4, 9.4), (30.4, 11.6), (32.2, 16)):
+            curls.ell(x, y, 2.9, 2.7)
+        s.paint(curls.ell(24, 13.6, 7.8, 4.6), hair, sh=0.6)
+    if a.get("head") == "helmet":
+        s.paint(s.m().ell(24, 15.0, 10.2, 8.0).rect(0, 19.2, 48, 48, 0, v=0), gear, sh=1.2, light=0.6)
+        s.paint(s.m().rect(13.6, 17.6, 34.4, 19.6, 1.0), dk(gear, 0.7), sh=0, edge=False)
+    elif a.get("head") == "cap":
+        s.paint(s.m().ell(24, 14.6, 9.2, 6.0).rect(0, 18.4, 48, 48, 0, v=0), gear, sh=1.0)
+        s.paint(s.m().rect(14.6, 16.6, 33.4, 18.2, 0.6), dk(gear, 0.7), sh=0, edge=False)  # hatband
+        s.paint(s.m().ell(24, 18.4, 11.4, 1.6), dk(gear, 0.85), sh=0.4)  # brim
+    if a.get("headset"):
+        band = (40, 40, 40, 255)
+        fill(s.img, s.m().line([(13.6, 21.0), (13.8, 15.4), (18.4, 8.9), (24, 7.9), (29.6, 8.9), (34.2, 15.4), (34.4, 21.0)], 0.9).im, band)
+        s.paint(s.m().ell(13.6, 22.6, 2.2, 2.9), band[:3], sh=0.3)
+        s.paint(s.m().line([(13.8, 25.2), (15.2, 28.8), (19.4, 30.6)], 0.7).ell(19.8, 30.9, 1.0, 0.9), band[:3], sh=0, edge=False)
+    if a.get("mask"):  # gas mask: body over nose and mouth, eyepieces, filter, straps
+        s.paint(s.m().rect(15.2, 22.0, 32.8, 34.4, 4.5), P["metal"], sh=0.9)
+        s.paint(s.m().ell(19.2, 21.6, 3.5, 2.5).ell(28.8, 21.6, 3.5, 2.5), P["glass"], sh=0.5)
+        s.paint(s.m().ell(24, 36.2, 3.6, 2.8), dk(P["metal"], 0.7), sh=0.6)
+        s.paint(s.m().line([(15.4, 27.4), (9.4, 25.6)], 0.9).line([(32.6, 27.4), (38.6, 25.6)], 0.9), dk(P["metal"], 0.6), sh=0, edge=False)
+    elif a.get("lips"):
+        fill(s.img, s.m().ell(24, 29.4, 2.2, 0.9).im, P["red"] + (255,))
+    else:
+        fill(s.img, s.m().line([(21.6, 29.6), (24, 30.1), (26.4, 29.6)], 0.5).im, (70, 44, 36, 255))
+    if a.get("sunglasses"):
+        lens = s.m().rect(14.4, 19.4, 23.4, 23.4, 1.6).rect(24.6, 19.4, 33.6, 23.4, 1.6)
+        s.paint(lens, P["glass"], sh=0, edge=False)
+        fill(s.img, s.m().line([(23.4, 20.4), (24.6, 20.4)], 0.6).line([(14.4, 20.4), (13.0, 20.6)], 0.6)
+             .line([(33.6, 20.4), (35.0, 20.6)], 0.6).im, (30, 30, 30, 255))
+        fill(s.img, s.m().ell(17.4, 21.0, 0.9, 0.6).ell(27.6, 21.0, 0.9, 0.6).im, (170, 186, 190, 200))
+    return s.out()
+
+
+def avatars():
+    return {f"avatar_{i:02d}": avatar(a) for i, a in enumerate(AVATARS)}
+
+
+def avatar_sheet(images):
+    """docs/avatars.png: the portraits large, then at the 48 px they have in game (Art.SCALE 0.25)."""
+    names = [f"avatar_{i:02d}" for i in range(len(AVATARS))]
+    big, pad, n = 4 * 48, 24, len(names) // 2
+    small_w = 48
+    w = n * big + (n + 1) * pad
+    h = 2 * big + 3 * pad + small_w + pad
+    sheet = Image.new("RGBA", (w, h), (196, 192, 166, 255))
+    for i, name in enumerate(names):
+        x, y = pad + (i % n) * (big + pad), pad + (i // n) * (big + pad)
+        sheet.paste(images[name], (x, y), images[name])
+    for i, name in enumerate(names):
+        im = images[name].resize((small_w, small_w), Image.LANCZOS)
+        sheet.paste(im, (pad + i * (small_w + 16), 2 * (big + pad) + pad), im)
+    sheet.save(os.path.join(ROOT, "..", "..", "docs", "avatars.png"))
 
 
 if __name__ == "__main__":
