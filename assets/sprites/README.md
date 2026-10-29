@@ -75,3 +75,4 @@ paint are tinted in game with `modulate`. Facing up unless noted:
 - `den.png` 32x32: zombie den, caved-in house with bodies, rubble and blood.
 - `muzzle.png` 8x8: yellow flash star.
 - `explosion.png` 96x16: 6 frames of 16x16, left to right: orange, orange, red, gray, smoke, fade.
+- `avatar_00.png` … `avatar_11.png` 48x48: profile portraits (head and shoulders, front view), 6 male and 6 female, with helmets, caps, headsets, gas masks, sunglasses, face camo and beards; preview `docs/avatars.png`.
