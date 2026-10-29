@@ -30,7 +30,7 @@ static func check(name: String) -> String:
 	for c in name:
 		if c >= "0" and c <= "9":
 			digits += c
-	if "1488" in digits or _has_digit_run(name, "88"):
+	if "1488" in digits or _has_word(name, "88"):
 		return "That number code is not allowed."
 	_load()
 	var s := normalize(name)
@@ -53,16 +53,11 @@ static func normalize(text: String) -> String:
 	return out
 
 
-static func _has_digit_run(text: String, run: String) -> bool:
-	var cur := ""
-	for c in text + " ":
-		if c >= "0" and c <= "9":
-			cur += c
-		else:
-			if cur == run:
-				return true
-			cur = ""
-	return false
+## Whole word between spaces, '_' or '-', like the server's regexp_split_to_table(n, '[ _-]+').
+static func _has_word(text: String, word: String) -> bool:
+	for sep in ["_", "-"]:
+		text = text.replace(sep, " ")
+	return word in text.split(" ", false)
 
 
 ## Word list files: one word per line, '#' comments, '[lang]' section headers (ignored here, used by the SQL generator).
