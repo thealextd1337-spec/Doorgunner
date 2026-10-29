@@ -53,7 +53,7 @@ func _ready() -> void:
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
 	Game.day_changed.connect(_settlements_decline)
-	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot", "prog": "progression_test", "tut": "tutorial_test", "nav": "nav_test", "found": "found_test", "town": "town_test"}.get(OS.get_environment("SMOKE"), "")
+	var test: String = {"1": "smoke", "poi": "poi_test", "base": "base_test", "ui": "ui_test", "shot": "shot", "prog": "progression_test", "tut": "tutorial_test", "nav": "nav_test", "found": "found_test", "town": "town_test", "filter": "filter_test"}.get(OS.get_environment("SMOKE"), "")
 	if test != "" and not test in ["found_test", "shot"]: # the older tests expect a founded, empty base at the start site
 		Game.passengers = 0
 		found_base(BASE_POS)
