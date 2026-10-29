@@ -13,7 +13,7 @@ const CASES := [
 	# leetspeak and separators
 	["f4gg0t", false], ["5h1t", false], ["fu_ck", false], ["n1gg3r", false], ["c u n t", false], ["$lut", false],
 	# Nazi terms and number codes
-	["Hitler", false], ["Sieg Heil", false], ["h1tl3r", false], ["User88", true], ["User 88", false], ["Bob_88", false], ["Max 14 88", false], ["x1488", false],
+	["Hitler", false], ["Sieg Heil", false], ["h1tl3r", false], [" Bob", false], ["Bob ", false], ["---", false], ["User88", true], ["User 88", false], ["Bob_88", false], ["Max 14 88", false], ["x1488", false],
 	# false positives that must pass
 	["Scunthorpe", true], ["Cockpit", true], ["Raccoon", true], ["Grape Soda", true], ["Montenegro", true], ["Penistone", true],
 	["Warschau", true], ["Fickle", true], ["Benazir", true], ["Spicy", true], ["Hancock", true], ["Tycoon", true],

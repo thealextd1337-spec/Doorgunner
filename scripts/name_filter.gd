@@ -26,6 +26,10 @@ static func check(name: String) -> String:
 			return "Only letters, digits, space, _ and - are allowed."
 	if "  " in name:
 		return "No double spaces."
+	if name != name.strip_edges():
+		return "No spaces at the start or end."
+	if name.replace(" ", "").replace("_", "").replace("-", "") == "":
+		return "Use at least one letter or digit."
 	var digits := ""
 	for c in name:
 		if c >= "0" and c <= "9":
