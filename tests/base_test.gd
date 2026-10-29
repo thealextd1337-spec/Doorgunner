@@ -314,7 +314,7 @@ func _run() -> void:
 	assert(is_equal_approx(Game.work_eff(), 0.8), "work_eff %s" % Game.work_eff())
 	Game.base_fuel = 100.0 # one generator burns 10/day
 	Game._process(Game.DAY_SECONDS * 0.01)
-	assert(is_equal_approx(Game.base_fuel, 100.0 + 10 * 20.0 * 0.8 * 0.01 - 0.1), "fuel at 80 %%: %s" % Game.base_fuel)
+	assert(is_equal_approx(Game.base_fuel, 100.0 + Game.crew("fuel") * 20.0 * 0.8 * 0.01 - 0.1), "fuel at 80 %%: %s (crew %s, skills count)" % [Game.base_fuel, Game.crew("fuel")])
 	# workshop job: needs the upgrade, breaks electronics down first (3 scrap each)
 	main.base.ui.unassign_all()
 	Game.base_level["workshop"] = 0

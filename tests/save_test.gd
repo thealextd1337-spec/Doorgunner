@@ -104,6 +104,8 @@ func _run() -> void:
 	Game.day = 2
 	Game.add_weapon("autocannon")
 	Game.base_food = 33.5
+	main.morale.value = 47.0 # people are in Game.save_state, compared below; morale saves itself
+	var crew: Array = Game.people.map(func(p): return p["name"])
 	get_tree().paused = true # nothing moves between the save and the checks
 	var before := Game.save_state().duplicate(true)
 	var cells := _samples(chunks, bc)
@@ -127,6 +129,7 @@ func _run() -> void:
 	var after := Game.save_state()
 	for k in before:
 		assert(var_to_str(before[k]) == var_to_str(after[k]), "Game.%s restored: %s vs %s" % [k, before[k], after[k]])
+	assert(not crew.is_empty() and Game.people.map(func(p): return p["name"]) == crew and main.morale.value == 47.0, "people and morale restored")
 	assert(Game.heli_weapons.get_typed_builtin() == TYPE_STRING and "autocannon" in Game.weapon_bay and Game.max_ammo > 0, "typed arrays and recompute")
 	assert(main.heli.position.distance_to(site + Vector2(40, 10)) < 2.0 and not main.heli.landed, "heli position %s" % main.heli.position)
 	assert(main.BASE_POS.distance_to(site) < 20.0 and main.base.visible, "base back at its site")

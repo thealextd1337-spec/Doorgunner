@@ -11,6 +11,7 @@ var cd := 0.0
 var rifle := false
 var armed := true # a militia post without a rifle just stands there
 var tower := false # watchtower post: +50 % reach
+var skill := 1.0 # rifle damage factor of the person on this post (people.gd rate: Soldiers hit harder)
 var sprite: Sprite2D
 var flash: Sprite2D # muzzle flash, shown for `shot` seconds after each round
 var aim := Vector2.UP # last firing direction (base_pawn.gd turns the militia on this post to it)
@@ -53,5 +54,5 @@ func _process(delta: float) -> void:
 	flash.position = dir * (7.0 if rifle else 12.0)
 	Sfx.play("gun", global_position, -14.0 if rifle else -10.0)
 	var b := preload("res://scripts/bullet.gd").new()
-	b.setup(global_position + dir * 10, dir, 6.0 if rifle else DAMAGE, 0)
+	b.setup(global_position + dir * 10, dir, 6.0 * skill if rifle else DAMAGE, 0)
 	Game.world.add_child(b)

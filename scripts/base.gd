@@ -122,7 +122,7 @@ func _process(delta: float) -> void:
 	if Game.workers["build"] <= 0:
 		return
 	var site: Dictionary = next_work() # buildings and perimeter work first, then demolitions, then sandbags and wire
-	var crew: float = Game.workers["build"] * Game.work_eff() # campers build at half rate
+	var crew: float = Game.crew("build") * Game.work_eff() # campers build at half rate
 	if not site.is_empty():
 		site["progress"] += crew * delta
 		if site.has("cells"):
@@ -689,11 +689,15 @@ func _on_attack(_day: int) -> void:
 	posts.sort_custom(func(a, b): return a.distance_squared_to(global_position) > b.distance_squared_to(global_position))
 	posts = towers + posts
 	var n: int = Game.workers["militia"]
+	var rates: Array = Game.people.filter(func(p): return p["job"] == "militia").map(func(p): return Game.People.rate(p, false))
+	rates.sort()
+	rates.reverse() # Soldiers shoot better: the best take the first posts
 	for i in n:
 		var t := preload("res://scripts/turret.gd").new()
 		t.rifle = true
 		t.tower = i < towers.size()
 		t.armed = i < int(Game.base_rifles)
+		t.skill = rates[i] if i < rates.size() else 1.0
 		t.position = posts[i] - global_position if i < posts.size() else Vector2(RADIUS, 0).rotated(i * TAU / n)
 		t.visible = i >= PAWN_MAX # the militia pawn walks to this post (base_pawn.gd)
 		defenders.add_child(t)
@@ -734,7 +738,7 @@ func _on_landed(landed: bool) -> void:
 	if Game.heli.position.distance_to(position) > PAD_REACH:
 		return
 	resupply()
-	var free_hp: float = Game.MEDIC_REPAIR * Game.workers["medic"] * Game.work_eff() # medics patch for free, the rest is 1 scrap per 5 hull
+	var free_hp: float = Game.MEDIC_REPAIR * Game.crew("medic") * Game.work_eff() # medics patch for free, the rest is 1 scrap per 5 hull
 	var repair := int(ceil(maxf(0.0, Game.max_hp - Game.hp - free_hp) / 5.0))
 	if Game.scrap >= repair:
 		Game.scrap -= repair
@@ -747,12 +751,8 @@ func _on_landed(landed: bool) -> void:
 	if Game.fuel < Game.max_fuel or Game.ammo < Game.max_ammo:
 		Game.radio("Base: stock is short, partial top-up only. Put people on fuel and ammo duty.")
 	Sfx.play("pickup")
-	var n: int = Game.passengers
+	var n: int = Game.deliver()
 	if n > 0:
-		Game.passengers = 0
-		Game.rescued += n
-		Game.injured += Game.passengers_injured
-		Game.passengers_injured = 0
 		Game.scrap += 3 * n
 		Game.radio("%d survivors delivered." % n)
 		for i in mini(n, PAWN_MAX - pawns.get_child_count()):
