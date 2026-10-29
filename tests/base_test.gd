@@ -272,7 +272,7 @@ func _run() -> void:
 		await process_frame
 	assert(Game.base_water < w0, "water drunk")
 	Game.base_water = 0.0
-	Game.time = 0.99999
+	Game.time = 0.99999999 # within one frame of dawn at any DAY_SECONDS
 	await process_frame
 	assert(Game.injured == 1, "sick without water")
 	Game.buildings.append({"kind": "well", "cell": Vector2i(-99, -99), "built": true, "progress": 0.0})
@@ -285,7 +285,7 @@ func _run() -> void:
 	Game.base_medicine = 1.0
 	await process_frame
 	assert(Game.treating.size() == 1 and Game.base_medicine == 0.0, "patient in bed for 1 medicine")
-	Game.treating[0] = 0.00001
+	Game.treating[0] = 1e-9
 	await process_frame
 	assert(Game.injured == 0 and Game.treating.is_empty(), "clinic healed the patient")
 	# generator: burns base fuel, power while it lasts

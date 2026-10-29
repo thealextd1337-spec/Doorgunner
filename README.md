@@ -21,7 +21,7 @@ build the base up, and hold it when the horde assaults every third night.
 - Fuel and ammo run out. Dying ends the run; survivors rescued across runs unlock permanent seats, fuel and ammo capacity (saved per profile in `user://profiles/<id>/meta.json`; volumes stay global in `user://settings.json`).
 - Ironman save (`scripts/save.gd`): the run autosaves (landing on the base pad, each new day, every 120 s, closing the window or hiding the browser tab; never during an assault or the tutorial) into `user://profiles/<id>/run.sav`. The title offers **CONTINUE**; **NEW RUN** over a saved run abandons it (counts as lost). Death deletes the save. New systems hook in with `Save.register(key, save_fn, load_fn)`; the world is replayed from the seed plus a chunk/founding event log and a tile edit log (`chunks.edit`).
 - Progression (`docs/PROGRESSION.md`, `scripts/progression.gd`): the heli has hardpoint / system / module slots (start 1/2/2, Workshop or meta unlocks raise them to 2/3/3).
-  Each level-up offers three item cards (new item or next level, max 5): **1-4** or click picks, **R** rerolls, **S** skips for 15 scrap, **B** banishes (unlocked at 200 rescued).
+  Each level-up offers three item cards (new item or next level, max 5): **1-4** or click picks, **R** rerolls, **S** skips for 15 scrap, **B** banishes (unlocked at 400 rescued).
   Heli level caps at 30, further XP turns into scrap. The base HANGAR tab scraps items; the title screen HANGAR (**H**) lists every item and its unlock condition.
 
 ## Dev

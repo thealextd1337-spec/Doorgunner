@@ -3,9 +3,11 @@ extends Node2D
 
 signal landed_changed(landed: bool)
 
-const ACCEL := 220.0
-const MAX_SPEED := 160.0
-const DRAG := 1.4 # low drag: the heli keeps gliding
+const ACCEL := 150.0
+const MAX_SPEED := 115.0
+const FUEL_IDLE := 0.095 # per s; a full 100 tank lasts ~300 s at full throttle (0.095 + 0.24)
+const FUEL_FLY := 0.24
+const DRAG := 1.25 # low drag: the heli keeps gliding; ACCEL / DRAG = 120 must stay above MAX_SPEED or the clamp never bites
 const LAND_SPEED := 50.0
 const RADIUS := 14.0
 const SPOOL := 1.5 # seconds to land or take off
@@ -88,9 +90,9 @@ func _move(delta: float) -> void:
 		vel = vel.lerp(Vector2.ZERO, 4.0 * delta)
 		position += vel * delta
 		return
-	vel += dir * ACCEL * delta
-	vel -= vel * DRAG * delta
 	var max_speed: float = MAX_SPEED * Game.stats["speed"] * Game.weight_factor
+	vel += dir * ACCEL * max_speed / MAX_SPEED * delta # thrust scales with engine and weight too, so their top speed is reachable
+	vel -= vel * DRAG * delta
 	if vel.length() > max_speed:
 		vel = vel.normalized() * max_speed
 	position += vel * delta
@@ -108,7 +110,7 @@ func _move(delta: float) -> void:
 func _fuel(delta: float) -> void:
 	if landed:
 		return
-	var burn: float = (0.35 + vel.length() / MAX_SPEED * 0.9) / Game.stats["fuel_eff"]
+	var burn: float = (FUEL_IDLE + vel.length() / MAX_SPEED * FUEL_FLY) / Game.stats["fuel_eff"]
 	Game.fuel = max(0.0, Game.fuel - burn * delta)
 	if Game.fuel <= 0.0:
 		Game.end_run("Out of fuel: the helicopter went down.")
