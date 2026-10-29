@@ -4,7 +4,12 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
-## Unreleased
+## 0.6.0 - 2026-10-29
+- Ironman save (P1): one run per profile saves itself (landing on the pad, each new day, every 120 s, on close; not during an
+  assault) and is deleted on death. CONTINUE on the title; NEW RUN over a saved run counts it as lost. Profiles on disk
+  (`user://profiles/`), the old `meta.json` becomes profile "Gunner".
+- Online backend prepared (P2, not used by the game yet): Supabase tables, RPCs and leaderboard views in `server/`.
+- Player-name filter (P3) and 12 profile portraits (P4), used by the profile screen in a later version.
 - Tempo (P5): heli top speed 115 / accel 150 (was 160 / 220), zombies slower (shambler 12, runner 42, brute 10, boss 9), a day lasts 900 s,
   XP per level 30 * L^1.6, a full starting tank (100) lasts ~5 min at full throttle, meta unlocks need twice as many rescues / assaults /
   bosses / days / runs (also rerolls, banish, starting slots and the permanent per-rescue bonuses), threat rises 0.08 per day
