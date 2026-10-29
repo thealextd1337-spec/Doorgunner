@@ -108,6 +108,7 @@ func _process(delta: float) -> void:
 		9:
 			if t > 20.3:
 				_save("shot_settings.png")
+				Profiles.active()["enlisted"] = true # in memory only: no ENLIST pop-up over the hangar shot
 				var title: CanvasLayer = preload("res://scripts/title_ui.gd").new()
 				Game.world.add_child(title)
 				title.open()
@@ -116,7 +117,37 @@ func _process(delta: float) -> void:
 		10:
 			if t > 20.6:
 				_save("shot_title_hangar.png")
+				title_ui()._toggle_hangar()
+				step = 11
+		11:
+			if t > 20.9:
+				_save("shot_title.png")
+				title_ui().profile_ui.open_list()
+				step = 12
+		12:
+			if t > 21.2:
+				_save("shot_profiles.png")
+				title_ui().profile_ui.enlist("", false)
+				title_ui().profile_ui.name_edit.text = "Hitler"
+				title_ui().profile_ui.name_edit.text_changed.emit("Hitler")
+				step = 13
+		13:
+			if t > 21.5:
+				_save("shot_enlist.png")
+				title_ui().profile_ui.close()
+				var rows: Array = []
+				for i in 50:
+					rows.append({"rank": i + 1, "player_id": "id%d" % i, "name": "Gunner%d" % i, "avatar": i % 12, "value": 9000 - i * 130})
+				title_ui().board_ui.show_rows("points", rows, {"rank": 77, "player_id": "me", "name": "Me", "avatar": 1, "value": 120})
+				step = 14
+		14:
+			if t > 21.8:
+				_save("shot_leaderboard.png")
 				get_tree().quit()
+
+
+func title_ui() -> CanvasLayer:
+	return Game.world.get_children().filter(func(c): return c is CanvasLayer and c.layer == 40)[0]
 
 
 func _save(name: String) -> void:
