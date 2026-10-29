@@ -11,6 +11,7 @@ var night: CanvasModulate
 var radio_target: Node2D # POI currently highlighted on the HUD compass
 var ui_open := false # overlays set this so clicks do not fire the gun
 var tutorial: Node # tutorial.gd while one runs
+var morale: Node # morale.gd
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec built]
 
@@ -48,6 +49,8 @@ func _ready() -> void:
 	Save.register("pois", _save_pois, _load_pois)
 	Save.register("base", base.save_state, base.load_state)
 	Save.register("enemies", _save_enemies, _load_enemies)
+	morale = preload("res://scripts/morale.gd").new() # registers its own save hook
+	add_child(morale)
 	night = CanvasModulate.new()
 	add_child(night)
 	spawner = preload("res://scripts/spawner.gd").new()
@@ -103,13 +106,9 @@ func found_base(pos: Vector2) -> void:
 	Game.base_founded = true
 	Game.base_level["workshop"] = 1
 	Game.first_assault_day = Game.day + 2
-	Game.rescued += Game.passengers
-	Game.injured += Game.passengers_injured # hurt in flight: they need the clinic, not a job
-	Game.workers["build"] = mini(2, Game.passengers - Game.passengers_injured)
-	Game.passengers_injured = 0
-	for i in mini(Game.passengers, base.PAWN_MAX):
+	Game.workers["build"] = mini(2, Game.passengers - Game.passengers_injured) # the hurt need the clinic, not a job
+	for i in mini(Game.deliver(), base.PAWN_MAX):
 		base.add_pawn(heli.global_position + Vector2(randf_range(-12, 12), randf_range(8, 16)), true)
-	Game.passengers = 0
 	Game.radio("Base: field workshop set up.")
 	Game.radio("FOB founded. Crew is setting up. Build a barracks (40 scrap) and sandbags; the first assault comes on day %d." % Game.first_assault_day)
 	base._on_landed(true) # the heli sits on the new pad: services and the base menu

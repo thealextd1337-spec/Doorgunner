@@ -43,9 +43,11 @@ const STOCKS := {"fuel": ["fuel", Color(0.9, 0.75, 0.2)], "ammo": ["ammo", Color
 	"scrap": ["scrap", Color(0.75, 0.5, 0.3)], "metal": ["metal", Color(0.55, 0.57, 0.6)], "parts": ["parts", Color(0.6, 0.55, 0.45)],
 	"electronics": ["electr.", Color(0.4, 0.75, 0.7)]}
 const Weapons := preload("res://scripts/weapons.gd")
+const People := preload("res://scripts/people.gd")
 
 var mono := SystemFont.new()
 var pop_label: Label
+var morale_label: Label
 var stock_rows := {} # id -> [fill ColorRect, value Label, delta Label]
 var power_label: Label
 var assault_label: Label
@@ -65,6 +67,9 @@ var weapon_box: VBoxContainer
 var worker_info: Label
 var job_rows := {} # job -> [count Label, - Button, + Button, note Label]
 var worker_msg: Label # why the last + was refused, cleared after 3 s
+var people_box: VBoxContainer # WORKERS tab: one row of people per job, idle, injured
+var person_info: Label
+var person_sel := -1 # id of the person shown in person_info
 
 
 func _ready() -> void:
@@ -83,6 +88,9 @@ func _ready() -> void:
 	status.add_child(_label("POPULATION", 12, ACCENT, true))
 	pop_label = _label("", 13, SAND, true)
 	status.add_child(pop_label)
+	morale_label = _label("", 13, SAND, true)
+	morale_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status.add_child(morale_label)
 	status.add_child(_label("STOCK", 12, ACCENT, true))
 	var grid := GridContainer.new()
 	grid.columns = 4
@@ -338,6 +346,16 @@ func _workers_tab(main: VBoxContainer) -> void:
 	unassign.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	unassign.pressed.connect(unassign_all)
 	v.add_child(unassign)
+	v.add_child(_rule())
+	person_info = _label("", 12, SAND, true)
+	v.add_child(person_info)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size.y = 130
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(scroll)
+	people_box = VBoxContainer.new()
+	people_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(people_box)
 
 
 func _hangar_tab(main: VBoxContainer) -> void:
@@ -437,13 +455,16 @@ func _refresh_status() -> void:
 	var eaters: int = Game.rescued + Game.campers()
 	pop_label.text = "rescued %3d   beds    %3d\ncamping %3d   injured %3d\nidle    %3d   assigned%3d" % [
 		Game.rescued, Game.housing(), Game.campers(), Game.injured, Game.idle_workers(), Game.assigned()]
+	var morale: Node = Game.world.morale
+	morale_label.text = "MORALE  " + morale.summary()
+	morale_label.add_theme_color_override("font_color", BAD if morale.value < morale.LOW_BELOW else (GOOD if morale.value > morale.HIGH_ABOVE else SAND))
 	var gen: float = Game.built("generator") * Game.GEN_FUEL
 	# id -> [value, bar full at, per day (null: unknown), show cap]
 	var s := {
-		"fuel": [Game.base_fuel, Game.base_fuel_cap, w["fuel"] * rate["fuel"] * eff - gen, true],
-		"ammo": [Game.base_ammo, Game.base_ammo_cap, w["ammo"] * rate["ammo"] * eff, true],
-		"food": [Game.base_food, maxf(10.0, eaters * 10.0), w["farm"] * rate["farm"] * eff + Game.FIELD_FOOD * base.field_cells().size() - eaters * Game.FOOD_PER_PERSON, false],
-		"water": [Game.base_water, maxf(10.0, eaters * 10.0), w["water"] * rate["water"] * eff + Game.built("well") * Game.WELL_WATER - eaters * Game.WATER_PER_PERSON, false],
+		"fuel": [Game.base_fuel, Game.base_fuel_cap, Game.crew("fuel") * rate["fuel"] * eff - gen, true],
+		"ammo": [Game.base_ammo, Game.base_ammo_cap, Game.crew("ammo") * rate["ammo"] * eff, true],
+		"food": [Game.base_food, maxf(10.0, eaters * 10.0), Game.crew("farm") * rate["farm"] * eff + Game.FIELD_FOOD * base.field_cells().size() - Game.food_eaters() * Game.FOOD_PER_PERSON, false],
+		"water": [Game.base_water, maxf(10.0, eaters * 10.0), Game.crew("water") * rate["water"] * eff + Game.built("well") * Game.WELL_WATER - eaters * Game.WATER_PER_PERSON, false],
 		"medicine": [Game.base_medicine, 10.0, null, false],
 		"rifles": [Game.base_rifles, maxf(10.0, w["militia"]), float(Game.base_level.get("armory", 0)), false],
 		"scrap": [Game.scrap, 200.0, null, false],
@@ -552,6 +573,44 @@ func refresh() -> void:
 				note = "clinic beds %d" % (2 * Game.built("clinic"))
 		r[3].text = note
 		r[3].add_theme_color_override("font_color", BAD if bad else DIM)
+	_refresh_people()
+
+
+## People per job (green: good at it), then idle and injured; a click shows the person.
+func _refresh_people() -> void:
+	Game.assign_jobs()
+	for c in people_box.get_children():
+		people_box.remove_child(c) # a person button may be mid-signal, so no free()
+		c.queue_free()
+	var groups := {}
+	for p in Game.people:
+		if not p["aboard"]:
+			groups.get_or_add("injured" if p["injured"] else (p["job"] if p["job"] != "" else "idle"), []).append(p)
+	for g in JOBS.keys() + ["idle", "injured"]:
+		if not groups.has(g):
+			continue
+		var row := HFlowContainer.new()
+		people_box.add_child(row)
+		var l := _label((JOBS[g][0] if JOBS.has(g) else g).to_upper(), 12, ACCENT, true)
+		l.custom_minimum_size.x = 76
+		row.add_child(l)
+		for p in groups[g]:
+			var b := Button.new()
+			b.text = People.short(p)
+			b.focus_mode = Control.FOCUS_NONE # SPACE takes off
+			b.add_theme_font_override("font", mono)
+			b.add_theme_font_size_override("font_size", 11)
+			if JOBS.has(g) and People.matches(p, g):
+				b.add_theme_color_override("font_color", GOOD)
+			b.pressed.connect(func(): person_sel = p["id"]; _show_person())
+			row.add_child(b)
+	_show_person()
+
+
+func _show_person() -> void:
+	var sel: Array = Game.people.filter(func(p): return p["id"] == person_sel)
+	person_info.text = People.describe(sel[0], int(Game.world.morale.value), Game.day) if not sel.is_empty() \
+		else "PEOPLE  click a name for details (green: good at the job)\n"
 
 
 func _refresh_weapons() -> void:

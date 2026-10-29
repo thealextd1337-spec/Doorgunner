@@ -6,6 +6,8 @@ signal day_changed(day: int)
 signal base_attack_started(day: int)
 signal run_ended(reason: String)
 signal radio_message(msg: String)
+signal person_lost(person: Dictionary, died: bool) # morale.gd counts the dead
+signal people_delivered(n: int) # a heli load reached the base
 
 const DAY_SECONDS := 900.0
 const DANGER_PER_DAY := 0.08
@@ -17,6 +19,7 @@ const SETTINGS_KEYS := ["vol_master", "vol_sfx", "vol_music", "muted"]
 const TEST_PROFILE := "_smoke" # headless tests (env SMOKE) never touch a player's profile
 const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
+const People := preload("res://scripts/people.gd")
 const LOADOUT_COST := {"seats": 1, "fuel_tank": 2, "ammo_feed": 2, "armor": 2} # weight points per level
 const WORKER_RATE := {"fuel": 20.0, "ammo": 40.0, "repair": 40.0, "farm": 6.0, "water": 15.0} # per worker per day
 const WORKSHOP_RATE := 12.0 # salvage units broken down per workshop worker per day
@@ -46,13 +49,26 @@ var max_ammo := 200
 var hp := 100.0
 var max_hp := 100.0
 var seats := 4
-var passengers := 0
+# people (scripts/people.gd): everyone of the run, at the base or aboard; the four counts below are derived from it
+var people: Array[Dictionary] = []
+var person_seq := 0 # next person number, names come from (seed, number)
+var passengers: int: # aboard the heli
+	get: return _at(true).size()
+	set(v): _resize(true, v)
+var rescued: int: # living at the base (the population)
+	get: return _at(false).size()
+	set(v): _resize(false, v)
+var injured: int: # part of rescued: no work, not idle
+	get: return _at(false).filter(func(p): return p["injured"]).size()
+	set(v): _mark(false, v)
+var passengers_injured: int: # part of passengers, join `injured` on delivery
+	get: return _at(true).filter(func(p): return p["injured"]).size()
+	set(v): _mark(true, v)
 var scrap := 0
 var xp := 0
 var level := 1
 var day := 1
 var time := 0.25 # 0..1 fraction of a day, 0 = midnight
-var rescued := 0
 var kills := 0
 var base_hp := 500.0
 var max_base_hp := 500.0
@@ -102,8 +118,6 @@ var base_radius := BASE_RADIUS
 var base_water := 60.0
 var base_medicine := 2.0
 var base_rifles := 2.0 # float: the armory adds a fraction every frame
-var injured := 0 # part of rescued: no work, not idle
-var passengers_injured := 0 # part of passengers, join `injured` on delivery
 var treating: Array[float] = [] # heal days left per occupied clinic bed
 var power := false
 var short_days := 0 # days in a row without food or water
@@ -189,11 +203,11 @@ var meta := META_DEFAULT.duplicate() # the active profile's meta.json plus the S
 var profiles := {"list": [], "last": ""}
 var radio_beep_ms := 0
 # run variables Save stores (stats, slots, seats, max_fuel/max_ammo and weight come from recompute)
-const SAVED := ["seed", "fuel", "ammo", "hp", "max_hp", "passengers", "scrap", "xp", "level", "day", "time", "rescued", "kills",
+const SAVED := ["seed", "fuel", "ammo", "hp", "max_hp", "person_seq", "scrap", "xp", "level", "day", "time", "kills",
 	"base_hp", "max_base_hp", "attack_pending", "attack_active", "base_founded", "first_assault_day", "base_level", "weapon",
 	"weapon_bay", "base_seats", "base_max_fuel", "base_max_ammo", "base_armor", "loadout", "loadout_budget", "base_fuel",
 	"base_ammo", "base_fuel_cap", "base_ammo_cap", "workers", "sandbags", "base_food", "salvage", "workshop_progress",
-	"buildings", "base_radius", "base_water", "base_medicine", "base_rifles", "injured", "passengers_injured", "power",
+	"buildings", "base_radius", "base_water", "base_medicine", "base_rifles", "power",
 	"short_days", "tutorial_wave", "noise_pos", "noise_level", "heli_items", "rerolls", "skips", "banished"]
 
 
@@ -207,10 +221,11 @@ func _ready() -> void:
 func new_run() -> void:
 	seed = randi()
 	hp = 100.0; max_hp = 100.0
+	day = 1; time = 0.25 # before the crew below: people record the day they joined
+	people = []; person_seq = 0
 	passengers = FOUNDING_CREW
 	scrap = 60; xp = 0; level = 1
-	day = 1; time = 0.25
-	rescued = 0; kills = 0
+	kills = 0
 	base_hp = 500.0; max_base_hp = 500.0
 	attack_pending = false; attack_active = false
 	base_founded = false; first_assault_day = 0
@@ -229,7 +244,7 @@ func new_run() -> void:
 	_reset_progression()
 	buildings = []; base_radius = BASE_RADIUS
 	base_water = 60.0; base_medicine = 2.0; base_rifles = 2.0
-	injured = 0; passengers_injured = 0; treating = []; power = false; short_days = 0; tutorial_wave = 0
+	treating = []; power = false; short_days = 0; tutorial_wave = 0
 	_apply_meta_bonus()
 	recompute()
 	fuel = max_fuel; ammo = max_ammo; hp = max_hp
@@ -280,7 +295,31 @@ func assigned() -> int:
 func work_eff() -> float:
 	var n := assigned()
 	var beds: int = maxi(0, housing() - injured)
-	return (mini(n, beds) + 0.5 * maxi(0, n - beds)) / maxf(1.0, n)
+	var morale: Node = world.get("morale") if is_instance_valid(world) else null
+	return (mini(n, beds) + 0.5 * maxi(0, n - beds)) / maxf(1.0, n) * (morale.rate() if morale else 1.0)
+
+
+## Who works where: Game.workers wanted per job, filled by skill first (People.assign). Runs every frame.
+func assign_jobs() -> void:
+	People.assign(_at(false), workers)
+
+
+## Effective workers on `job`: skill, level and traits of the people assigned to it (People.rate).
+func crew(job: String) -> float:
+	var night := is_night()
+	var n := 0.0
+	for p in people:
+		if p["job"] == job and not p["aboard"]:
+			n += People.rate(p, night)
+	return n
+
+
+## Food eaten per day by the people at the base (Gluttons 1.5x), campers on top as before.
+func food_eaters() -> float:
+	var n := 0.0
+	for p in _at(false):
+		n += People.food(p)
+	return n + campers()
 
 
 ## 4 beds per built barracks + 2 in the hangar.
@@ -296,21 +335,86 @@ func built(kind: String) -> int:
 	return buildings.filter(func(b): return b["kind"] == kind and b["built"]).size()
 
 
-## Healthy people get hurt; their jobs are freed.
+## Healthy people get hurt; their jobs are freed. The Tough get hurt last.
 func injure(n: int) -> void:
-	injured += clampi(n, 0, rescued - injured)
+	var fit := _at(false).filter(func(p): return not p["injured"])
+	fit.shuffle()
+	fit.sort_custom(func(a, b): return a["trait"] != "tough" and b["trait"] == "tough")
+	for p in fit.slice(0, clampi(n, 0, fit.size())):
+		p["injured"] = true
+		p["job"] = ""
 	_fit_workers()
 
 
-## Someone leaves or dies (an injured one if `was_injured`).
-func lose_person(was_injured := false) -> void:
-	if rescued <= 0:
-		return
-	rescued -= 1
-	injured = clampi(injured - (1 if was_injured else 0), 0, rescued)
+## Someone at the base dies (an injured one if `was_injured`, else preferably an idle one). Returns the name, "" if none.
+func lose_person(was_injured := false) -> String:
+	var list := _at(false).filter(func(p): return p["injured"] == was_injured)
+	if list.is_empty():
+		list = _at(false)
+	if list.is_empty():
+		return ""
+	var idle := list.filter(func(p): return p["job"] == "")
+	var p: Dictionary = (idle if not idle.is_empty() else list).pick_random()
+	_remove(p, true)
+	radio("Base: %s didn't make it." % p["name"])
+	return p["name"]
+
+
+## A healthy person leaves the base for good (no supplies, low morale). Returns the name, "" if nobody could.
+func walk_out() -> String:
+	var list := _at(false).filter(func(p): return not p["injured"])
+	if list.is_empty():
+		return ""
+	var p: Dictionary = list.pick_random()
+	_remove(p, false)
+	return p["name"]
+
+
+func _remove(p: Dictionary, died: bool) -> void:
+	people.erase(p)
 	if treating.size() > injured:
 		treating.resize(injured)
 	_fit_workers()
+	person_lost.emit(p, died)
+
+
+## Everyone aboard moves into the base. Returns how many.
+func deliver() -> int:
+	var n := passengers
+	for p in people:
+		p["aboard"] = false
+	if n > 0:
+		people_delivered.emit(n)
+	return n
+
+
+func _at(aboard: bool) -> Array:
+	return people.filter(func(p): return p["aboard"] == aboard)
+
+
+## Count setter (rescued, passengers): new people join, or the newest leave.
+func _resize(aboard: bool, n: int) -> void:
+	var list := _at(aboard)
+	for i in maxi(0, n - list.size()):
+		people.append(People.make(seed, person_seq, day, aboard))
+		person_seq += 1
+	for i in maxi(0, list.size() - maxi(0, n)):
+		people.erase(list[list.size() - 1 - i])
+
+
+## Count setter (injured, passengers_injured): the newest healthy get hurt, or the newest injured recover.
+func _mark(aboard: bool, n: int) -> void:
+	var list := _at(aboard)
+	list.reverse()
+	var hurt := list.filter(func(p): return p["injured"]).size()
+	for p in list:
+		if hurt < n and not p["injured"]:
+			p["injured"] = true
+			p["job"] = ""
+			hurt += 1
+		elif hurt > maxi(0, n) and p["injured"]:
+			p["injured"] = false
+			hurt -= 1
 
 
 func _fit_workers() -> void:
@@ -352,14 +456,15 @@ func _process(delta: float) -> void:
 	if not running or get_tree().paused:
 		return
 	var d := delta / DAY_SECONDS
+	assign_jobs()
 	var w := work_eff() * d
-	base_fuel = minf(base_fuel_cap, base_fuel + workers["fuel"] * WORKER_RATE["fuel"] * w)
-	base_ammo = minf(base_ammo_cap, base_ammo + workers["ammo"] * WORKER_RATE["ammo"] * w)
-	base_hp = minf(max_base_hp, base_hp + workers["repair"] * WORKER_RATE["repair"] * w)
+	base_fuel = minf(base_fuel_cap, base_fuel + crew("fuel") * WORKER_RATE["fuel"] * w)
+	base_ammo = minf(base_ammo_cap, base_ammo + crew("ammo") * WORKER_RATE["ammo"] * w)
+	base_hp = minf(max_base_hp, base_hp + crew("repair") * WORKER_RATE["repair"] * w)
 	var eaters: int = rescued + campers() # campers eat and drink double
-	base_food = maxf(0.0, base_food + workers["farm"] * WORKER_RATE["farm"] * w - eaters * FOOD_PER_PERSON * d)
-	base_water = maxf(0.0, base_water + workers["water"] * WORKER_RATE["water"] * w + (built("well") * WELL_WATER - eaters * WATER_PER_PERSON) * d)
-	workshop_progress += workers["workshop"] * WORKSHOP_RATE * w
+	base_food = maxf(0.0, base_food + crew("farm") * WORKER_RATE["farm"] * w - food_eaters() * FOOD_PER_PERSON * d)
+	base_water = maxf(0.0, base_water + crew("water") * WORKER_RATE["water"] * w + (built("well") * WELL_WATER - eaters * WATER_PER_PERSON) * d)
+	workshop_progress += crew("workshop") * WORKSHOP_RATE * w
 	for k in SALVAGE_SCRAP:
 		while workshop_progress >= 1.0 and salvage[k] >= 1.0:
 			workshop_progress -= 1.0
@@ -377,19 +482,22 @@ func _process(delta: float) -> void:
 		time -= 1.0
 		day += 1
 		day_changed.emit(day)
+		for p in People.new_day(_at(false)):
+			radio("Base: %s got better at the job (%s Lv %d)." % [p["name"], p["skill"], p["skill_lv"]])
 		if base_founded:
 			base_food += FIELD_FOOD * world.base.field_tiles()
 		for i in maxi(0, injured - treating.size()): # yesterday's untreated, before anyone new gets hurt
 			if randf() < UNTREATED_DEATH:
+				radio("Clinic: no bed or medicine, a wounded survivor got worse overnight.")
 				lose_person(true)
-				radio("Base: an injured survivor died without care.")
 		if (base_food <= 0.0 or base_water <= 0.0) and rescued > 0:
 			short_days += 1
 			injure(1)
 			radio("Base: out of %s. One of the survivors fell sick." % ("food" if base_food <= 0.0 else "water"))
 			if short_days >= 3:
-				lose_person()
-				radio("Base: three days without supplies. Someone walked out in the night.")
+				var who := walk_out()
+				if who != "":
+					radio("Base: three days without supplies. %s walked out in the night." % who)
 		else:
 			short_days = 0
 			if base_food < eaters * FOOD_PER_PERSON * 2.0:
@@ -425,7 +533,7 @@ func _treat(d: float) -> void:
 		base_medicine -= 1.0
 		treating.append(HEAL_DAYS)
 	for i in range(treating.size() - 1, -1, -1):
-		treating[i] -= d * (2.0 if i < 2 * workers["medic"] else 1.0) * (2.0 if power else 1.0)
+		treating[i] -= d * (2.0 if i < 2 * crew("medic") else 1.0) * (2.0 if power else 1.0)
 		if treating[i] <= 0.0:
 			treating.remove_at(i)
 			injured -= 1
@@ -499,7 +607,7 @@ func record_run(run_day: int, run_rescued: int, run_kills: int) -> void:
 ## Save hook "game" (main.gd registers it first).
 func save_state() -> Dictionary:
 	var d := {}
-	for k in SAVED + ["heli_weapons", "treating"]:
+	for k in SAVED + ["heli_weapons", "treating", "people"]:
 		d[k] = get(k)
 	return d
 
@@ -509,6 +617,7 @@ func load_state(d: Dictionary) -> void:
 		set(k, d[k])
 	heli_weapons.assign(d["heli_weapons"]) # typed arrays come back untyped from bytes_to_var
 	treating.assign(d["treating"])
+	people.assign(d["people"])
 	recompute()
 	running = true
 
