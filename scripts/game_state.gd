@@ -9,7 +9,11 @@ signal radio_message(msg: String)
 
 const DAY_SECONDS := 600.0
 const ATTACK_EVERY_DAYS := 3
-const META_PATH := "user://meta.json"
+const META_PATH := "user://meta.json" # before profiles: migrated into the first profile, kept as a backup
+const PROFILES_PATH := "user://profiles.json" # {"list": [{id, name, avatar, created}], "last": id}
+const SETTINGS_PATH := "user://settings.json" # global, not per profile
+const SETTINGS_KEYS := ["vol_master", "vol_sfx", "vol_music", "muted"]
+const TEST_PROFILE := "_smoke" # headless tests (env SMOKE) never touch a player's profile
 const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
 const LOADOUT_COST := {"seats": 1, "fuel_tank": 2, "ammo_feed": 2, "armor": 2} # weight points per level
@@ -178,9 +182,18 @@ func scrap_item(id: String) -> int:
 	recompute()
 	return refund
 
-var meta := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0,
+const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0,
 	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "tutorial_done": 0, "version": ""} # sound off by default for now; M or ESC menu turns it on
+var meta := META_DEFAULT.duplicate() # the active profile's meta.json plus the SETTINGS_KEYS of settings.json
+var profiles := {"list": [], "last": ""}
 var radio_beep_ms := 0
+# run variables Save stores (stats, slots, seats, max_fuel/max_ammo and weight come from recompute)
+const SAVED := ["seed", "fuel", "ammo", "hp", "max_hp", "passengers", "scrap", "xp", "level", "day", "time", "rescued", "kills",
+	"base_hp", "max_base_hp", "attack_pending", "attack_active", "base_founded", "first_assault_day", "base_level", "weapon",
+	"weapon_bay", "base_seats", "base_max_fuel", "base_max_ammo", "base_armor", "loadout", "loadout_budget", "base_fuel",
+	"base_ammo", "base_fuel_cap", "base_ammo_cap", "workers", "sandbags", "base_food", "salvage", "workshop_progress",
+	"buildings", "base_radius", "base_water", "base_medicine", "base_rifles", "injured", "passengers_injured", "power",
+	"short_days", "tutorial_wave", "noise_pos", "noise_level", "heli_items", "rerolls", "skips", "banished"]
 
 
 func _ready() -> void:
@@ -467,26 +480,94 @@ func end_run(reason: String) -> void:
 	if not running:
 		return
 	running = false
-	meta["runs"] += 1
-	meta["total_rescued"] += rescued
-	meta["total_kills"] += kills
-	meta["best_day"] = max(meta["best_day"], day)
-	_save_meta()
+	Save.delete_run() # Ironman: gone before the game-over screen shows
+	record_run(day, rescued, kills)
 	run_ended.emit(reason)
 
 
+## A finished run (death or an abandoned saved run) counts towards the meta progress.
+func record_run(run_day: int, run_rescued: int, run_kills: int) -> void:
+	meta["runs"] += 1
+	meta["total_rescued"] += run_rescued
+	meta["total_kills"] += run_kills
+	meta["best_day"] = max(meta["best_day"], run_day)
+	_save_meta()
+
+
+## Save hook "game" (main.gd registers it first).
+func save_state() -> Dictionary:
+	var d := {}
+	for k in SAVED + ["heli_weapons", "treating"]:
+		d[k] = get(k)
+	return d
+
+
+func load_state(d: Dictionary) -> void:
+	for k in SAVED:
+		set(k, d[k])
+	heli_weapons.assign(d["heli_weapons"]) # typed arrays come back untyped from bytes_to_var
+	treating.assign(d["treating"])
+	recompute()
+	running = true
+
+
+## Active profile's meta (profiles.json "last", the test profile under SMOKE), then the global settings.
 func _load_meta() -> void:
-	if not FileAccess.file_exists(META_PATH):
-		return
-	var f := FileAccess.open(META_PATH, FileAccess.READ)
-	var data = JSON.parse_string(f.get_as_text())
-	if data is Dictionary:
-		for k in meta.keys():
-			if data.has(k):
-				meta[k] = str(data[k]) if meta[k] is String else int(data[k])
+	_load_profiles()
+	meta = META_DEFAULT.duplicate()
+	for p in [profile_dir() + "meta.json", SETTINGS_PATH]:
+		var data = _read_json(p)
+		if data is Dictionary:
+			for k in meta.keys():
+				if data.has(k) and (p != SETTINGS_PATH or k in SETTINGS_KEYS):
+					meta[k] = str(data[k]) if meta[k] is String else int(data[k])
 	if not meta["art"] in ART_VARIANTS:
 		meta["art"] = "b"
 	meta["muted"] = 1 # always start silent for now, whatever was saved; M / ESC menu turns sound on for the session
+
+
+func _read_json(path: String) -> Variant:
+	return JSON.parse_string(FileAccess.get_file_as_string(path)) if FileAccess.file_exists(path) else null
+
+
+## profiles.json; without one the old user://meta.json (if any) becomes the first profile "Gunner".
+func _load_profiles() -> void:
+	var data = _read_json(PROFILES_PATH)
+	if data is Dictionary and data.get("list", []).size() > 0:
+		profiles = data
+		return
+	var id := create_profile("Gunner", 0)
+	if FileAccess.file_exists(META_PATH):
+		DirAccess.copy_absolute(META_PATH, profile_dir_of(id) + "meta.json")
+
+
+func profile_dir_of(id: String) -> String:
+	return "user://profiles/%s/" % id
+
+
+## Folder of the active profile (meta.json, run.sav).
+func profile_dir() -> String:
+	return profile_dir_of(TEST_PROFILE if OS.get_environment("SMOKE") != "" else profiles["last"])
+
+
+func switch_profile(id: String) -> void:
+	profiles["last"] = id
+	_save_profiles()
+	_load_meta()
+
+
+## New profile, made the active one. Returns its id.
+func create_profile(pname: String, avatar: int) -> String:
+	var id := "%d%04x" % [Time.get_unix_time_from_system(), randi() % 0x10000]
+	profiles["list"].append({"id": id, "name": pname, "avatar": avatar, "created": Time.get_datetime_string_from_system()})
+	profiles["last"] = id
+	DirAccess.make_dir_recursive_absolute(profile_dir_of(id))
+	_save_profiles()
+	return id
+
+
+func _save_profiles() -> void:
+	FileAccess.open(PROFILES_PATH, FileAccess.WRITE).store_string(JSON.stringify(profiles))
 
 
 ## "v0.5.0 (a3aaf6b 2026-10-28)": config/version in project.godot plus the commit and date tools/deploy_web.sh writes
@@ -499,8 +580,14 @@ func version_text() -> String:
 ## meta["version"] holds the version that wrote the save until the next save (hook for migrating old saves).
 func _save_meta() -> void:
 	meta["version"] = ProjectSettings.get_setting("application/config/version", "0.0.0")
-	var f := FileAccess.open(META_PATH, FileAccess.WRITE)
-	f.store_string(JSON.stringify(meta))
+	var own := meta.duplicate()
+	var settings := {}
+	for k in SETTINGS_KEYS:
+		settings[k] = own[k]
+		own.erase(k)
+	DirAccess.make_dir_recursive_absolute(profile_dir())
+	FileAccess.open(profile_dir() + "meta.json", FileAccess.WRITE).store_string(JSON.stringify(own))
+	FileAccess.open(SETTINGS_PATH, FileAccess.WRITE).store_string(JSON.stringify(settings))
 
 
 func _setup_input() -> void:

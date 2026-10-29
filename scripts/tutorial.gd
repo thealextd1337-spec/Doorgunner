@@ -82,7 +82,7 @@ func _spawn_settlement() -> void:
 		var chunks: TileMapLayer = world.chunks
 		for dx in range(-2, 3):
 			for dy in range(-2, 3):
-				chunks.set_cell(Vector2i((pos / 16.0).floor()) + Vector2i(dx, dy), 0, Vector2i(chunks.T.GRASS, 0))
+				chunks.edit(Vector2i((pos / 16.0).floor()) + Vector2i(dx, dy), chunks.T.GRASS)
 	settlement = world.spawn_poi("survivors", pos, RandomNumberGenerator.new(), 3)
 	settlement.discovered = true
 	world.radio_target = settlement

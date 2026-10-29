@@ -19,6 +19,10 @@ var hangar: PanelContainer
 var hangar_grid: GridContainer
 var t := 0.0
 var tutorial := false # TUTORIAL button: main.gd starts the tutorial with the run
+var start_btn: Button
+var cont_btn: Button # CONTINUE: only with a saved run (scripts/save.gd)
+var notice: Label
+var confirm: ConfirmationDialog
 
 
 func _ready() -> void:
@@ -82,18 +86,13 @@ func _ready() -> void:
 	v.add_child(_label("WASD   fly             MOUSE  aim     LMB  fire\nSPACE  land / take off  R      restart", 14, SAND.darkened(0.3), mono))
 	stats = _label("", 13, OLIVE.lightened(0.45), mono)
 	v.add_child(stats)
-	var btn := Button.new()
-	btn.text = "CLEARED FOR TAKEOFF"
-	btn.custom_minimum_size = Vector2(0, 56)
-	btn.add_theme_font_size_override("font_size", 24)
-	for state in ["normal", "hover", "pressed", "focus"]:
-		var s := StyleBoxFlat.new()
-		s.bg_color = ACCENT if state != "hover" else ACCENT.lightened(0.2)
-		if state == "focus":
-			s.draw_center = false
-		btn.add_theme_stylebox_override(state, s)
-	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
-		btn.add_theme_color_override(c, Color(0.06, 0.07, 0.03))
+	notice = _label("", 13, Color(1, 0.45, 0.35), mono)
+	v.add_child(notice)
+	cont_btn = _big_button()
+	cont_btn.pressed.connect(_continue)
+	v.add_child(cont_btn)
+	var btn := _big_button()
+	start_btn = btn
 	btn.pressed.connect(_start)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var btn_row := HBoxContainer.new()
@@ -116,6 +115,14 @@ func _ready() -> void:
 		tutorial = true
 		_start())
 	btn_row.add_child(tut)
+	confirm = ConfirmationDialog.new()
+	confirm.dialog_text = "Abandon the current run? It counts as lost."
+	confirm.ok_button_text = "ABANDON"
+	confirm.confirmed.connect(func():
+		Save.abandon()
+		_start())
+	confirm.canceled.connect(func(): tutorial = false)
+	add_child(confirm)
 	_build_hangar()
 	hint = _label("press ENTER", 14, SAND, mono)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -157,6 +164,21 @@ func _toggle_hangar() -> void:
 		hangar_grid.add_child(_label("ready" if ok else "LOCKED  " + Progression.condition(id), 12, ACCENT if ok else col, mono))
 
 
+func _big_button() -> Button:
+	var btn := Button.new()
+	btn.custom_minimum_size = Vector2(0, 56)
+	btn.add_theme_font_size_override("font_size", 24)
+	for state in ["normal", "hover", "pressed", "focus"]:
+		var s := StyleBoxFlat.new()
+		s.bg_color = ACCENT if state != "hover" else ACCENT.lightened(0.2)
+		if state == "focus":
+			s.draw_center = false
+		btn.add_theme_stylebox_override(state, s)
+	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		btn.add_theme_color_override(c, Color(0.06, 0.07, 0.03))
+	return btn
+
+
 func _label(text: String, size: int, color: Color, font: Font = null) -> Label:
 	var l := Label.new()
 	l.text = text
@@ -170,6 +192,15 @@ func _label(text: String, size: int, color: Color, font: Font = null) -> Label:
 func open() -> void:
 	var m: Dictionary = Game.meta
 	stats.text = "NO SERVICE RECORD. FIRST SORTIE." if m["runs"] == 0 else "SERVICE RECORD  sorties %d  rescued %d  kills %d  best day %d" % [m["runs"], m["total_rescued"], m["total_kills"], m["best_day"]]
+	var h := Save.head() # an outdated run is discarded here and leaves Save.notice
+	cont_btn.visible = not h.is_empty()
+	if cont_btn.visible:
+		var mins := int(h["time"] * 24 * 60)
+		cont_btn.text = "CONTINUE  -  DAY %d  %02d:%02d  -  %d RESCUED" % [h["day"], mins / 60, mins % 60, h["rescued"]]
+	start_btn.text = "NEW RUN" if cont_btn.visible else "CLEARED FOR TAKEOFF"
+	notice.text = Save.notice
+	notice.visible = notice.text != ""
+	Save.notice = ""
 	visible = true
 
 
@@ -186,11 +217,22 @@ func _input(event: InputEvent) -> void:
 		_toggle_hangar()
 	elif visible and event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
 		get_viewport().set_input_as_handled()
-		_start()
+		_continue() if cont_btn.visible else _start()
+
+
+## The saved run: main._ready loads it after the reload.
+func _continue() -> void:
+	if not visible or confirm.visible:
+		return
+	Save.pending = true
+	get_tree().reload_current_scene()
 
 
 func _start() -> void:
-	if not visible:
+	if not visible or confirm.visible:
+		return
+	if Save.has_run(): # NEW RUN over a saved one asks first
+		confirm.popup_centered()
 		return
 	visible = false
 	# delayed a few frames so this SPACE press is not also read as "take off" by the heli

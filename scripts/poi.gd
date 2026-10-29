@@ -7,6 +7,7 @@ const LAND_DIST := 48.0
 const Weapons := preload("res://scripts/weapons.gd")
 
 var kind := ""
+var uid := "" # main.spawn_poi: "cx,cy#n" from the generator, "dyn#n" otherwise (save hook key)
 var count := 0 # > 0: fixed number of survivors (tutorial)
 var force_weapon := false # tests: weapons cache always yields a weapon
 var drop_level := 0 # crate from the Supply Drop system (item level): reduced contents
@@ -52,12 +53,7 @@ func _ready() -> void:
 	if kind == "survivors" or kind == "hideout":
 		# hideout: 1-3 people hiding in a lone house; they stay out of sight (and off the zombies' list) until you land
 		for i in count if count > 0 else rng.randi_range(1, 3) if kind == "hideout" else rng.randi_range(2, 6):
-			var s: Node2D = preload("res://scripts/survivor.gd").new()
-			s.position = Vector2(rng.randf_range(-20, 20), rng.randf_range(-14, 14))
-			s.arrived.connect(_board.bind(s))
-			s.visible = kind != "hideout"
-			add_child(s)
-			survivors.append(s)
+			_add_survivor(Vector2(rng.randf_range(-20, 20), rng.randf_range(-14, 14)))
 		return
 	sprite = Art.sprite({"upgrade": "crate", "nest": "den", "pharmacy": "crate", "scrapyard": "wreck"}.get(kind, kind))
 	add_child(sprite)
@@ -69,6 +65,41 @@ func _ready() -> void:
 			sprite.show_behind_parent = true # the cross in _draw goes on top
 		"radio_tower": sprite.offset = Vector2(0, -16) / Art.SCALE # offset is in texture px
 		"nest": add_to_group("enemies")
+
+
+func _add_survivor(pos: Vector2, hurt := false) -> void:
+	var s: Node2D = preload("res://scripts/survivor.gd").new()
+	s.position = pos
+	s.arrived.connect(_board.bind(s))
+	s.visible = kind != "hideout"
+	add_child(s)
+	s.injured = hurt
+	survivors.append(s)
+
+
+## Save hook entry (main._save_pois): what changes after generation; kind/pos/count rebuild dynamic POIs.
+func save_state() -> Dictionary:
+	return {"kind": kind, "pos": position, "count": count, "drop_level": drop_level, "discovered": discovered, "done": done,
+		"hidden": sprite != null and not sprite.visible, "hp": hp, "boss_called": boss_called, "loading": loading, "load_cd": load_cd,
+		"boarded": boarded, "walking_home": walking_home, "survivors": survivors.map(func(x): return [x.position, x.injured, x.visible])}
+
+
+func load_state(d: Dictionary) -> void:
+	for k in ["drop_level", "discovered", "done", "hp", "boss_called", "loading", "load_cd", "boarded", "walking_home"]:
+		set(k, d[k])
+	if sprite:
+		sprite.visible = not d["hidden"]
+	if done and kind == "nest":
+		remove_from_group("enemies")
+	for x in survivors:
+		x.free()
+	survivors.clear()
+	for a in d["survivors"]:
+		_add_survivor(a[0], a[1])
+		survivors.back().visible = a[2]
+		if walking_home:
+			survivors.back().target = Game.world.base
+	queue_redraw()
 
 
 func _process(delta: float) -> void:

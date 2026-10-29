@@ -63,6 +63,13 @@ var _fresh := {} # road cells painted since the last _bends pass
 var _net := {} # road cell -> _ports index of the town whose streets or lanes it belongs to
 var _owner := -1 # _ports index of the town being painted (-1: lone houses, driveways)
 var _taken := {} # cells under trees and other ground props, so houses keep off them
+# save (scripts/save.gd): the world is replayed from Game.seed and this log instead of being stored
+var events := [] # in order: ["chunk", cx, cy] per _ensure, ["found", cell] when the base was founded (BASE_POS moved)
+var edits := {} # cell -> Vector2i(tile, alt) changed at runtime (edit), applied after the replay
+var cuts := [] # positions of generator props removed at runtime (cut_prop)
+var _gen := NONE # chunk being generated: its POIs get uid "cx,cy#n"
+var _gen_n := 0
+var _dyn_n := 0 # POIs from outside the generator get "dyn#n"
 var _shot_at := OS.get_environment("SHOT_AT") # dev hook for screenshots, see _shot_jump
 var _shot_kind := ""
 
@@ -160,6 +167,14 @@ func city_chunk(c: Vector2i, reg: int) -> bool:
 func _ensure(c: Vector2i) -> void:
 	if loaded.has(c):
 		return
+	events.append(["chunk", c.x, c.y])
+	_gen = c
+	_gen_n = 0
+	_generate(c)
+	_gen = NONE
+
+
+func _generate(c: Vector2i) -> void:
 	loaded[c] = true
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([Game.seed, c.x, c.y])
@@ -314,7 +329,7 @@ func _put(cell: Vector2i, t: int, alt := 0) -> void:
 
 ## Zombies chewed through a house wall (enemy.gd): the cell becomes rubble.
 func break_in(cell: Vector2i) -> void:
-	_put(cell, T.RUIN)
+	edit(cell, T.RUIN)
 	Game.world.nav_dirty()
 	Game.world.spawn_fx(Vector2(cell) * TILE + Vector2(TILE, TILE) / 2.0, 0.5)
 
@@ -360,9 +375,66 @@ func _struct_near(near: Vector2i, rad: int, sz: Vector2i, name: String, rng: Ran
 	return false
 
 
+## Every runtime tile change (base floor, demolition, break-ins, tutorial clearing) goes through here so it is saved.
+func edit(cell: Vector2i, t: int, alt := 0) -> void:
+	edits[cell] = Vector2i(t, alt)
+	var c := Vector2i(floori(cell.x / float(CHUNK)), floori(cell.y / float(CHUNK)))
+	if loaded.has(c):
+		set_cell(cell, 0, Vector2i(t, 0), alt)
+	else:
+		if not _pending.has(c):
+			_pending[c] = {}
+		_pending[c][cell] = Vector2i(t, alt)
+
+
+## A generator prop (spawn_prop node) removed at runtime (demolition), remembered by position.
+func cut_prop(p: Node2D) -> void:
+	cuts.append(p.position)
+	p.queue_free()
+
+
+## spawn_prop node at `pos`, null if none.
+func prop_at(pos: Vector2) -> Node2D:
+	for n in Game.world.get_children():
+		if n.get_class() == "Node2D" and n.get_script() == null and not n.is_queued_for_deletion() and n.position.distance_to(pos) < 0.5:
+			return n
+	return null
+
+
+## Stable id for a new POI: "cx,cy#n" while a chunk generates (the same after a replay), else "dyn#n".
+func poi_uid() -> String:
+	if _gen != NONE:
+		_gen_n += 1
+		return "%d,%d#%d" % [_gen.x, _gen.y, _gen_n - 1]
+	_dyn_n += 1
+	return "dyn#%d" % (_dyn_n - 1)
+
+
+## Save hook "world" (after Game and the heli, before POIs).
+func save_state() -> Dictionary:
+	return {"events": events, "edits": edits, "cuts": cuts, "dyn_n": _dyn_n}
+
+
+func load_state(d: Dictionary) -> void:
+	for e in d["events"]: # the replay logs itself again
+		if e[0] == "chunk":
+			_ensure(Vector2i(e[1], e[2]))
+		elif e[0] == "found":
+			Game.world.place_base(e[1])
+	for cell in d["edits"]:
+		edit(cell, d["edits"][cell].x, d["edits"][cell].y)
+	for pos in d["cuts"]:
+		var p := prop_at(pos)
+		if p:
+			cut_prop(p)
+	_dyn_n = d["dyn_n"]
+	Game.world.nav_dirty()
+
+
 ## The FOB (main.found_base): concrete under the 5x5 pad and the hangar (base.HANGAR, door row included), props there
 ## removed; the ground around (fields, yards, roads...) stays. A road port so later towns link to it.
 func paint_base_at(center: Vector2i) -> void:
+	events.append(["found", center])
 	for o in [Vector2i(-10, -10), Vector2i(10, -10), Vector2i(-10, 10), Vector2i(10, 10)]: # loaded first, or terrain would paint over it
 		_ensure(Vector2i(floori((center.x + o.x) / float(CHUNK)), floori((center.y + o.y) / float(CHUNK))))
 	for r in [Rect2i(center - Vector2i(2, 2), Vector2i(5, 5)), Rect2i(center + Vector2i(-5, -3), Vector2i(3, 3))]:
