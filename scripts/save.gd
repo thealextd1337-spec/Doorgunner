@@ -8,7 +8,7 @@ extends Node
 ## Saved on landing at the base pad, at the day change, every AUTOSAVE_SECONDS and on closing; never during an
 ## assault (deferred until it ends) or the tutorial. Death deletes the run (Game.end_run).
 
-const SAVE_FORMAT := 2 # bump when saved data changes shape: older runs are discarded, no migration during development
+const SAVE_FORMAT := 2 # 2: P7 people, P8 world generator; bump when saved data changes shape: older runs are discarded, no migration during development
 const AUTOSAVE_SECONDS := 120.0
 const OLD_NOTICE := "Your saved run is from an older version and cannot be continued."
 

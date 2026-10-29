@@ -1,7 +1,7 @@
 extends Node2D
 ## Points of interest. Landing within LAND_DIST triggers the reward; nests are enemies instead.
 
-const LABELS := {"survivors": "settlement", "hideout": "hideout", "crate": "supply cache", "nest": "zombie den", "radio_tower": "relay tower", "wreck": "crash site", "upgrade": "weapons cache", "water_tower": "water tower", "pharmacy": "pharmacy", "scrapyard": "scrap yard"}
+const LABELS := {"survivors": "settlement", "hideout": "hideout", "crate": "supply cache", "nest": "zombie den", "radio_tower": "relay tower", "wreck": "crash site", "upgrade": "weapons cache", "water_tower": "water tower", "pharmacy": "pharmacy", "scrapyard": "scrap yard", "fuel_station": "fuel depot"}
 const DIRS := ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"]
 const LAND_DIST := 48.0
 const Weapons := preload("res://scripts/weapons.gd")
@@ -55,7 +55,7 @@ func _ready() -> void:
 		for i in count if count > 0 else rng.randi_range(1, 3) if kind == "hideout" else rng.randi_range(2, 6):
 			_add_survivor(Vector2(rng.randf_range(-20, 20), rng.randf_range(-14, 14)))
 		return
-	sprite = Art.sprite({"upgrade": "crate", "nest": "den", "pharmacy": "crate", "scrapyard": "wreck"}.get(kind, kind))
+	sprite = Art.sprite({"upgrade": "crate", "nest": "den", "pharmacy": "crate", "scrapyard": "wreck", "fuel_station": "fuel_tank"}.get(kind, kind))
 	add_child(sprite)
 	match kind:
 		"upgrade": sprite.modulate = Color(0.6, 0.8, 1.0)
@@ -155,6 +155,11 @@ func _on_landed(landed: bool) -> void:
 			if Game.world.chunks.region(Vector2i((position / 16.0).floor())) == preload("res://scripts/chunk_manager.gd").R.LAKE:
 				Game.base_water += 20.0
 				Game.radio("Gunner: lake hut, they filled jerrycans. Base water +20.")
+		"fuel_station": # gas stations, checkpoints and airfields (chunk_manager landmarks): one tankful left
+			Game.fuel = Game.max_fuel
+			Game.base_fuel = minf(Game.base_fuel_cap, Game.base_fuel + 30.0)
+			Game.radio("Fuel depot: tank topped up, base stock +30 fuel.")
+			_finish(false)
 		"water_tower":
 			Game.base_water += 40.0
 			Game.radio("Water tower: tanks filled, base water +40.")

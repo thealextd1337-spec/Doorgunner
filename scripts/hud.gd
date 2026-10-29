@@ -26,10 +26,11 @@ const MAP_COLORS := {
 	5: Color(0.6, 0.6, 0.62), 18: Color(0.55, 0.55, 0.6), 6: Color(0.42, 0.4, 0.38), # building, warehouse, ruin
 	7: Color(0.7, 0.7, 0.68), 22: Color(0.66, 0.64, 0.6), 23: Color(0.62, 0.62, 0.6), # base floor, plaza, pad
 	12: Color(0.5, 0.5, 0.48), 19: Color(0.36, 0.34, 0.32), 20: Color(0.2, 0.18, 0.17), # rock, ash, crater
+	27: Color(0.45, 0.36, 0.26), # bridge
 }
 const POI_COLORS := {
 	"survivors": Color(0.4, 1, 0.5), "hideout": Color(0.6, 0.9, 0.6), "crate": Color(1, 0.85, 0.3), "upgrade": Color(0.5, 0.8, 1),
-	"radio_tower": Color(1, 1, 1), "wreck": Color(1, 0.5, 0.2), "nest": Color(1, 0.3, 0.9),
+	"radio_tower": Color(1, 1, 1), "wreck": Color(1, 0.5, 0.2), "nest": Color(1, 0.3, 0.9), "fuel_station": Color(1, 0.6, 0.2),
 }
 
 

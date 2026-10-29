@@ -656,12 +656,26 @@ def t_pad():
     return s
 
 
+def t_bridge():
+    """Plank bridge over water, running along y like the roads (ACROSS turns it): rails on both sides."""
+    s = t_water()
+    deck = Spr(16, 16, True)
+    deck.paint(deck.m().rect(2.2, -1, 13.8, 17), P["wood"], sh=0, edge=False)
+    planks = deck.m()
+    for y in range(0, 16, 2):
+        planks.rect(2.2, y - 0.12, 13.8, y + 0.12)
+    fill(deck.img, planks.im, dk(P["wood"], 0.7) + (200,))
+    deck.paint(deck.m().rect(1.4, -1, 2.6, 17).rect(13.4, -1, 14.6, 17), dk(P["wood"], 0.8), sh=0.4)
+    s.img.alpha_composite(deck.img)
+    return s
+
+
 TILES = (  # index = chunk_manager.gd T enum
     t_grass, t_forest, t_water, t_sand, t_road, t_building, t_ruin, t_floor,
     lambda: t_grass(11, 6, P["grass2"]), lambda: t_grass(21, 1, P["grass3"], P["grass3"]),
     t_field, t_dirt_road, t_rock, t_tree_edge, t_yard, t_asphalt,
     t_hedge, t_marsh, t_warehouse, t_ash, t_crater, t_parking, t_plaza, t_pad,
-    lambda: t_bend(True), lambda: t_bend(False), lambda: t_dirt_road(False),
+    lambda: t_bend(True), lambda: t_bend(False), lambda: t_dirt_road(False), t_bridge,
 )
 
 
