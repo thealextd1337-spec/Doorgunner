@@ -3,8 +3,10 @@ extends Node2D
 
 signal landed_changed(landed: bool)
 
-const ACCEL := 220.0
-const MAX_SPEED := 160.0
+const ACCEL := 150.0
+const MAX_SPEED := 115.0
+const FUEL_IDLE := 0.095 # per s; a full 100 tank lasts ~300 s at full throttle (0.095 + 0.24)
+const FUEL_FLY := 0.24
 const DRAG := 1.4 # low drag: the heli keeps gliding
 const LAND_SPEED := 50.0
 const RADIUS := 14.0
@@ -108,7 +110,7 @@ func _move(delta: float) -> void:
 func _fuel(delta: float) -> void:
 	if landed:
 		return
-	var burn: float = (0.35 + vel.length() / MAX_SPEED * 0.9) / Game.stats["fuel_eff"]
+	var burn: float = (FUEL_IDLE + vel.length() / MAX_SPEED * FUEL_FLY) / Game.stats["fuel_eff"]
 	Game.fuel = max(0.0, Game.fuel - burn * delta)
 	if Game.fuel <= 0.0:
 		Game.end_run("Out of fuel: the helicopter went down.")

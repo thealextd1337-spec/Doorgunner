@@ -70,7 +70,7 @@ Die heutigen Waffenkisten an POIs geben wie bisher eine neue Waffe (sie belegt e
 
 ## 4. Maximallevel des Helikopters
 
-- Heli-Level 1 bis 30. Die XP-Kurve bleibt 25 × Level^1,4 (Level 30 kumuliert ca. 37.000 XP).
+- Heli-Level 1 bis 30. Die XP-Kurve ist 30 × Level^1,6 (P5; vorher 25 × Level^1,4).
 - Ab Level 30 fließen XP in Scrap (10 XP = 1 Scrap). Der Build ist dann fertig, der Rest des Runs ist Basisverteidigung und Rettungsquote.
 - Mit voll ausgebauten 2 + 3 + 3 Slots und Level 5 pro Teil braucht ein kompletter Build 8 Teile × 5 Level = 40 Karten; mit den Start-Slots 1 + 2 + 2 sind es 25. 29 Level-ups reichen also für einen vollen Start-Build plus ein paar Stufen in nachgekauften Slots. Slots nachzukaufen lohnt nur, wenn man früh dran ist.
 
@@ -81,12 +81,12 @@ Gezählt werden über alle Runs: gerettete Überlebende, Tage überlebt, Boss-Ki
 | Freischaltung | Bedingung |
 |---|---|
 | Teile im Pool: Start sind Door MG, Minigun, Suchscheinwerfer, Zweiter Schütze, Triebwerk, Panzerplatten, Magerbrand, Munitionsgurte, Kabinenausbau | immer |
-| Täuschkörper, Autocannon | 25 Überlebende gerettet |
-| Seilwinde, Sanitäter | 50 Überlebende |
-| Lautsprecher, Flak | 3 Basis-Angriffe gehalten |
-| Raketen, Abwurfkiste | 5 Boss-Kills |
-| Railgun, Hartkern | Tag 10 erreicht |
-| Veteran, Plünderer | 10 Runs gespielt |
+| Täuschkörper, Autocannon | 50 Überlebende gerettet (P5: ×2) |
+| Seilwinde, Sanitäter | 100 Überlebende |
+| Lautsprecher, Flak | 6 Basis-Angriffe gehalten |
+| Raketen, Abwurfkiste | 10 Boss-Kills |
+| Railgun, Hartkern | Tag 20 erreicht |
+| Veteran, Plünderer | 20 Runs gespielt |
 | Reroll 2 und 3, Verbannen | 100 / 200 Überlebende |
 | Zweiter Hardpoint ab Start | Tag 5 erreicht |
 | Dritter System-Slot ab Start | Tag 15 erreicht |

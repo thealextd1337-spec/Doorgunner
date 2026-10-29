@@ -7,7 +7,8 @@ signal base_attack_started(day: int)
 signal run_ended(reason: String)
 signal radio_message(msg: String)
 
-const DAY_SECONDS := 600.0
+const DAY_SECONDS := 900.0
+const DANGER_PER_DAY := 0.08
 const ATTACK_EVERY_DAYS := 3
 const META_PATH := "user://meta.json"
 const ART_VARIANTS := ["b"] # Field Map only
@@ -440,7 +441,7 @@ func darkness() -> float:
 
 ## Threat scaling by distance from base and day count.
 func danger_at(pos: Vector2) -> float:
-	return 1.0 + pos.length() / 1500.0 + (day - 1) * 0.15
+	return 1.0 + pos.length() / 1500.0 + (day - 1) * DANGER_PER_DAY
 
 
 func add_xp(amount: int) -> void:
@@ -455,7 +456,7 @@ func add_xp(amount: int) -> void:
 
 
 func xp_needed() -> int:
-	return int(25.0 * pow(level, 1.4)) # grows faster than linear: 25, 66, 117, 174, 238 ... 627 at level 10
+	return int(30.0 * pow(level, 1.6)) # 30, 90, 173, 275, 393 ... 1194 at level 10
 
 
 func radio(msg: String) -> void:

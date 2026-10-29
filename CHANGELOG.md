@@ -4,6 +4,11 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## Unreleased
+- Tempo (P5): heli top speed 115 / accel 150 (was 160 / 220), zombies slower (shambler 12, runner 42, brute 10, boss 9), a day lasts 900 s,
+  XP per level 30 * L^1.6, a full starting tank (100) lasts ~5 min at full throttle, meta unlocks need twice as many rescues / assaults /
+  bosses / days / runs, threat rises 0.08 per day instead of 0.15.
+
 ## 0.5.0 - 2026-10-28
 - Base building: grid preview (green / red, with cost), sandbags rotate with R and join into lines with corners,
   barbed wire (walkable, slows and cuts zombies, wears out), demolition orders for houses, hedges and fences

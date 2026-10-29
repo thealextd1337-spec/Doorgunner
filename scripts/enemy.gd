@@ -7,10 +7,10 @@ extends Node2D
 ## LOSE_SIGHT s with houses, hedges or woods in between; that target is then ignored for GIVE_UP s.
 
 const KINDS := {
-	"shambler": {"hp": 45.0, "speed": 16.0, "dmg": 8.0, "xp": 4, "radius": 8.0},
-	"runner": {"hp": 25.0, "speed": 58.0, "dmg": 6.0, "xp": 6, "radius": 7.0},
-	"brute": {"hp": 220.0, "speed": 13.0, "dmg": 28.0, "xp": 25, "radius": 11.0},
-	"boss": {"hp": 2200.0, "speed": 12.0, "dmg": 45.0, "xp": 300, "radius": 22.0, "boss": true},
+	"shambler": {"hp": 45.0, "speed": 12.0, "dmg": 8.0, "xp": 4, "radius": 8.0},
+	"runner": {"hp": 25.0, "speed": 42.0, "dmg": 6.0, "xp": 6, "radius": 7.0},
+	"brute": {"hp": 220.0, "speed": 10.0, "dmg": 28.0, "xp": 25, "radius": 11.0},
+	"boss": {"hp": 2200.0, "speed": 9.0, "dmg": 45.0, "xp": 300, "radius": 22.0, "boss": true},
 }
 const MELEE_INTERVAL := 1.0
 const RAID_INTERVAL := 5.0 # seconds per survivor killed at a settlement
