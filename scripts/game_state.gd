@@ -493,6 +493,7 @@ func record_run(run_day: int, run_rescued: int, run_kills: int) -> void:
 	meta["total_kills"] += run_kills
 	meta["best_day"] = max(meta["best_day"], run_day)
 	_save_meta()
+	Online.end_run(run_day, run_rescued, run_kills)
 
 
 ## Save hook "game" (main.gd registers it first).
