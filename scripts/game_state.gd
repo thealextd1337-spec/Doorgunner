@@ -128,7 +128,7 @@ var banished: Array = []
 func _reset_progression() -> void:
 	heli_items = {"mg": 1}
 	var r: int = meta["total_rescued"]
-	rerolls = 1 + int(r >= 100) + int(r >= 200)
+	rerolls = 1 + int(r >= 200) + int(r >= 400)
 	skips = 0
 	banished = []
 
@@ -226,10 +226,10 @@ func new_run() -> void:
 ## Permanent bonuses from survivors rescued in earlier runs.
 func _apply_meta_bonus() -> void:
 	var r: int = meta["total_rescued"]
-	base_seats += r / 25
-	base_max_fuel += (r / 10) * 5.0
-	base_max_ammo += (r / 10) * 20
-	max_hp += (r / 20) * 10.0
+	base_seats += r / 50
+	base_max_fuel += (r / 20) * 5.0
+	base_max_ammo += (r / 20) * 20
+	max_hp += (r / 40) * 10.0
 
 
 ## Derive stats/slots (Progression) and seats/max_fuel/max_ammo/armor/weight from base values + loadout + equipped weapon.

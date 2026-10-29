@@ -87,12 +87,12 @@ Gezählt werden über alle Runs: gerettete Überlebende, Tage überlebt, Boss-Ki
 | Raketen, Abwurfkiste | 10 Boss-Kills |
 | Railgun, Hartkern | Tag 20 erreicht |
 | Veteran, Plünderer | 20 Runs gespielt |
-| Reroll 2 und 3, Verbannen | 100 / 200 Überlebende |
-| Zweiter Hardpoint ab Start | Tag 5 erreicht |
-| Dritter System-Slot ab Start | Tag 15 erreicht |
-| Dritter Modul-Slot ab Start | 300 Überlebende |
+| Reroll 2 und 3, Verbannen | 200 / 400 Überlebende |
+| Zweiter Hardpoint ab Start | Tag 10 erreicht |
+| Dritter System-Slot ab Start | Tag 30 erreicht |
+| Dritter Modul-Slot ab Start | 600 Überlebende |
 
-Die bestehenden Boni (Sitz pro 25 Gerettete, Tank und Munition pro 10) bleiben.
+Die bestehenden Boni: ein Sitz pro 50 Gerettete, Tank und Munition pro 20, Hülle pro 40 (seit P5 Tempo verdoppelt).
 
 ## 6. Anzeige
 

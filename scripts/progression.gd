@@ -67,7 +67,7 @@ static func condition(id: String) -> String:
 
 
 static func can_banish() -> bool:
-	return Game.meta["total_rescued"] >= 200 and Game.banished.size() < 3
+	return Game.meta["total_rescued"] >= 400 and Game.banished.size() < 3
 
 
 ## Recompute from scratch: stats from item levels, slots from workshop + meta, system nodes on the heli.
@@ -78,7 +78,7 @@ static func apply_all() -> void:
 			apply(id, Game.heli_items[id])
 	var ws: int = Game.base_level.get("workshop", 0)
 	var m: Dictionary = Game.meta
-	var extra := {"hardpoint": ws >= 2 or m["best_day"] >= 5, "system": ws >= 3 or m["best_day"] >= 15, "module": ws >= 4 or m["total_rescued"] >= 300} # workshop 1 is the stock one
+	var extra := {"hardpoint": ws >= 2 or m["best_day"] >= 10, "system": ws >= 3 or m["best_day"] >= 30, "module": ws >= 4 or m["total_rescued"] >= 600} # workshop 1 is the stock one
 	for k in SLOT_TYPES:
 		Game.slots[k] = Game.MAX_SLOTS[k] if extra[k] else Game.START_SLOTS[k]
 	if is_instance_valid(Game.heli):

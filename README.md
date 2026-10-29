@@ -20,7 +20,7 @@ build the base up, and hold it when the horde assaults every third night.
 - Pace is deliberate: landing and take-off spool for 1.5 s, gunfire and the rotor make NOISE that draws zombies (flying is safe, landing is not: everything within 380 px swarms a landed heli), settlements fall overnight if you leave them, the base eats food (farm workers, crates) and hull repairs cost scrap.
 - Fuel and ammo run out. Dying ends the run; survivors rescued across runs unlock permanent seats, fuel and ammo capacity (saved in `user://meta.json`).
 - Progression (`docs/PROGRESSION.md`, `scripts/progression.gd`): the heli has hardpoint / system / module slots (start 1/2/2, Workshop or meta unlocks raise them to 2/3/3).
-  Each level-up offers three item cards (new item or next level, max 5): **1-4** or click picks, **R** rerolls, **S** skips for 15 scrap, **B** banishes (unlocked at 200 rescued).
+  Each level-up offers three item cards (new item or next level, max 5): **1-4** or click picks, **R** rerolls, **S** skips for 15 scrap, **B** banishes (unlocked at 400 rescued).
   Heli level caps at 30, further XP turns into scrap. The base HANGAR tab scraps items; the title screen HANGAR (**H**) lists every item and its unlock condition.
 
 ## Dev
