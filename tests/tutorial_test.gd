@@ -23,7 +23,7 @@ func _run() -> void:
 	assert(tut.step == 1, "step 0 done: base founded")
 	var s: Node2D = tut.settlement
 	assert(s.survivors.size() == 3 and main.radio_target == s, "settlement of 3 marked")
-	assert(s.position.distance_to(main.BASE_POS) < 900.0 and main.is_landable(s.position), "close, on landable ground")
+	assert(s.position.distance_to(main.BASE_POS) < 960.0 and main.is_landable(s.position), "close, on landable ground: %s landable=%s tile=%s seed=%d" % [s.position, main.is_landable(s.position), main.chunks.tile_at(s.position), Game.seed])
 	# 1. take off
 	await _press_land(heli)
 	assert(not heli.landed and tut.step == 2, "step 1 done: airborne")

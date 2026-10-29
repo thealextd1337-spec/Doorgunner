@@ -262,8 +262,10 @@ func _run() -> void:
 	assert(main.base.place_building("barracks", bcell) and Game.scrap == 200, "barracks blueprint for 40")
 	assert(not main.base.place_sandbag(bcell + Vector2i(1, 1)), "no sandbag on a blueprint")
 	Game.buildings[1]["progress"] = 89.99
-	await process_frame
-	await process_frame
+	for i in 120: # the build rate depends on the builder's skill and trait (P7), so give it a few frames
+		await process_frame
+		if Game.housing() == 6:
+			break
 	assert(Game.housing() == 6 and Game.campers() == 0, "barracks built")
 	assert(not main.is_landable(main.base.cell_pos(bcell)), "no landing on a building")
 	# water: 3 drink 1 a day each; a dry dawn makes one sick
