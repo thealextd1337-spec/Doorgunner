@@ -221,10 +221,10 @@ func _ready() -> void:
 func new_run() -> void:
 	seed = randi()
 	hp = 100.0; max_hp = 100.0
+	day = 1; time = 0.25 # before the crew below: people record the day they joined
 	people = []; person_seq = 0
 	passengers = FOUNDING_CREW
 	scrap = 60; xp = 0; level = 1
-	day = 1; time = 0.25
 	kills = 0
 	base_hp = 500.0; max_base_hp = 500.0
 	attack_pending = false; attack_active = false
