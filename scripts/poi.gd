@@ -354,6 +354,17 @@ func lose_survivor(silent := false) -> void:
 	_kill(survivors.back(), silent)
 
 
+## Bandits take one survivor of the settlement away (bandits.gd: a prisoner of their camp). False if nobody was left.
+func abduct() -> bool:
+	if kind != "survivors" or done or survivors.is_empty():
+		return false
+	survivors.pop_back().queue_free()
+	if survivors.is_empty():
+		Game.radio("Radio: bandits took the last of the %s." % label)
+		_finish(false)
+	return true
+
+
 ## A zombie strikes one survivor directly (no per-settlement cap): a healthy one is wounded, a wounded one dies.
 func lose_survivor_node(s: Node2D) -> void:
 	if done or not s in survivors:

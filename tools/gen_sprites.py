@@ -1208,6 +1208,7 @@ def main():
         images["wire"] = connected(wire_frame)
         images.update(avatars())
         images.update(infected())
+        images.update(bandits())
         for name, im in images.items():
             w, h = SIZES[name]
             assert im.size == (w * OUT, h * OUT), (name, im.size)
@@ -1425,6 +1426,82 @@ def infected():
 
 
 SIZES.update({"screamer": (16, 16), "spitter": (16, 16), "crawler": (16, 16), "bloater": (28, 28), "brute_armored": (24, 24)})
+
+
+# ---------------------------------------------------------------- bandits (P11)
+
+BANDIT_CLOTH = (112, 92, 70)  # brown leather and denim, a red rag: never mistaken for the blue-shirted survivors
+BANDIT_RAG = (172, 58, 44)
+
+
+def bandit_body(s, cloth, gun_len):
+    """Top-down gunman facing up, rifle held forward on the right side."""
+    s.paint(s.m().line([(6.4, 6.0), (6.4, 6.0 - gun_len)], 0.75), P["metal"], sh=0.2)
+    s.paint(s.m().ell(5, 6.4, 3.0, 2.3), cloth, sh=0.8)
+    s.paint(s.m().line([(3.0, 6.6), (6.6, 4.4)], 0.6), dk(cloth, 0.7), sh=0, edge=False)  # bandolier
+    s.paint(s.m().ell(5, 4.6, 1.7), P["skin"], sh=0.6)
+    s.paint(s.m().ell(5, 4.2, 1.7, 1.2), BANDIT_RAG, sh=0.3)  # bandana
+    return s
+
+
+def bandit():
+    return bandit_body(Spr(10, 10), BANDIT_CLOTH, 4.2).drop(0.35)
+
+
+def bandit_rpg():
+    s = bandit_body(Spr(10, 10), dk(BANDIT_CLOTH, 0.85), 0)
+    s.paint(s.m().line([(7.2, 9.0), (7.2, 1.0)], 1.1), (92, 100, 70), sh=0.4)  # launcher tube over the shoulder
+    s.paint(s.m().ell(7.2, 1.0, 1.0, 1.2), (150, 70, 50), sh=0.3)  # warhead
+    return s.drop(0.35)
+
+
+def mg_nest():
+    s = Spr(16, 16)
+    s.paint(s.m().ell(8, 9, 6.6), P["tan"], sh=1.0)  # sandbag ring, open at the back
+    s.paint(s.m().ell(8, 9, 4.6).rect(6, 11, 10, 16), dk(P["tan"], 0.78), sh=0)
+    s.paint(s.m().rect(7.4, 0.6, 8.6, 8, 0.4).rect(6.6, 6.8, 9.4, 8.6, 0.6), P["metal"], sh=0.4)  # gun on a tripod
+    s.paint(s.m().ell(8, 10.6, 2.4, 1.8), BANDIT_CLOTH, sh=0.6)
+    s.paint(s.m().ell(8, 9.4, 1.4), BANDIT_RAG, sh=0.4)
+    return s.drop(0.5)
+
+
+def technical():
+    """Rusty pickup facing up with a machine gun on the bed."""
+    s = Spr(10, 18)
+    body = mix(BANDIT_CLOTH, (190, 170, 120), 0.4)
+    s.paint(s.m().rect(0.8, 0.6, 9.2, 17.4, 1.6), body, sh=0.8)
+    s.paint(s.m().rect(1.6, 4.2, 8.4, 6.6, 0.4), P["glass"], sh=0, edge=False)  # windscreen
+    s.paint(s.m().rect(1.4, 6.8, 8.6, 9.6, 0.6), dk(body, 0.85), sh=0)  # cab roof
+    s.paint(s.m().rect(1.6, 10.2, 8.4, 16.8, 0.4), dk(body, 0.62), sh=0, edge=False)  # bed
+    s.paint(s.m().ell(3.4, 2.4, 1.0).ell(6.8, 15.0, 1.3), (132, 82, 52), sh=0, edge=False)  # rust
+    s.paint(s.m().rect(4.5, 5.0, 5.5, 13.0, 0.3).ell(5, 13.2, 1.6), P["metal"], sh=0.4)  # MG on the bed, barrel forward
+    s.paint(s.m().ell(5, 14.6, 1.4), BANDIT_RAG, sh=0.3)  # gunner
+    return s.drop(0.4)
+
+
+def rocket():
+    s = Spr(4, 8)
+    s.paint(s.m().rect(1.3, 1.2, 2.7, 7.2, 0.6), (92, 100, 70), sh=0.3)
+    s.paint(s.m().ell(2, 1.4, 0.9, 1.2), (150, 70, 50), sh=0.3)
+    s.paint(s.m().poly([(0.4, 7.6), (2, 5.6), (3.6, 7.6)]), P["metal"], sh=0)
+    return s.drop(0.2)
+
+
+def bandit_flag():
+    s = Spr(10, 16)
+    s.paint(s.m().line([(2, 15), (2, 1)], 0.6), P["wood"], sh=0.2)
+    s.paint(s.m().poly([(2.4, 1.2), (9.4, 2.6), (8.2, 4.6), (9.4, 6.6), (2.4, 6.8)]), BANDIT_RAG, sh=0.5)
+    s.paint(s.m().ell(5.6, 3.9, 1.2, 1.0), P["white"], sh=0, edge=False)  # skull
+    return s.drop(0.4)
+
+
+def bandits():
+    return {n: f().out() for n, f in (("bandit", bandit), ("bandit_rpg", bandit_rpg), ("mg_nest", mg_nest),
+                                      ("technical", technical), ("rocket", rocket), ("bandit_flag", bandit_flag))}
+
+
+SIZES.update({"bandit": (10, 10), "bandit_rpg": (10, 10), "mg_nest": (16, 16), "technical": (10, 18), "rocket": (4, 8),
+              "bandit_flag": (10, 16)})
 
 
 if __name__ == "__main__":

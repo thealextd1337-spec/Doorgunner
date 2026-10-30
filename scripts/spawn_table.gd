@@ -56,3 +56,27 @@ static func horde(danger: float, ctx := {}) -> Array[String]:
 ## ctx for a spawn at `pos` (region of the cell, `town` if it is next to a settlement).
 static func context(pos: Vector2, town := false) -> Dictionary:
 	return {"region": Game.world.chunks.region(Vector2i((pos / 16.0).floor())), "town": town, "day": Game.day}
+
+
+# Bandits (P11, bandits.gd): how many of each unit a camp garrison or a base raid party has on `day`:
+# floor(base + per_day * (day - min_day)), at most `max`, none before `min_day`. technical: only where a road is near.
+const CAMP_ROWS := {
+	"rifle": {"base": 3.0, "per_day": 0.25, "max": 8, "min_day": 4},
+	"mg": {"base": 1.0, "max": 1, "min_day": 4},
+	"rpg": {"base": 1.0, "per_day": 0.1, "max": 2, "min_day": 8},
+	"technical": {"base": 1.0, "max": 1, "min_day": 6},
+}
+const RAID_ROWS := {
+	"rifle": {"base": 4.0, "per_day": 0.3, "max": 10, "min_day": 12},
+	"rpg": {"base": 1.0, "per_day": 0.08, "max": 2, "min_day": 12},
+}
+const PATROL_SIZE := Vector2i(2, 3) # rifles walking from a camp to a nearby town
+
+
+## Unit counts {kind: n} of `rows` (CAMP_ROWS, RAID_ROWS) on `day`.
+static func bandits(rows: Dictionary, day: int) -> Dictionary:
+	var out := {}
+	for kind in rows:
+		var row: Dictionary = rows[kind]
+		out[kind] = 0 if day < row["min_day"] else mini(row["max"], floori(row["base"] + row.get("per_day", 0.0) * (day - row["min_day"])))
+	return out

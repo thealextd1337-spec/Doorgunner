@@ -1,5 +1,5 @@
 extends Node
-## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (no base at the start, then founds it at the start site; flight, combat, level-up cards, base BUILD / WORKERS / HANGAR,
+## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (no base at the start, then founds it at the start site; flight, combat, bandits, level-up cards, base BUILD / WORKERS / HANGAR,
 ## base pawns after delivering 6, settings, title hangar), quits.
 ## Time-based so it works at any refresh rate.
 
@@ -42,6 +42,26 @@ func _process(delta: float) -> void:
 				_save("shot_night_combat.png")
 				Input.action_release("fire")
 				Game.heli.aim_override = Vector2.ZERO
+				Game.time = 0.5 # bandits by day: riflemen, an MG nest, a technical and an RPG on aim (red line), a rocket in flight
+				for e in get_tree().get_nodes_in_group("enemies"):
+					if "target_base" in e: # the zombies would draw the bandits' fire
+						e.queue_free()
+				var at: Vector2 = Game.heli.position + Vector2(0, 120)
+				for i in 4:
+					Game.world.bandits.spawn_unit("rifle", at + Vector2(-90 + 60 * i, 20 * (i % 2)), "guard", at, "")
+				Game.world.bandits.spawn_unit("mg", at + Vector2(110, -40), "guard", at, "")
+				Game.world.bandits.spawn_unit("technical", at + Vector2(-140, -60), "guard", at, "")
+				var rpg: Node2D = Game.world.bandits.spawn_unit("rpg", at + Vector2(40, 60), "guard", at, "")
+				rpg.fire_cd = 0.0
+				rpg.fire_rocket(Game.heli).position = at + Vector2(-40, -70)
+				step = 41
+		41:
+			if t > 6.4:
+				_save("shot_bandits.png")
+				for b in get_tree().get_nodes_in_group("bandits") + get_tree().get_nodes_in_group("rockets"):
+					b.queue_free()
+				Game.hp = Game.max_hp
+				Game.time = 0.9
 				Game.add_xp(100)
 				step = 5
 		5:

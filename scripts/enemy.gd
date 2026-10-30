@@ -130,6 +130,11 @@ func _process(delta: float) -> void:
 	if prey and _pursue(prey, radius + 4.0, delta):
 		_approach(delta, prey, radius + 4.0, func(_d): prey.get_parent().lose_survivor_node(prey))
 		return
+	# 2b. bandits close by (P11): they shoot at zombies, zombies go for them
+	var foe := Bandit.foe_for(self, delta)
+	if foe and _pursue(foe, radius + foe.radius + 2.0, delta):
+		_approach(delta, foe, radius + foe.radius + 2.0, foe.hit)
+		return
 	# 3. landed heli: everything nearby converges
 	if heli.landed and to_heli.length() < AGGRO_DIST and _pursue(heli, radius + heli.RADIUS + 4.0, delta):
 		_approach(delta, heli, radius + heli.RADIUS + 4.0, heli.take_damage)
