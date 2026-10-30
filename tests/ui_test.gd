@@ -56,8 +56,26 @@ func _run() -> void:
 	settings.set_volume("vol_sfx", 100)
 	settings.close()
 	assert(not get_tree().paused and not settings.visible, "settings closed")
+	await _build_bar_clear()
 	print("UI OK  picks=%d level=%d" % [picks, Game.level])
 	get_tree().quit(0)
+
+
+## The build bar with all 11 tools (radio and airstrip shown) stays clear of the minimap at 1280x720.
+func _build_bar_clear() -> void:
+	var base: Node2D = Game.world.base
+	base.ui.open()
+	base.placing = true
+	for b in base.ui.bar_btns.values():
+		b.visible = true
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var bar: Rect2 = base.ui.build_bar.get_global_rect()
+	var map: Rect2 = Game.world.hud.minimap.get_global_rect()
+	assert(base.ui.build_bar.visible and base.ui.bar_btns.size() == 11, "build bar shown with 11 tools")
+	assert(not bar.intersects(map) and bar.position.x >= 0.0, "build bar %s clear of the minimap %s" % [bar, map])
+	base.placing = false
+	base.ui.close()
 
 
 ## Offer rules from docs/PROGRESSION.md section 3 on a fresh run.

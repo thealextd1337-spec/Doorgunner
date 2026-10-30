@@ -21,9 +21,10 @@ const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
 const People := preload("res://scripts/people.gd")
 const LOADOUT_COST := {"seats": 1, "fuel_tank": 2, "ammo_feed": 2, "armor": 2} # weight points per level
-const WORKER_RATE := {"fuel": 20.0, "ammo": 40.0, "repair": 40.0, "farm": 6.0, "water": 15.0} # per worker per day
+const WORKER_RATE := {"fuel": 20.0, "ammo": 60.0, "repair": 40.0, "farm": 6.0, "water": 15.0} # per worker per day (ammo was 40: the stock ran dry before the day-9/12 assaults)
 const WORKSHOP_RATE := 12.0 # salvage units broken down per workshop worker per day
 const SALVAGE_SCRAP := {"electronics": 3, "parts": 2, "metal": 1} # scrap per unit, broken down in this order
+const WORKSHOP_KEEP := {"parts": 10.0} # left for heli repairs (wear.gd): the workshop broke every part down (balance 1.0.0-beta)
 const BUILD_SECONDS := 20.0 # one sandbag per build worker
 const MEDIC_REPAIR := 20.0 # free hull per medic per landing
 const SANDBAG_HP := 120.0
@@ -220,7 +221,7 @@ func _ready() -> void:
 
 
 func new_run() -> void:
-	seed = randi()
+	seed = int(OS.get_environment("RUN_SEED")) if OS.get_environment("RUN_SEED") != "" else randi() # RUN_SEED: fixed world (tests/longrun_test.gd)
 	hp = 100.0; max_hp = 100.0
 	day = 1; time = 0.25 # before the crew below: people record the day they joined
 	people = []; person_seq = 0
@@ -492,7 +493,7 @@ func _process(delta: float) -> void:
 	base_water = maxf(0.0, base_water + crew("water") * WORKER_RATE["water"] * w + (built("well") * WELL_WATER * wells() - eaters * WATER_PER_PERSON) * d)
 	workshop_progress += crew("workshop") * WORKSHOP_RATE * w
 	for k in SALVAGE_SCRAP:
-		while workshop_progress >= 1.0 and salvage[k] >= 1.0:
+		while workshop_progress >= 1.0 and salvage[k] >= 1.0 + WORKSHOP_KEEP.get(k, 0.0):
 			workshop_progress -= 1.0
 			salvage[k] -= 1.0
 			scrap += SALVAGE_SCRAP[k]

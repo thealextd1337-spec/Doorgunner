@@ -35,7 +35,7 @@ const LOADOUT := {
 	"ammo_feed": ["Ammo feed +60 ammo/lv (2 pt)", 0, 3],
 	"armor": ["Armour +15 %/lv (2 pt)", 0, 3],
 }
-const JOBS := {"fuel": ["Fuel", "+20 fuel/day"], "ammo": ["Ammo", "+40 ammo/day"], "repair": ["Repair", "+40 base hull/day"],
+const JOBS := {"fuel": ["Fuel", "+20 fuel/day"], "ammo": ["Ammo", "+60 ammo/day"], "repair": ["Repair", "+40 base hull/day"],
 	"militia": ["Militia", "-3 % base damage, mans posts in assaults"], "farm": ["Farm", "+6 food/day"], "build": ["Build", "builds blueprints (sandbag 20 s)"],
 	"medic": ["Medic", "20 free hull per landing, faster clinic"], "water": ["Water", "+15 water/day (river or lake in 40 m)"],
 	"workshop": ["Workshop", "breaks down 12 salvage/day"]}
@@ -48,6 +48,7 @@ const STOCKS := {"fuel": ["fuel", Color(0.9, 0.75, 0.2)], "ammo": ["ammo", Color
 const Weapons := preload("res://scripts/weapons.gd")
 const People := preload("res://scripts/people.gd")
 const Wear := preload("res://scripts/wear.gd")
+const MAP_CLEAR := preload("res://scripts/hud.gd").MAP_SIZE + 20.0 # px the build bar keeps off the right edge (minimap + margins)
 
 var mono := SystemFont.new()
 var pop_label: Label
@@ -163,19 +164,23 @@ func _ready() -> void:
 	toggle_btn.size = Vector2(140, 26)
 	toggle_btn.pressed.connect(toggle)
 	root.add_child(toggle_btn)
-	# bottom build bar: one button per tool, centred, growing up from the bottom edge
+	# bottom build bar: one button per tool, centred left of the minimap (hud.gd, bottom right), growing up from the bottom
+	# edge; the buttons wrap into a second row rather than run under the map
 	var bar := _panel(root, Vector2.ZERO, 0)
 	build_bar = bar.get_parent()
 	build_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	build_bar.offset_left = 0
-	build_bar.offset_right = 0
+	build_bar.offset_left = -MAP_CLEAR / 2.0
+	build_bar.offset_right = -MAP_CLEAR / 2.0
 	build_bar.offset_top = -10
 	build_bar.offset_bottom = -10
 	build_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	build_bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	build_bar.mouse_filter = Control.MOUSE_FILTER_STOP # clicks on the bar never place blueprints underneath
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", 6)
+	row.add_theme_constant_override("v_separation", 6)
+	row.custom_minimum_size.x = 1280.0 - MAP_CLEAR - 48.0 # panel margins 2 x 14 and 10 px air each side
+	row.alignment = FlowContainer.ALIGNMENT_CENTER
 	bar.add_child(row)
 	for i in BUILD_INFO.size():
 		var kind: String = BUILD_INFO.keys()[i]

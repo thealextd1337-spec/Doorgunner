@@ -30,7 +30,7 @@ def tokens(uid):
 
 
 def points(r):
-    return r["day"] * 100 + r["rescued"] * 25 + r["kills"] + (2000 if r["victory"] else 0)
+    return r["day"] * 100 + r["rescued"] * 25 + r["kills"] + (5000 if r["victory"] else 0)  # run_points, server/supabase/007_balance.sql
 
 
 class Err(Exception):

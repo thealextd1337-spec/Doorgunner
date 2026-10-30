@@ -407,7 +407,7 @@ func _nest(delta: float, d2: float) -> void:
 		spawned.append(Game.world.spawn_enemy("shambler", position + Vector2(24, 0).rotated(randf() * TAU)))
 
 
-func hit(amount: float) -> void:
+func hit(amount: float, _dir := Vector2.ZERO, _head := false) -> void: # bullets pass a direction and a headshot flag
 	hp -= amount
 	sprite.modulate = Color(1, 0.5, 0.5)
 	get_tree().create_timer(0.08).timeout.connect(func(): if is_instance_valid(self): sprite.modulate = Color.WHITE)

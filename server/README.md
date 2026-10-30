@@ -12,17 +12,18 @@ All writes go through `security definer` RPCs, all tables have RLS on.
 | `supabase/004_runs.sql` | `run_points` (score formula), RPC `upsert_run` (plausibility + rate limits) |
 | `supabase/005_leaderboards.sql` | views `leaderboard_points/_days/_rescued/_kills`, `best_run` |
 | `supabase/006_modifiers.sql` | the six run-modifier score factors (P15), idempotent upsert into `modifiers` |
+| `supabase/007_balance.sql` | balance pass 1.0.0-beta (P18): `run_points` (victory 5000) and the `upsert_run` bounds for the 900 s day, idempotent |
 | `test.sql` | test cases, runs in one transaction that is rolled back |
 
 ## Setup (once)
 
-The project `yucfmsvivvoufvodeyvc` (eu-central-1) already exists, has migrations 001-005 applied (006 still to run) and anonymous sign-ins on.
+The project `yucfmsvivvoufvodeyvc` (eu-central-1) already exists, has migrations 001-005 applied (006 and 007 still to run) and anonymous sign-ins on.
 To set up a new project (or a second one for testing):
 
 1. https://supabase.com -> **New project** (free plan is enough). Pick the region closest to the players, set a database password and keep it in a password manager (the game never needs it).
 2. **Authentication -> Sign In / Providers -> Allow anonymous sign-ins: on.**
    Optionally enable CAPTCHA/Turnstile later (see the findings below).
-3. **SQL Editor**: run `001_schema.sql`, `002_names.sql`, `003_players.sql`, `004_runs.sql`, `005_leaderboards.sql`, `006_modifiers.sql` in that order (paste, Run). They can be re-run safely.
+3. **SQL Editor**: run `001_schema.sql`, `002_names.sql`, `003_players.sql`, `004_runs.sql`, `005_leaderboards.sql`, `006_modifiers.sql`, `007_balance.sql` in that order (paste, Run). They can be re-run safely.
 4. **Word list:** the name filter is empty until the list is loaded. Generate the INSERTs from `data/banned_words.txt` / `data/allowed_words.txt` with `tools/gen_wordlist_sql.py` (P3) and run the output in the SQL editor. Contract: words are lowercase `a-z` only, at least 3 letters (the tables have a check constraint, a wrong row fails loudly); use `insert ... on conflict do nothing`.
 5. **Test:** paste `test.sql` into the SQL editor and run. The last result must read `ALL TESTS PASSED`. If a test fails the message starts with `FAIL:`; then run `rollback;` once. The test seeds its own words/modifiers and rolls everything back, nothing stays in the database.
 6. **Project Settings -> API** (or the "Connect" dialog): copy the **Project URL** and the **anon / public key** into `scripts/online_config.gd` (`URL`, `ANON_KEY`).
@@ -49,8 +50,8 @@ RPC errors are HTTP 400 with `message` = code: `not_authenticated`, `no_player`,
 Rules the client must respect:
 - Names: 3-16 chars `[A-Za-z0-9 _-]`, no double/leading/trailing spaces, case-insensitive unique, filtered. `name_filter.gd` (P3) must use the same normalization as `name_normalize`: lowercase, strip accents, `0->o 1->i 3->e 4->a 5->s 7->t @->a $->s`, drop everything but `a-z`; match as substring against the banned list after blanking out allowed words (longest first). Extra number rules in `name_ok`: `1488` anywhere (digits of the whole name), `88` as a whole word.
 - `upsert_run`: call it once at run start (day 1) and then every minute or so. Values only grow (lower values are ignored), modifiers are taken from the first call and then frozen, `ended = true` is final (later calls fail with `run_ended`). The `ended = true` call is exempt from the 30 s limit so a death right after a sync is not lost. A run that is played offline for many days and synced late fails with `implausible` until enough real time has passed.
-- Plausibility (constants at the top of `upsert_run`): `day <= 1 + elapsed / 360 s` (a game day is 900 s after P5; 360 s keeps a wide margin), `kills <= 400 * day`, `rescued <= 60 * day`. Rate limits: 1 call per run per 30 s, 20 new runs per player per 24 h.
-- Points: `run_points(day, rescued, kills, victory, factor)` = `floor((day*100 + rescued*25 + kills + victory*2000) * factor)`; factor = product of the `modifiers.factor` of the run's ids (unknown id = 1.0), capped at 3. P15 only inserts rows into `modifiers`; P18 edits `run_points`.
+- Plausibility (constants at the top of `upsert_run`, 007): day 1 until 180 s (the tutorial may jump to the evening), then `day <= 2 + (elapsed - 180 s) / 810 s` (a game day is 900 s), `kills <= 300 * day`, `rescued <= 60 * day` (the 40-day bot runs of `tests/longrun_test.gd` reach about 90 kills and 19 rescued per day). Rate limits: 1 call per run per 30 s, 20 new runs per player per 24 h.
+- Points: `run_points(day, rescued, kills, victory, factor)` = `floor((day*100 + rescued*25 + kills + victory*5000) * factor)` (007; 2000 before); factor = product of the `modifiers.factor` of the run's ids (unknown id = 1.0), capped at 3. P15 only inserts rows into `modifiers`; P18 edits `run_points`.
 
 ## What the player must know
 

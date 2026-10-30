@@ -37,6 +37,7 @@ func _run() -> void:
 	_themes()
 	_pushes()
 	_screamer_chain()
+	_dawn()
 	_announcement()
 	await _blood_moon()
 	await _save_mid_assault()
@@ -129,6 +130,25 @@ func _themes() -> void:
 	for i in 20:
 		ram._process(0.1)
 	assert(ram.position.distance_to(main.base.global_position) < d0 - 10.0, "the ram brute closes in: %.1f -> %.1f" % [d0, ram.position.distance_to(main.base.global_position)])
+	# rock in the way (nothing to smash): it walks around instead of pushing at it for ever
+	var to_base: Vector2 = (main.base.global_position - ram.position).normalized()
+	var wall := Vector2i(((ram.position + to_base * 40.0) / 16.0).floor())
+	var side := Vector2i(roundi(-to_base.y), roundi(to_base.x))
+	var rocks := []
+	for k in range(-2, 3):
+		var c: Vector2i = wall + side * k
+		rocks.append([c, main.chunks.get_cell_atlas_coords(c).x])
+		main.chunks.edit(c, main.T.ROCK)
+	main.nav_dirty()
+	var d1 := ram.position.distance_to(main.base.global_position)
+	for i in 400:
+		ram._process(0.1)
+		if ram.position.distance_to(main.base.global_position) < d1 - 70.0:
+			break # past the wall; on at the base it would wreck the run
+	assert(ram.position.distance_to(main.base.global_position) < d1 - 70.0, "the ram gets round the rock: %.1f -> %.1f" % [d1, ram.position.distance_to(main.base.global_position)])
+	for r in rocks:
+		main.chunks.edit(r[0], r[1])
+	main.nav_dirty()
 	# an early ram wave has no armored brutes (day 3)
 	_start(3, "ram")
 	assert(not "brute_armored" in _kinds_queued(), "no armored brutes on day 3")
@@ -171,10 +191,11 @@ func _themes() -> void:
 
 
 func _open_spot(center: Vector2, dist: float) -> Vector2:
-	for i in 16:
-		var p := center + Vector2(dist, 0).rotated(i * TAU / 16.0)
-		if main.is_walkable(p) and main.is_walkable(center.lerp(p, 0.5)):
-			return p
+	for k in [1.0, 0.85, 1.15, 0.7, 1.3]: # random worlds: water or rock at exactly `dist` all round happens
+		for i in 32:
+			var p := center + Vector2(dist * k, 0).rotated(i * TAU / 32.0)
+			if main.is_walkable(p) and main.is_walkable(center.lerp(p, 0.5)):
+				return p
 	assert(false, "no open spot")
 	return center
 
@@ -218,6 +239,27 @@ func _pushes() -> void:
 	assert(not Game.attack_active and Game.meta["assaults_held"] == held + 1 and a.plan.is_empty(), "assault over when the last attacker is dead")
 	assert("Base secured" in " ".join(radio_log), "radio: base secured")
 	print("ASSAULT pushes ok")
+
+
+## Stragglers that never reach the base (behind a river, in rock) give up the morning after: the assault ends.
+func _dawn() -> void:
+	_start(12, "", 2)
+	_spawn_all()
+	Game.time = 0.95
+	a._process(0.5)
+	assert(Game.attack_active, "the night goes on while they live")
+	Game.day = 13
+	Game.time = a.DAWN - 0.01
+	a._process(0.5)
+	assert(Game.attack_active, "still on before dawn")
+	var left := _enemies()
+	Game.time = a.DAWN + 0.01
+	a._process(0.5)
+	assert(not Game.attack_active and left.size() > 0 and _enemies().is_empty(), "at dawn the %d left scatter and the assault is over" % left.size())
+	for e in left:
+		e.free()
+	Game.time = 0.5
+	print("ASSAULT dawn ok")
 
 
 func _screamer_chain() -> void:

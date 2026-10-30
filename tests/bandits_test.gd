@@ -87,6 +87,22 @@ func _spot(center: Vector2, dist: float) -> Vector2:
 	return center
 
 
+## A walkable spot 150-250 px from `center` whose nearest cover (Bandit._find_cover) `u` can walk to.
+func _covered_spot(u: Node2D, center: Vector2) -> Vector2:
+	for r in range(150, 251, 20): # inside the rifle's 260 px range, so it shoots and gets shot at
+		for i in 32:
+			var p := center + Vector2(r, 0).rotated(i * TAU / 32.0)
+			if not main.is_walkable(p):
+				continue
+			u.position = p
+			var c: Vector2 = u._find_cover()
+			var path: PackedVector2Array = main.nav_path(p, c) if c != Bandit.NONE else PackedVector2Array()
+			if c != Bandit.NONE and (p.distance_to(c) < 1.0 or (not path.is_empty() and path[path.size() - 1].distance_to(c) < 9.0)):
+				return p
+	assert(false, "no spot near %s with cover in reach" % center)
+	return u.position
+
+
 ## Open ground all the way (no house, hedge or woods): the zombie keeps sight of the bandit.
 func _clear_line(a: Vector2, b: Vector2) -> bool:
 	for i in 17:
@@ -211,6 +227,7 @@ func _shoots_heli() -> void:
 	Game.hp = Game.max_hp
 	heli.vel = Vector2.ZERO
 	var u := _unit("rifle", _spot(heli.position, 150.0))
+	u.position = _covered_spot(u, heli.position) # cover it can walk to: an enclosed garden on some seeds kept it from ever arriving
 	assert(u.chance(50.0) > u.chance(250.0), "farther is safer")
 	var still: float = u.chance(150.0)
 	heli.vel = Vector2(heli.MAX_SPEED, 0)
@@ -262,11 +279,14 @@ func _zombies() -> void:
 	_clear_units()
 	var p := Vector2.ZERO
 	var q := Vector2.INF
-	for k in 16: # a bandit and a zombie in sight of each other, away from the heli
-		p = _spot(heli.position + Vector2(-500, 0).rotated(k * TAU / 16.0), 0.0)
+	var found := false
+	for k in 96: # a bandit and a zombie in sight of each other, away from the heli (rings of 500 / 700 / 900 px: wooded seeds)
+		p = _spot(heli.position + Vector2(500.0 + 200.0 * (k / 32), 0).rotated(k * TAU / 32.0), 0.0)
 		q = _spot(p, 60.0)
 		if q.distance_to(p) < 100.0 and _clear_line(p, q):
+			found = true
 			break
+	assert(found, "a bandit and a zombie in sight of each other near the start")
 	var b := _unit("rifle", p)
 	var z: Node2D = main.spawn_enemy("brute", q)
 	z.process_mode = Node.PROCESS_MODE_DISABLED
@@ -368,6 +388,8 @@ func _raids() -> void:
 	assert(party2.size() >= sys.RAID_PARTY.x, "with the heli close the raiders come")
 	var left: int = town.survivors.size()
 	heli.position = town.position + Vector2(2000, 0) # out of range: they walk in instead of shooting
+	for u in party2: # at the settlement's edge (the walk there depends on the seed's terrain, like the base raid above)
+		u.position = _spot(town.position, 40.0)
 	_step(party2, 50.0)
 	assert(town.survivors.size() < left, "raiders abduct from the settlement (%d -> %d)" % [left, town.survivors.size()])
 	_clear_units()

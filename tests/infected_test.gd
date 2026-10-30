@@ -47,12 +47,23 @@ func _step(e: Node2D, seconds: float, dt := 0.1) -> void:
 
 ## An open, walkable spot `dist` px from `center`, at least `min_heli` px from the heli.
 func _spot(center: Vector2, dist: float, min_heli := 0.0) -> Vector2:
-	for i in 16:
-		var p := center + Vector2(dist, 0).rotated(i * TAU / 16.0)
-		if main.is_walkable(p) and main.is_walkable(center.lerp(p, 0.5)) and p.distance_to(Game.heli.position) >= min_heli:
-			return p
+	for k in [1.0, 0.85, 1.15, 0.7, 1.3]: # random worlds: water or rock at exactly `dist` all round happens
+		for i in 32:
+			var p := center + Vector2(dist * k, 0).rotated(i * TAU / 32.0)
+			if main.is_walkable(p) and main.is_walkable(center.lerp(p, 0.5)) and p.distance_to(Game.heli.position) >= min_heli:
+				return p
 	assert(false, "no open spot near %s" % center)
 	return center
+
+
+## A walkable spot near `at` with 32 px of walkable ground to its east (a knockback to the right has room).
+func _clear_right(at: Vector2) -> Vector2:
+	for i in 64:
+		var p := at + Vector2(16 * (i % 8), 16 * (i / 8))
+		if range(0, 33, 4).all(func(k): return main.is_walkable(p + Vector2(k, 0))):
+			return p
+	assert(false, "no open ground east of %s" % at)
+	return at
 
 
 func _table() -> void:
@@ -234,7 +245,7 @@ func _armor_and_feedback() -> void:
 	b.hit(100.0)
 	assert(absf((hp - b.hp) - 100.0) < 0.01, "splash ignores the plates")
 	# headshot, knockback, flash on a plain brute
-	var e := _spawn("brute", pos + Vector2(40, 0))
+	var e := _spawn("brute", _clear_right(pos + Vector2(40, 0))) # open ground to the east: the kick must not hit a wall
 	hp = e.hp
 	e.hit(10.0, Vector2.RIGHT, true)
 	assert(absf((hp - e.hp) - 10.0 * e.HEAD_MULT) < 0.01, "headshot doubles")

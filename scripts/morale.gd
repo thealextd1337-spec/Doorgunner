@@ -2,6 +2,8 @@ extends Node
 ## Base morale 0-100 (docs/ROADMAP.md P7), main.gd keeps it as `morale`. Settled once a day from what happened:
 ## hunger, thirst, campers, deaths, power, beds, assaults, big rescues, plus events other systems report with add().
 ## Below LOW_BELOW work is slower, below LEAVE_BELOW someone may walk out at night, above HIGH_ABOVE work is faster.
+## Each day it also settles a share (SETTLE) of the way back to START, so it ends up where today's conditions put it
+## (START + daily sum / SETTLE: ~84 with power and beds, ~32 hungry) instead of pinning at 100 or sliding to 0 for good.
 ## Saves itself (hook "morale").
 
 const START := 60.0
@@ -10,8 +12,9 @@ const THIRST := -10.0
 const CAMPERS_PER_QUARTER := -5.0 # per 25 % of the people camping outside
 const PER_DEATH := -8.0
 const ASSAULT_LOSSES := -5.0 # halved for the share of Brave people
-const POWER := 5.0
-const BEDS := 5.0
+const POWER := 3.0
+const BEDS := 3.0
+const SETTLE := 0.25 # share of the gap to START closed each day (balance 1.0.0-beta: no runaway to 0 or 100)
 const ASSAULT_HELD := 3.0
 const BIG_RESCUE := 4.0 # per delivered group of BIG_GROUP or more
 const BIG_GROUP := 4
@@ -88,6 +91,7 @@ func _on_day(_day: int) -> void:
 		r.append(["power", POWER])
 	if Game.campers() == 0:
 		r.append(["beds for all", BEDS])
+	value += (START - value) * SETTLE
 	for x in r:
 		value += x[1]
 	value = clampf(value, 0.0, 100.0)

@@ -104,6 +104,24 @@ func _run() -> void:
 	morale._on_day(Game.day + 2)
 	assert("assault held" in str(morale.reasons) and "losses" in str(morale.reasons) and "5 rescued" in str(morale.reasons) and "1 dead" in str(morale.reasons), "reasons %s" % [morale.reasons])
 	print("morale %d -> %s" % [v0, morale.summary()])
+	# no runaway: good days settle below 100, a broken base recovers once fed (morale.gd SETTLE)
+	var keep_power := Game.power
+	Game.power = true
+	morale.value = 100.0
+	for i in 20:
+		morale._on_day(Game.day)
+	var good: float = morale.value
+	morale.value = morale.LEAVE_BELOW # not below: nobody walks out in this test
+	for i in 20:
+		morale._on_day(Game.day)
+	assert(good < 95.0 and good > morale.HIGH_ABOVE and absf(morale.value - good) < 1.0, "good days settle at %.0f from both ends (%.0f)" % [good, morale.value])
+	Game.base_food = 0.0
+	for i in 20:
+		morale._on_day(Game.day)
+	assert(morale.value > morale.LEAVE_BELOW and morale.value < morale.START - 10.0, "hunger settles low, not at 0: %.0f" % morale.value)
+	Game.base_food = 100.0
+	Game.power = keep_power
+	morale.value = morale.START
 	# --- pins: a pinned person keeps the job, counts stay true, auto fills the rest, injured pinned are off duty
 	var ui: CanvasLayer = main.base.ui
 	var keep := Game.people.duplicate()
