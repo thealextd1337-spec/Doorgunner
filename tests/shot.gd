@@ -80,7 +80,14 @@ func _process(delta: float) -> void:
 			if t > 8.1:
 				_save("shot_base.png")
 				Game.world.base.placing = false
+				while get_tree().paused:
+					Game.world.choice_ui.pick(0) # a late level-up card would cover the menu
 				Game.world.base.ui.show_tab("WORKERS")
+				Game.people[0]["trait"] = "lazy"
+				Game.world.base.ui.pin_person(Game.people[0]["id"], "repair") # a pinned person for the WORKERS shot
+				Game.people[2]["injured"] = true
+				Game.people[2]["pin"] = "farm"
+				Game.world.base.ui.refresh()
 				step = 70
 		70:
 			if t > 8.15:

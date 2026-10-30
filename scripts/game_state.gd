@@ -301,7 +301,14 @@ func work_eff() -> float:
 
 ## Who works where: Game.workers wanted per job, filled by skill first (People.assign). Runs every frame.
 func assign_jobs() -> void:
+	for j in workers:
+		workers[j] = maxi(workers[j], pinned(j)) # a count never says fewer than the people pinned to it
 	People.assign(_at(false), workers)
+
+
+## Healthy people at the base pinned to `job`.
+func pinned(job: String) -> int:
+	return People.pinned(_at(false), job)
 
 
 ## Effective workers on `job`: skill, level and traits of the people assigned to it (People.rate).
@@ -420,7 +427,7 @@ func _mark(aboard: bool, n: int) -> void:
 func _fit_workers() -> void:
 	var over := -idle_workers()
 	for k in workers:
-		var cut := mini(over, workers[k])
+		var cut := mini(over, maxi(0, workers[k] - pinned(k))) # the pinned keep their seat
 		if cut > 0:
 			workers[k] -= cut
 			over -= cut
