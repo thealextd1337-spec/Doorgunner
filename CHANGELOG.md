@@ -4,6 +4,12 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## 0.7.1 - 2026-10-30
+- Militia also man their posts and shoot when infected come near the fence, not only during assaults.
+- **TAB** (or the button between the panels) folds the base menu away while landed on the pad; the door gun can fire.
+- Every kill gives 1 scrap.
+- Fix: after a browser tab or window switch the heli no longer keeps flying on a key that was held.
+
 ## 0.7.0 - 2026-10-30
 - Profiles and online leaderboard (P6a, P6b): on first start you enlist with a name and portrait; PROFILES on the title
   switches, renames and deletes profiles; LEADERBOARD (**L**) shows points, days, rescued, kills and best run. Runs are
