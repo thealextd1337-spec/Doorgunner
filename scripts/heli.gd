@@ -2,6 +2,7 @@ extends Node2D
 ## Player helicopter: WASD flight, mouse door gun, landing, fuel/ammo/hp.
 
 signal landed_changed(landed: bool)
+signal damaged(amount: float, source: String) # every hit, for wear (P12): source "" (zombies, crashes), "bandit", "rocket"
 
 const ACCEL := 150.0
 const MAX_SPEED := 115.0
@@ -234,10 +235,11 @@ func _fire() -> void:
 			Game.world.add_child(b)
 
 
-## Damage from any source. Ground enemies should only call this when landed.
-func take_damage(amount: float) -> void:
+## Damage from any source. Zombies only call this when landed; bandits (source "bandit", "rocket") shoot it in the air.
+func take_damage(amount: float, source := "") -> void:
 	if not Game.running:
 		return
+	damaged.emit(amount, source)
 	Game.hp -= amount / Game.stats["armor"]
 	if Game.passengers > Game.passengers_injured and randf() < 0.1 and not Progression.owned("medic"):
 		Game.passengers_injured += 1 # the heli medic system keeps passengers safe

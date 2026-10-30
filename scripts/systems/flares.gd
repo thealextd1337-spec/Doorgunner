@@ -1,5 +1,6 @@
 extends Node
-## Flares system: drops a burning flare behind the heli whose noise lures zombies; Lv5 drops two and zombies attack them.
+## Flares system: drops a burning flare behind the heli whose noise lures zombies and that pulls bandit rockets off;
+## Lv5 drops two and zombies attack them.
 
 var cd := 5.0
 
@@ -25,6 +26,7 @@ func drop(side := 0.0) -> Node2D:
 	var f := Flare.new()
 	f.position = heli.global_position + Vector2(side, 60).rotated(heli.body.rotation)
 	f.life = 7.0 + Progression.level("flares")
+	f.add_to_group("rocket_decoys") # every flare pulls bandit RPG rockets off the heli (bandit.gd)
 	if Progression.level("flares") >= 5:
 		f.add_to_group("decoys")
 	Game.world.add_child(f)
