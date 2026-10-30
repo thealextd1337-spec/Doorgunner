@@ -36,7 +36,7 @@ func _hint() -> void:
 	if found.is_empty():
 		return
 	var p: Node2D = found.pick_random()
-	p.discovered = true
+	p.discovered = not Game.world.modifiers.on("blackout") # Blackout: told, not marked; mission targets stay marked (missions.gd)
 	Game.world.radio_target = p
 	var what: String = "distress call from a" if p.kind == "survivors" else "recon reports a"
 	Game.radio("Command: %s %s, %s." % [what, p.label, p.where(heli_pos, p.position)])

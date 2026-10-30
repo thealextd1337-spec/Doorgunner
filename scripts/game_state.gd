@@ -103,7 +103,8 @@ var workshop_progress := 0.0 # salvage units owed to the workshop, carried betwe
 # base block 2 (docs/BASE.md): buildings, perimeter, water/medicine/rifles, injuries, power
 # kind -> [name, scrap, build seconds, footprint cells]; "perimeter" costs scrap x next level and has no footprint
 const BUILDINGS := {"barracks": ["Barracks", 40, 90.0, 2], "clinic": ["Field Clinic", 50, 90.0, 2], "generator": ["Generator", 60, 60.0, 1],
-	"well": ["Well", 30, 60.0, 1], "watchtower": ["Watchtower", 35, 45.0, 1], "perimeter": ["Perimeter", 60, 60.0, 0]}
+	"well": ["Well", 30, 60.0, 1], "watchtower": ["Watchtower", 35, 45.0, 1], "motor_pool": ["Motor Pool", 80, 90.0, 2], "perimeter": ["Perimeter", 60, 60.0, 0],
+	"radio": ["Radio Station", 90, 90.0, 2], "airstrip": ["Airstrip", 150, 120.0, 0]} # radio / airstrip: evac.gd (airstrip: 4x24 cells, stored with "rot")
 const BASE_RADIUS := 160.0
 const PERIMETER_STEP := 60.0
 const PERIMETER_MAX := 5
@@ -197,8 +198,8 @@ func scrap_item(id: String) -> int:
 	recompute()
 	return refund
 
-const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0,
-	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "shake": 1, "tutorial_done": 0, "version": ""} # sound off by default for now; M or ESC menu turns it on
+const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0, "victories": 0,
+	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "shake": 1, "tutorial_done": 0, "version": "", "start_helis": ""} # sound off by default for now; M or ESC menu turns it on
 var meta := META_DEFAULT.duplicate() # the active profile's meta.json plus the SETTINGS_KEYS of settings.json
 var profiles := {"list": [], "last": ""}
 var radio_beep_ms := 0
@@ -263,7 +264,7 @@ func _apply_meta_bonus() -> void:
 ## Derive stats/slots (Progression) and seats/max_fuel/max_ammo/armor/weight from base values + loadout + equipped weapon.
 func recompute() -> void:
 	Progression.apply_all()
-	seats = base_seats + loadout["seats"] + stats["seats"]
+	seats = maxi(1, base_seats + loadout["seats"] + stats["seats"]) # a Little Bird (2 seats) with the smallest loadout
 	max_fuel = base_max_fuel + 25.0 * loadout["fuel_tank"]
 	max_ammo = base_max_ammo + 60 * loadout["ammo_feed"] + Weapons.TABLE[weapon]["max_ammo_bonus"] + stats["max_ammo"]
 	stats["armor"] *= base_armor * (1.0 + 0.15 * loadout["armor"])
@@ -334,6 +335,12 @@ func housing() -> int:
 	return 4 * built("barracks") + 2
 
 
+## Well output factor (run modifier Dry Season).
+func wells() -> float:
+	var m: Node = world.get("modifiers") if is_instance_valid(world) else null
+	return m.WELLS if m and m.on("dry_season") else 1.0
+
+
 func campers() -> int:
 	return maxi(0, rescued - housing())
 
@@ -354,7 +361,11 @@ func injure(n: int) -> void:
 
 
 ## Someone at the base dies (an injured one if `was_injured`, else preferably an idle one). Returns the name, "" if none.
-func lose_person(was_injured := false) -> String:
+func lose_person(was_injured := false, who := {}) -> String:
+	if not who.is_empty(): # a given person (convoys.gd: a crew member of a lost truck)
+		_remove(who, true)
+		radio("Base: %s didn't make it." % who["name"])
+		return who["name"]
 	var list := _at(false).filter(func(p): return p["injured"] == was_injured)
 	if list.is_empty():
 		list = _at(false)
@@ -478,7 +489,7 @@ func _process(delta: float) -> void:
 	base_hp = minf(max_base_hp, base_hp + crew("repair") * WORKER_RATE["repair"] * w)
 	var eaters: int = rescued + campers() # campers eat and drink double
 	base_food = maxf(0.0, base_food + crew("farm") * WORKER_RATE["farm"] * w - food_eaters() * FOOD_PER_PERSON * d)
-	base_water = maxf(0.0, base_water + crew("water") * WORKER_RATE["water"] * w + (built("well") * WELL_WATER - eaters * WATER_PER_PERSON) * d)
+	base_water = maxf(0.0, base_water + crew("water") * WORKER_RATE["water"] * w + (built("well") * WELL_WATER * wells() - eaters * WATER_PER_PERSON) * d)
 	workshop_progress += crew("workshop") * WORKSHOP_RATE * w
 	for k in SALVAGE_SCRAP:
 		while workshop_progress >= 1.0 and salvage[k] >= 1.0:
@@ -602,23 +613,23 @@ func radio(msg: String) -> void:
 	radio_message.emit(msg)
 
 
-func end_run(reason: String) -> void:
+func end_run(reason: String, victory := false) -> void:
 	if not running:
 		return
 	running = false
 	Save.delete_run() # Ironman: gone before the game-over screen shows
-	record_run(day, saved_count(), kills)
+	record_run(day, saved_count(), kills, victory or Evac.won()) # a death after STAY BEHIND still carries the victory
 	run_ended.emit(reason)
 
 
 ## A finished run (death or an abandoned saved run) counts towards the meta progress.
-func record_run(run_day: int, run_rescued: int, run_kills: int) -> void:
+func record_run(run_day: int, run_rescued: int, run_kills: int, victory := false) -> void:
 	meta["runs"] += 1
 	meta["total_rescued"] += run_rescued
 	meta["total_kills"] += run_kills
 	meta["best_day"] = max(meta["best_day"], run_day)
 	_save_meta()
-	Online.end_run(run_day, run_rescued, run_kills)
+	Online.end_run(run_day, run_rescued, run_kills, victory)
 
 
 ## Save hook "game" (main.gd registers it first).
@@ -754,7 +765,7 @@ func _setup_input() -> void:
 	var keys := {
 		"move_up": [KEY_W, KEY_UP], "move_down": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
-		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R], "missions": [KEY_J], "outpost": [KEY_O], "protect": [KEY_P],
+		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R], "missions": [KEY_J], "outpost": [KEY_O], "protect": [KEY_P], "hook": [KEY_G],
 	}
 	for action in keys:
 		if not InputMap.has_action(action):

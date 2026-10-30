@@ -2,6 +2,7 @@ extends CanvasLayer
 ## Game-over panel: run summary and lifetime meta. [R] restart lives in main.gd; nothing here grabs input.
 
 var body: Label
+var title_label: Label
 
 
 func _ready() -> void:
@@ -33,6 +34,7 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 36)
 	title.modulate = Color(1, 0.3, 0.3)
 	v.add_child(title)
+	title_label = title
 	body = Label.new()
 	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(body)
@@ -41,8 +43,11 @@ func _ready() -> void:
 
 func _show(reason: String) -> void:
 	var m: Dictionary = Game.meta
-	body.text = "%s\n\nThis run: day %d, %d survivors rescued, %d kills, level %d, %d scrap\nLifetime: %d survivors rescued over %d run(s), best day %d\n\nEvery 25 survivors rescued adds a permanent seat; every 10 add fuel and ammo capacity.\n\n[R] new run" % [
+	var won: bool = reason == Evac.WON
+	title_label.text = "VICTORY" if won else "MISSION FAILED"
+	title_label.modulate = Color(0.5, 1, 0.55) if won else Color(1, 0.3, 0.3)
+	body.text = "%s\n\nThis run: day %d, %d survivors rescued, %d kills, level %d, %d scrap\nLifetime: %d survivors rescued over %d run(s), best day %d, %d victories\n\nEvery 25 survivors rescued adds a permanent seat; every 10 add fuel and ammo capacity.\n\n[R] new run" % [
 		reason, Game.day, Game.saved_count(), Game.kills, Game.level, Game.scrap,
-		m["total_rescued"], m["runs"], m["best_day"]]
+		m["total_rescued"], m["runs"], m["best_day"], m["victories"]]
 	visible = true
 	Game.world.ui_open = true

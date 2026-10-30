@@ -19,7 +19,8 @@ func _process(delta: float) -> void:
 func _horde() -> void:
 	var heli: Node2D = Game.heli
 	var danger := Game.danger_at(heli.position)
-	if get_tree().get_nodes_in_group("enemies").size() >= int(30 + danger * 10):
+	var dense: bool = Game.world.modifiers.on("dense_horde")
+	if get_tree().get_nodes_in_group("enemies").size() >= int((30 + danger * 10) * (1.0 + Game.world.modifiers.HORDE_EXTRA * int(dense))):
 		return
 	var towns: Array = Game.world.chunks.town_centers.filter(func(t):
 		var d: float = heli.position.distance_to(t)
@@ -37,7 +38,8 @@ func _horde() -> void:
 	if Game.power and Game.is_night() and base_d < 1500.0 and randf() < 0.3:
 		return # the base lights keep them away
 	for kind in SpawnTable.horde(danger, SpawnTable.context(pos, not towns.is_empty())):
-		Game.world.spawn_enemy(kind, pos + Vector2(randf_range(-40, 40), randf_range(-40, 40)))
+		for i in 1 + int(dense and randf() < Game.world.modifiers.HORDE_EXTRA):
+			Game.world.spawn_enemy(kind, pos + Vector2(randf_range(-40, 40), randf_range(-40, 40)))
 
 
 ## Extra zombies converging on a hot landing zone (used by POIs).

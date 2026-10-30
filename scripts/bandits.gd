@@ -136,12 +136,17 @@ func camps_near(pos: Vector2, radius: float) -> Array[Dictionary]:
 ## Do bandits hold landmark site `s` ({kind, pos, uid}) today? A fixed roll per site against a share that grows with
 ## distance and days.
 func holds(s: Dictionary) -> bool:
-	if Game.day < CAMP_DAY or not s.kind in CAMP_KINDS or s.pos.length() < CAMP_MIN_BASE:
+	if Game.day < first_camp_day() or not s.kind in CAMP_KINDS or s.pos.length() < CAMP_MIN_BASE:
 		return false
 	if Game.base_founded and s.pos.distance_to(Game.world.base.global_position) < CAMP_MIN_BASE:
 		return false
-	var share: float = CAMP_ODDS[s.kind] + CAMP_PER_KM * s.pos.length() / 1000.0 + CAMP_PER_DAY * (Game.day - CAMP_DAY)
+	var share: float = CAMP_ODDS[s.kind] + CAMP_PER_KM * s.pos.length() / 1000.0 + CAMP_PER_DAY * maxi(0, Game.day - first_camp_day())
 	return float(hash([Game.seed, s.uid, "camp"]) % 10000) / 10000.0 < minf(CAMP_MAX, share)
+
+
+## First day bandits hold camps (and ambush convoys): CAMP_DAY, day 1 under the Warlords modifier.
+func first_camp_day() -> int:
+	return 1 if Game.world.modifiers.on("warlords") else CAMP_DAY
 
 
 func add_camp(uid: String, kind: String, pos: Vector2) -> Dictionary:
@@ -312,7 +317,7 @@ func _clear(c: Dictionary) -> void:
 	var msg := "Gunner: the %s is clear! Land there for their stash." % c["kind"].replace("_", " ")
 	if c["prisoners"] > 0:
 		var p: Node2D = Game.world.spawn_poi("survivors", _spot(c["pos"], 24.0), RandomNumberGenerator.new(), c["prisoners"])
-		p.discovered = true
+		p.discovered = not Game.world.modifiers.on("blackout") # Blackout: the map reveals nothing
 		msg += " %d prisoners are waiting for a ride." % c["prisoners"]
 	Game.radio(msg)
 	camp_cleared.emit(c["uid"])
@@ -418,6 +423,12 @@ func plan_base_raid(day: int, force := false) -> bool:
 	Game.radio("Intercepted bandit radio: \"Tonight we take the soldiers' base. Bring the rockets.\"")
 	intercepted.emit("base", Game.world.base.global_position)
 	return true
+
+
+## Explicit override for the evacuation's final siege (evac.gd): a raid on top of the zombie assault, which plan_base_raid never
+## allows. Works without any camp. Returns the raiders.
+func siege_raid() -> Array:
+	return base_raid()
 
 
 ## The raid party (SpawnTable.RAID_ROWS) comes from the nearest camp's side and shoots from beyond the fence.

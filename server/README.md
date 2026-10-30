@@ -11,17 +11,18 @@ All writes go through `security definer` RPCs, all tables have RLS on.
 | `supabase/003_players.sql` | RPCs `register_player`, `rename_player`, `set_avatar`, `delete_me` |
 | `supabase/004_runs.sql` | `run_points` (score formula), RPC `upsert_run` (plausibility + rate limits) |
 | `supabase/005_leaderboards.sql` | views `leaderboard_points/_days/_rescued/_kills`, `best_run` |
+| `supabase/006_modifiers.sql` | the six run-modifier score factors (P15), idempotent upsert into `modifiers` |
 | `test.sql` | test cases, runs in one transaction that is rolled back |
 
 ## Setup (once)
 
-The project `yucfmsvivvoufvodeyvc` (eu-central-1) already exists, has migrations 001-005 applied and anonymous sign-ins on.
+The project `yucfmsvivvoufvodeyvc` (eu-central-1) already exists, has migrations 001-005 applied (006 still to run) and anonymous sign-ins on.
 To set up a new project (or a second one for testing):
 
 1. https://supabase.com -> **New project** (free plan is enough). Pick the region closest to the players, set a database password and keep it in a password manager (the game never needs it).
 2. **Authentication -> Sign In / Providers -> Allow anonymous sign-ins: on.**
    Optionally enable CAPTCHA/Turnstile later (see the findings below).
-3. **SQL Editor**: run `001_schema.sql`, `002_names.sql`, `003_players.sql`, `004_runs.sql`, `005_leaderboards.sql` in that order (paste, Run). They can be re-run safely.
+3. **SQL Editor**: run `001_schema.sql`, `002_names.sql`, `003_players.sql`, `004_runs.sql`, `005_leaderboards.sql`, `006_modifiers.sql` in that order (paste, Run). They can be re-run safely.
 4. **Word list:** the name filter is empty until the list is loaded. Generate the INSERTs from `data/banned_words.txt` / `data/allowed_words.txt` with `tools/gen_wordlist_sql.py` (P3) and run the output in the SQL editor. Contract: words are lowercase `a-z` only, at least 3 letters (the tables have a check constraint, a wrong row fails loudly); use `insert ... on conflict do nothing`.
 5. **Test:** paste `test.sql` into the SQL editor and run. The last result must read `ALL TESTS PASSED`. If a test fails the message starts with `FAIL:`; then run `rollback;` once. The test seeds its own words/modifiers and rolls everything back, nothing stays in the database.
 6. **Project Settings -> API** (or the "Connect" dialog): copy the **Project URL** and the **anon / public key** into `scripts/online_config.gd` (`URL`, `ANON_KEY`).

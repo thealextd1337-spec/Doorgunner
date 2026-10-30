@@ -56,6 +56,21 @@ func _process(delta: float) -> void:
 					Game.world.wear.cond[c] = 100.0
 				Game.world.wear.state = ""
 				Game.world.missions.open.clear()
+				var wr: Node2D = Game.world.wrecks # a Chinook wreck on the sling hook (P15)
+				Game.heli.position = Game.world.base.position + Vector2(-500, -200)
+				Game.heli.vel = Vector2(60, 0)
+				wr.wrecks["shot_sling"] = {"type": "chinook", "pos": Game.heli.position, "rot": 0.4, "cond": 0.6, "keys": [], "state": "slung", "progress": 0.0, "days": 0, "heli": {}}
+				wr.hook = "shot_sling"
+				wr.hook_t = 0.0
+				wr.load_pos = Game.heli.position + Vector2(-30, 10)
+				step = 23
+		23:
+			if t > 6.4:
+				_save("shot_sling.png")
+				var wr: Node2D = Game.world.wrecks
+				wr.hook = ""
+				wr.wrecks["shot_sling"]["state"] = "lost"
+				wr._sync("shot_sling")
 				step = 3
 		3:
 			Game.time = 0.9
@@ -141,12 +156,32 @@ func _process(delta: float) -> void:
 				_save("shot_workers.png")
 				Game.take_item("searchlight")
 				Game.take_item("engine")
+				var wr: Node2D = Game.world.wrecks # HANGAR fleet rows: a wreck waiting, a repair project running (P15)
+				var bp: Vector2 = Game.world.base.position
+				wr.wrecks["shot_w1"] = {"type": "black_hawk", "pos": bp + Vector2(70, 50), "rot": 0.6, "cond": 0.55, "keys": ["turbine", "avionics"], "state": "base", "progress": 0.0, "days": 0, "heli": {}}
+				wr.wrecks["shot_w2"] = {"type": "little_bird", "pos": bp + Vector2(-70, 60), "rot": 2.0, "cond": 0.7, "keys": ["avionics"], "state": "repair", "progress": 4.2, "days": 10, "heli": {}}
+				for u in ["shot_w1", "shot_w2"]:
+					wr._sync(u)
+				while get_tree().paused:
+					Game.world.choice_ui.pick(0) # the take_item level-ups would cover the HANGAR
 				Game.world.base.ui.show_tab("HANGAR")
 				Game.world.base.ui.refresh()
 				step = 8
 		8:
 			if t > 8.3:
 				_save("shot_hangar.png")
+				var cv: Node2D = Game.world.convoys # P16: a Motor Pool, a truck, a driver, destinations
+				Game.buildings.append({"kind": "motor_pool", "cell": Vector2i(-99, -99), "built": true, "progress": 0.0})
+				cv.trucks = 1
+				Game.people[1]["skill"] = "driver"
+				for s in Game.world.chunks.sites_near(Game.world.BASE_POS, 3000.0):
+					Game.world.chunks._ensure(Vector2i((s.pos / 512.0).floor()))
+				Game.world.base.ui.show_tab("CONVOY")
+				cv.refresh_tab()
+				step = 85
+		85:
+			if t > 8.45:
+				_save("shot_convoy_tab.png")
 				Game.world.base.ui.visible = false # the pawns walk into the barracks, change and go to work
 				Engine.time_scale = 4.0
 				step = 80
@@ -154,6 +189,66 @@ func _process(delta: float) -> void:
 			if t > 20.0:
 				_save("shot_pawns.png")
 				Engine.time_scale = 1.0
+				step = 90
+		90: # radio station and airstrip (P17): contact made, the strip built, a second one's ghost not shown
+			var ev: Node = Game.world.evac
+			var base: Node2D = Game.world.base
+			base.ui.visible = false
+			Game.time = 0.35
+			Game.base_radius = 220.0
+			ev.announced = true
+			ev.contact = true
+			Game.salvage["electronics"] = 20.0
+			Game.scrap = 600
+			var bc := Vector2i((Game.world.BASE_POS / 16.0).floor())
+			for c in Game.sandbags.keys():
+				base.remove_sandbag(c) # the sandbag line of the base shot would be in the way
+			for dx in range(-16, 17): # clean ground, the shot world may have houses here
+				for dy in range(-16, 17):
+					if base.building_at(bc + Vector2i(dx, dy)).is_empty() and not Game.sandbags.has(bc + Vector2i(dx, dy)):
+						Game.world.chunks.edit(bc + Vector2i(dx, dy), 0)
+			Game.people[1]["skill"] = "engineer"
+			base.place_building("radio", bc + Vector2i(-9, -1))
+			base.place_rot = 0
+			base.place_building("airstrip", ev.find_spot(0))
+			for b in Game.buildings:
+				if b["kind"] in ["radio", "airstrip"]:
+					base._finish_site(b)
+			ev.step(0.1)
+			Game.heli.position = Game.world.BASE_POS + Vector2(0, 60)
+			t_out = t
+			step = 91
+		91:
+			if t > t_out + 1.2:
+				_save("shot_airstrip.png")
+				var ev: Node = Game.world.evac
+				ev.phase = "landed" # the transport on the strip, loading
+				ev.taxi = 20.0
+				ev.board = 25.0
+				ev._ensure_plane()
+				t_out = t
+				step = 92
+		92:
+			if t > t_out + 1.2:
+				_save("shot_transport.png")
+				var ev: Node = Game.world.evac
+				ev.phase = "choice"
+				ev.victory = true
+				ev.flown = Game.people.map(func(p): return p["name"])
+				ev.boarded.emit()
+				t_out = t
+				step = 93
+		93:
+			if t > t_out + 0.5:
+				_save("shot_victory.png")
+				Game.world.evac.choose(true)
+				if Game.world.evac.plane != null:
+					Game.world.evac.plane.queue_free()
+				for b in Game.buildings.duplicate():
+					if b["kind"] in ["radio", "airstrip"]:
+						Game.buildings.erase(b)
+						Game.world.base.site_nodes[b["cell"]].queue_free()
+						Game.world.base.site_nodes.erase(b["cell"])
 				step = 81
 		81: # an outpost with a garrison, then an allied village (P14)
 			Game.world.base.ui.visible = false
@@ -183,6 +278,20 @@ func _process(delta: float) -> void:
 		83:
 			if t > t_out + 1.2:
 				_save("shot_village.png")
+				var cv: Node2D = Game.world.convoys # a truck on the road (P16)
+				for d in cv.destinations():
+					if cv.send(d["uid"], Game.people[1]["id"], 0) == "":
+						break
+				if not cv.list.is_empty():
+					var c: Dictionary = cv.list[0]
+					c["d"] = cv.length(c) * 0.4
+					c["amb"] = {"out": -1.0, "back": -1.0}
+					Game.heli.position = cv.pos_of(c) + Vector2(40, -30)
+				t_out = t
+				step = 84
+		84:
+			if t > t_out + 1.5:
+				_save("shot_convoy.png")
 				Game.world.outposts.list.clear()
 				Game.world.outposts.alert.clear()
 				Game.heli.position = Game.world.BASE_POS
@@ -195,6 +304,8 @@ func _process(delta: float) -> void:
 			if t > 20.3:
 				_save("shot_settings.png")
 				Profiles.active()["enlisted"] = true # in memory only: no ENLIST pop-up over the hangar shot
+				Game.meta["total_kills"] = maxi(Game.meta["total_kills"], 500) # in memory: two modifiers unlocked for the title shot
+				Game.meta["runs"] = maxi(Game.meta["runs"], 3)
 				var title: CanvasLayer = preload("res://scripts/title_ui.gd").new()
 				Game.world.add_child(title)
 				title.open()
@@ -204,6 +315,8 @@ func _process(delta: float) -> void:
 			if t > 20.6:
 				_save("shot_title_hangar.png")
 				title_ui()._toggle_hangar()
+				title_ui().mods = ["dense_horde"]
+				title_ui()._refresh_setup()
 				step = 11
 		11:
 			if t > 20.9:

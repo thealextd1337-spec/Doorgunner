@@ -1,8 +1,9 @@
 extends CanvasLayer
 ## Base menu, shown while the heli sits on the pad, in the title screen's look (olive/black panels, sand text, yellow accent).
 ## Left: status column (population, stocks with per-day deltas, power, next assault), refreshed twice a second.
-## Right: tabs BUILD (upgrades, buildings to place), WORKERS (jobs table), HANGAR (loadout, weapons, fitted items).
-## While placing (base.placing) both give way to a compact build bar along the bottom edge (hotkeys 1-8, base.gd).
+## Right: tabs BUILD (upgrades, buildings to place), WORKERS (jobs table), HANGAR (loadout, weapons, fitted items),
+## CONVOY (an empty box here, filled and refreshed by convoys.gd).
+## While placing (base.placing) both give way to a compact build bar along the bottom edge (hotkeys 1-9, base.gd).
 ## buy(id) applies effects to Game directly.
 
 const SAND := Color(0.91, 0.86, 0.71)
@@ -23,9 +24,10 @@ const UPGRADES := {
 }
 const UPGRADE_INFO := {"turrets": "+1 auto turret on the ring", "fuel": "+25 heli fuel, +200 depot", "armory": "+60 heli ammo, +400 store, +1 rifle/day",
 	"workshop": "salvage processing; Lv 2/3/4 add heli slots", "repair": "patch the base hull"}
-# placing tools in build bar order (hotkeys 1..8)
+# placing tools in build bar order (hotkeys 1..9)
 const BUILD_INFO := {"sandbag": "militia posts", "wire": "slows and cuts zombies", "barracks": "+4 beds", "clinic": "2 patient beds",
-	"generator": "power, 10 fuel/day", "well": "+8 water/day", "watchtower": "post, +50 % reach", "demolish": "houses, hedges, fences for scrap"}
+	"generator": "power, 10 fuel/day", "well": "+8 water/day", "watchtower": "post, +50 % reach", "motor_pool": "trucks for convoys (CONVOY tab)", "demolish": "houses, hedges, fences for scrap",
+	"radio": "military contact: needs an Engineer + electronics", "airstrip": "evacuation strip, 4x24 cells, R turns it"} # radio / airstrip: evac.gd, shown when available
 # loadout key -> [label, min, max]
 const LOADOUT := {
 	"seats": ["Seats (1 pt each)", 2, 8],
@@ -133,10 +135,10 @@ func _ready() -> void:
 	var tab_row := HBoxContainer.new()
 	tab_row.add_theme_constant_override("separation", 6)
 	main.add_child(tab_row)
-	for t in ["BUILD", "WORKERS", "HANGAR"]:
+	for t in ["BUILD", "WORKERS", "HANGAR", "CONVOY"]:
 		var b := Button.new()
 		b.text = t
-		b.custom_minimum_size = Vector2(120, 34)
+		b.custom_minimum_size = Vector2(110, 34)
 		b.add_theme_font_override("font", mono)
 		b.add_theme_font_size_override("font_size", 16)
 		b.pressed.connect(show_tab.bind(t))
@@ -150,6 +152,8 @@ func _ready() -> void:
 	_build_tab(main)
 	_workers_tab(main)
 	_hangar_tab(main)
+	tabs["CONVOY"] = VBoxContainer.new()
+	main.add_child(tabs["CONVOY"])
 	status_panel = status.get_parent()
 	main_panel = main.get_parent()
 	toggle_btn = Button.new()
@@ -181,7 +185,7 @@ func _ready() -> void:
 		b.focus_mode = Control.FOCUS_NONE # SPACE takes off, it must not click the bar
 		b.custom_minimum_size = Vector2(96, 40)
 		b.add_theme_font_override("font", mono)
-		b.text = "%d %s\n%s" % [i + 1, t[0].to_upper(), "+scrap" if kind == "demolish" else "%d scrap" % t[1]]
+		b.text = "%s%s\n%s" % ["%d " % (i + 1) if i < 9 else "", t[0].to_upper(), "+scrap" if kind == "demolish" else "%d scrap" % t[1]]
 		b.tooltip_text = BUILD_INFO[kind]
 		b.toggled.connect(func(_on: bool):
 			get_parent().place_kind = kind
@@ -478,6 +482,9 @@ func _hangar_tab(main: VBoxContainer) -> void:
 		wear_rows[c] = [fill, val, note, b]
 	wear_msg = _label("", 12, BAD, true)
 	v.add_child(wear_msg)
+	var fleet := preload("res://scripts/fleet_ui.gd").new() # P15: wrecks, repair projects, switching helis
+	fleet.ui = self
+	v.add_child(fleet)
 	weapon_box = VBoxContainer.new()
 	v.add_child(weapon_box)
 
@@ -597,7 +604,7 @@ func _refresh_status() -> void:
 		"fuel": [Game.base_fuel, Game.base_fuel_cap, Game.crew("fuel") * rate["fuel"] * eff - gen, true],
 		"ammo": [Game.base_ammo, Game.base_ammo_cap, Game.crew("ammo") * rate["ammo"] * eff, true],
 		"food": [Game.base_food, maxf(10.0, eaters * 10.0), Game.crew("farm") * rate["farm"] * eff + Game.FIELD_FOOD * base.field_cells().size() - Game.food_eaters() * Game.FOOD_PER_PERSON, false],
-		"water": [Game.base_water, maxf(10.0, eaters * 10.0), Game.crew("water") * rate["water"] * eff + Game.built("well") * Game.WELL_WATER - eaters * Game.WATER_PER_PERSON, false],
+		"water": [Game.base_water, maxf(10.0, eaters * 10.0), Game.crew("water") * rate["water"] * eff + Game.built("well") * Game.WELL_WATER * Game.wells() - eaters * Game.WATER_PER_PERSON, false],
 		"medicine": [Game.base_medicine, 10.0, null, false],
 		"rifles": [Game.base_rifles, maxf(10.0, w["militia"]), float(Game.base_level.get("armory", 0)), false],
 		"scrap": [Game.scrap, 200.0, null, false],
@@ -661,6 +668,11 @@ func refresh() -> void:
 			b.text = "%sDEMOLISH  -  %s\n%d orders" % ["> " if on else "", BUILD_INFO[kind], base.demolitions.size()]
 		b.disabled = Game.scrap < t[1] and not on
 		b.tooltip_text = "needs %d scrap, you have %d" % [t[1], Game.scrap] if b.disabled else "click, then click inside the fence to place"
+		var note: String = Game.world.evac.tool_note(kind)
+		if note != "":
+			b.tooltip_text = note
+		b.visible = Game.world.evac.tool_visible(kind) or (base.placing and base.place_kind == kind)
+		bar_btns[kind].visible = b.visible
 		bar_btns[kind].set_pressed_no_signal(base.place_kind == kind)
 		bar_btns[kind].disabled = Game.scrap < t[1] and base.place_kind != kind
 	var plvl: int = base.perimeter_level()

@@ -4,6 +4,24 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## 0.9.0 - 2026-10-30
+- Heli wrecks and a fleet (P15): airfields, checkpoints and airliner crash sites can hold a wrecked Little Bird, Black
+  Hawk, Chinook or Hind. Hover over one and press **G** to hook it on the sling (slow, heavy, it swings and snags on
+  trees), set it down inside the fence and repair it in the HANGAR with salvage, key parts and Mechanics' work days.
+  Switch between your helis in the HANGAR; each one you repair can be picked as the start heli of later runs.
+- Run modifiers (P15): pick Dense Horde, Warlords, Scarcity, Dry Season, Glass Cockpit or Blackout on NEW RUN for a
+  harder run and a higher score. Each one unlocks through your profile's lifetime stats.
+- Convoys (P16): build a Motor Pool (key **8** in build mode) and trucks from salvage, then send a driver and escorts
+  from the new CONVOY tab along the roads to a town, landmark, allied village or outpost to bring loot home. Bandits
+  can ambush a truck at bridges and narrows: fly in and give air cover, because a truck without an escort can't hold
+  on its own. A lost truck costs its cargo, and some of the crew may die.
+- Evacuation (P17): from day 15 a Radio Station (Engineer, electronics) makes contact with the military; an Airstrip
+  (4x24 cells inside the fence) starts a 3-day countdown to the final siege, the biggest assault of the run plus a bandit
+  raid. Hold the strip while the transport lands and loads (faster with a Chinook), then END RUN as a victory or STAY
+  BEHIND and play on (the victory stays counted in the profile and on the leaderboard). Trucks stay home during the
+  evacuation.
+- Build mode: keys 1-9 now end at Demolish (9); Radio Station and Airstrip are picked with the mouse.
+
 ## 0.8.0 - 2026-10-30
 - Assaults with character (P10): the evening before, a Watchtower radios where they will come from and the HUD points
   an arrow at the fence. Assaults come in 2-3 pushes with a breather between them, and from the 2nd one with a theme

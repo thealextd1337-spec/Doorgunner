@@ -51,7 +51,7 @@ Gemeinsam genutzte Dateien: `game_state.gd`, `main.gd`, `chunk_manager.gd`, `spa
 - Neue Tests: Datei `tests/<name>_test.gd` genügt, P1 stellt die Test-Auswahl in `main.gd` auf
   `SMOKE=<name>` → `tests/<name>_test.gd` um (Fallback mit `ResourceLoader.exists`), danach braucht kein Paket
   `main.gd` dafür anzufassen.
-- **Tasten** (heute belegt: WASD/Pfeile, SPACE, Q, E, X, B, R, F, M, H im Titel, ESC, 1–8 im Bau-Modus):
+- **Tasten** (heute belegt: WASD/Pfeile, SPACE, Q, E, X, B, R, F, M, H im Titel, ESC, 1–9 im Bau-Modus (8 Motor Pool, 9 Demolish; Radio Station und Airstrip nur per Maus)):
   P13 **J** (Aufträge), P6 **L** (Rangliste, nur Titel), P14 **O** (Außenposten) und **P** (Dorf schützen),
   P15 **G** (Lasthaken). Kein Paket nimmt eine andere Taste ohne Eintrag hier.
 

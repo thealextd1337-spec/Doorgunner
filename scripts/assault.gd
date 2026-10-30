@@ -12,6 +12,9 @@ extends Node
 ## - Surges: a big wave comes in 2-3 pushes with a pause in between (reload, patch the line).
 ## For other packages: `Assault.night_taken(day)` says whether an assault (or blood moon) falls on that day; bandit raids
 ## (P11) must not use such a day. `Assault.blood_moon(day)` is the same for blood moons only.
+## The evacuation's final siege (evac.gd, `final`): the night Evac.siege_night(day) the wave is FINAL_SIZE times bigger, in
+## FINAL_PUSHES pushes with FINAL_BOSSES bosses, and it does not end while Evac.holds_assault() (transport not loaded yet);
+## `add_push(n)` adds attackers on top (the landing).
 ## Saves itself (hook "assault"); Game saves attack_pending / attack_active, so a run can be saved in the middle of an assault.
 
 const SPAWN_RADIUS := 720.0 # px from the base
@@ -27,6 +30,9 @@ const BLOOD_EVERY := 9 # every 9th night from founding
 const BLOOD_SIZE := 1.25
 const BLOOD_MORALE := 10.0
 const BLOOD_XP := 2
+const FINAL_SIZE := 2.0 # the final siege: wave size factor, the biggest of the run
+const FINAL_PUSHES := 4
+const FINAL_BOSSES := 2
 const HOLD_AT := 0.05 # time of day the blood moon stops the clock at (dark, before dawn at 0.2)
 const HOLD_MAX := 480.0 # s the night can be held; the assault still lasts until the last attacker is dead
 const PHASED_FROM := 30 # waves this big come in 2-3 pushes (a blood moon always in 3)
@@ -51,6 +57,7 @@ const THEMES := {
 var plan := {} # the next assault: {day, theme, dir (0 = north, clockwise), blood, known, tower}
 var theme := "" # of the running assault
 var blood := false
+var final := false # the running assault is the evacuation's final siege
 var dir := -1 # compass index the running assault mostly comes from, -1 = anywhere
 var queue: Array = [] # kinds of the current push, spawned one by one
 var surges: Array = [] # the pushes still to come
@@ -72,7 +79,7 @@ func _ready() -> void:
 static func night_taken(day: int) -> bool:
 	if day == Game.day and (Game.attack_pending or Game.attack_active):
 		return true
-	return Game.base_founded and day >= Game.first_assault_day and (day - Game.first_assault_day) % Game.ATTACK_EVERY_DAYS == 0
+	return Evac.siege_night(day) or Game.base_founded and day >= Game.first_assault_day and (day - Game.first_assault_day) % Game.ATTACK_EVERY_DAYS == 0
 
 
 ## Night number n of the base is day - founding day + 1; the founding day is first_assault_day - FIRST_DELAY.
@@ -134,11 +141,13 @@ static func alert_text() -> String:
 	if a == null:
 		return text
 	var tags := []
+	if a.final:
+		tags.append("FINAL SIEGE")
 	if a.blood:
 		tags.append("BLOOD MOON")
 	if a.theme != "":
 		tags.append(THEMES[a.theme]["name"].to_upper())
-	if a.blood or a.theme != "":
+	if a.final or a.blood or a.theme != "":
 		tags.append("%d LEFT" % (a.attackers() + a.queued()))
 		text += "\n" + " - ".join(tags)
 	return text
@@ -178,6 +187,11 @@ func queued() -> int:
 	return n
 
 
+## `n` more attackers right now (evac.gd: the landing), on top of whatever is queued.
+func add_push(n: int) -> void:
+	queue.append_array(_compose(Game.day, n))
+
+
 ## Forgets the rest of the wave (tests).
 func clear_wave() -> void:
 	queue = []
@@ -209,7 +223,7 @@ func _process(delta: float) -> void:
 		if pause <= 0.0:
 			queue = surges.pop_front()
 			Game.radio("Command: next push, %s!" % ("the last one" if surges.is_empty() else "more of them"))
-	elif attackers() == 0:
+	elif attackers() == 0 and not Evac.holds_assault():
 		_end()
 	if THEMES.get(theme, {}).get("chain", false):
 		_escalate(delta)
@@ -272,10 +286,13 @@ func _on_attack(day: int) -> void:
 		plan = _roll(day)
 	theme = plan.get("theme", "")
 	blood = plan.get("blood", false)
+	final = not tutorial and Evac.siege_night(day)
 	dir = plan.get("dir", -1)
 	last_theme = theme
 	if blood:
 		total = int(total * BLOOD_SIZE)
+	if final:
+		total = int(total * FINAL_SIZE)
 	held = 0.0
 	extra = 0
 	esc_cd = ESCALATE_EVERY
@@ -283,6 +300,8 @@ func _on_attack(day: int) -> void:
 	var pushes := 1
 	if total >= PHASED_FROM and not tutorial:
 		pushes = 3 if blood else randi_range(2, 3)
+	if final:
+		pushes = FINAL_PUSHES
 	var per := ceili(float(kinds.size()) / pushes)
 	surges = []
 	for i in pushes:
@@ -290,7 +309,11 @@ func _on_attack(day: int) -> void:
 	queue = surges.pop_front()
 	pause = 0.0
 	spawn_cd = 0.0
-	if blood:
+	if final:
+		Game.radio("Command: FINAL SIEGE! Everything they have is coming for the airstrip. Hold the line until the transport is out.")
+		for i in FINAL_BOSSES:
+			_spawn("boss", 800.0)
+	elif blood:
 		Game.radio("Command: BLOOD MOON! The whole horde is coming. It ends when the last of them is dead.")
 	elif theme != "":
 		Game.radio("Command: %s incoming!" % THEMES[theme]["name"].to_lower())
@@ -334,6 +357,7 @@ func _end() -> void:
 	else:
 		Game.radio("Base secured. Good work, gunner.")
 	blood = false
+	final = false
 	theme = ""
 	dir = -1
 	held = 0.0
@@ -341,7 +365,7 @@ func _end() -> void:
 
 
 func save_state() -> Dictionary:
-	return {"plan": plan, "theme": theme, "blood": blood, "dir": dir, "queue": queue, "surges": surges, "pause": pause, "spawn_cd": spawn_cd,
+	return {"plan": plan, "theme": theme, "blood": blood, "final": final, "dir": dir, "queue": queue, "surges": surges, "pause": pause, "spawn_cd": spawn_cd,
 		"esc_cd": esc_cd, "extra": extra, "held": held, "last_theme": last_theme}
 
 
@@ -349,6 +373,7 @@ func load_state(d: Dictionary) -> void:
 	plan = d["plan"]
 	theme = d["theme"]
 	blood = d["blood"]
+	final = d.get("final", false) # runs saved before the evacuation have none
 	dir = d["dir"]
 	queue = d["queue"]
 	surges = d["surges"]

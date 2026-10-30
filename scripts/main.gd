@@ -17,6 +17,10 @@ var bandits: Node # bandits.gd
 var wear: Node # wear.gd
 var missions: Node # missions.gd (radio missions, J)
 var outposts: Node2D # outposts.gd: outposts and allied villages
+var wrecks: Node2D # wrecks.gd: heli wrecks, sling hook, repairs, fleet (P15)
+var modifiers: Node # modifiers.gd: run modifiers (P15)
+var convoys: Node2D # convoys.gd: trucks on the road network (CONVOY tab)
+var evac: Node # evac.gd: radio contact, airstrip, final siege, optional victory
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec built]
 
@@ -65,6 +69,14 @@ func _ready() -> void:
 	add_child(wear)
 	outposts = preload("res://scripts/outposts.gd").new() # registers its own save hook
 	add_child(outposts)
+	wrecks = preload("res://scripts/wrecks.gd").new() # registers its own save hook
+	add_child(wrecks)
+	modifiers = preload("res://scripts/modifiers.gd").new() # registers its own save hook
+	add_child(modifiers)
+	convoys = preload("res://scripts/convoys.gd").new() # registers its own save hook
+	add_child(convoys)
+	evac = preload("res://scripts/evac.gd").new() # registers its own save hook
+	add_child(evac)
 	night = CanvasModulate.new()
 	add_child(night)
 	spawner = preload("res://scripts/spawner.gd").new()
@@ -78,6 +90,7 @@ func _ready() -> void:
 	choice_ui = preload("res://scripts/choice_ui.gd").new()
 	add_child(choice_ui)
 	add_child(preload("res://scripts/game_over_ui.gd").new())
+	add_child(preload("res://scripts/victory_ui.gd").new())
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
 	Game.day_changed.connect(_settlements_decline)
@@ -109,7 +122,9 @@ func _show_title() -> void:
 		Game.running = true
 		ui_open = false
 		hud.visible = true
-		Online.begin_run()
+		modifiers.start(title.mods)
+		wrecks.set_start_type(title.start_heli)
+		Online.begin_run(modifiers.active)
 		if title.tutorial or Game.meta["tutorial_done"] == 0:
 			start_tutorial()
 		Sfx.play("ui"))

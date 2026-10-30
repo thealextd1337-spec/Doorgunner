@@ -173,7 +173,7 @@ func _on_landed(landed: bool) -> void:
 			Game.radio("Pharmacy: shelves cleared, base medicine +4.")
 			_finish(true)
 		"crate":
-			var k := 1.0 if drop_level == 0 else 0.3 + 0.1 * drop_level
+			var k: float = Game.world.modifiers.loot(1.0 if drop_level == 0 else 0.3 + 0.1 * drop_level)
 			var a := int(rng.randi_range(30, 60) * k)
 			var f := int(rng.randi_range(20, 40) * k)
 			var s := rng.randi_range(5, 15) if drop_level == 0 or drop_level >= 5 else 0
@@ -204,7 +204,7 @@ func _on_landed(landed: bool) -> void:
 		"radio_tower":
 			var found: Array = Game.world.pois.filter(func(p): return p != self and not p.done and not p.discovered and position.distance_to(p.position) < 2500.0)
 			found.sort_custom(func(a, b): return position.distance_squared_to(a.position) < position.distance_squared_to(b.position))
-			for p in found.slice(0, 3):
+			for p in found.slice(0, 0 if Game.world.modifiers.on("blackout") else 3):
 				p.discovered = true
 				Game.radio("Relay: %s located, %s." % [p.label, where(position, p.position)])
 			if not found.is_empty():
@@ -243,9 +243,9 @@ func _on_landed(landed: bool) -> void:
 
 
 func _salvage(metal: float, parts: float, electronics: float) -> void:
-	Game.salvage["metal"] += metal
-	Game.salvage["parts"] += parts
-	Game.salvage["electronics"] += electronics
+	Game.salvage["metal"] += Game.world.modifiers.loot(metal)
+	Game.salvage["parts"] += Game.world.modifiers.loot(parts)
+	Game.salvage["electronics"] += Game.world.modifiers.loot(electronics)
 
 
 func _finish(hide: bool) -> void:
