@@ -15,6 +15,7 @@ var morale: Node # morale.gd
 var assault: Node # assault.gd
 var bandits: Node # bandits.gd
 var wear: Node # wear.gd
+var missions: Node # missions.gd (radio missions, J)
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec built]
 
@@ -66,8 +67,11 @@ func _ready() -> void:
 	spawner = preload("res://scripts/spawner.gd").new()
 	add_child(spawner)
 	add_child(preload("res://scripts/radio.gd").new())
+	missions = preload("res://scripts/missions.gd").new() # registers its own save hook
+	add_child(missions)
 	hud = preload("res://scripts/hud.gd").new()
 	add_child(hud)
+	add_child(preload("res://scripts/missions_ui.gd").new())
 	choice_ui = preload("res://scripts/choice_ui.gd").new()
 	add_child(choice_ui)
 	add_child(preload("res://scripts/game_over_ui.gd").new())
