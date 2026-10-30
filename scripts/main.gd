@@ -351,14 +351,14 @@ func _load_pois(d: Dictionary) -> void:
 	radio_target = by_uid.get(d["radio_target"])
 
 
-const ENEMIES_SAVED := 150 # the nearest to the base or heli, the rest are dropped
+const ENEMIES_SAVED := 150 # base attackers, then the nearest to the base or heli; the rest are dropped
 
 
 ## Save hook "enemies": kind, position, hp and stats, target_base.
 func _save_enemies() -> Array:
 	var list := get_tree().get_nodes_in_group("enemies").filter(func(e): return "target_base" in e and not e.is_queued_for_deletion())
 	var near := func(e: Node2D) -> float: return minf(e.position.distance_squared_to(heli.position), e.position.distance_squared_to(base.position))
-	list.sort_custom(func(a, b): return near.call(a) < near.call(b))
+	list.sort_custom(func(a, b): return a.target_base and not b.target_base or a.target_base == b.target_base and near.call(a) < near.call(b)) # attackers first
 	return list.slice(0, ENEMIES_SAVED).map(func(e): return [e.kind, e.position, e.hp, e.max_hp, e.speed, e.dmg, e.target_base, e.state.duplicate()])
 
 

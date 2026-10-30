@@ -82,7 +82,7 @@ func autosave() -> bool:
 		if _hooks[key][0].is_valid():
 			systems[key] = _hooks[key][0].call()
 	var data := {"version": ProjectSettings.get_setting("application/config/version", "0.0.0"), "format": SAVE_FORMAT,
-		"saved_at": Time.get_unix_time_from_system(), "head": {"day": Game.day, "time": Game.time, "rescued": Game.rescued, "kills": Game.kills},
+		"saved_at": Time.get_unix_time_from_system(), "head": {"day": Game.day, "time": Game.time, "rescued": Game.saved_count(), "kills": Game.kills},
 		"systems": systems}
 	_write(var_to_bytes(data))
 	Game._save_meta() # meta changes mid-run too (assaults held, boss kills)

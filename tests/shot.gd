@@ -40,6 +40,21 @@ func _process(delta: float) -> void:
 			if t > 5.4:
 				_save("shot_missions.png")
 				Game.world.get_children().filter(func(c): return c.get("panel") != null and c.layer == 6)[0]._unhandled_input(_j_key())
+				# the HUD with everything at once: mission arrows, the assault arrow at the fence, worn parts and an engine alarm
+				Game.heli.position = Game.world.base.position + Vector2(-60, -40)
+				Game.world.assault.plan = {"day": Game.day + 1, "theme": "", "dir": 2, "blood": false, "known": true, "tower": true}
+				for c in ["rotor", "engine", "gearbox", "gun"]:
+					Game.world.wear.cond[c] = 18.0
+				Game.world.wear.state = "warn"
+				Game.world.wear.t = 10.0
+				step = 22
+		22:
+			if t > 5.8:
+				_save("shot_hud.png")
+				Game.world.assault.plan = {}
+				for c in ["rotor", "engine", "gearbox", "gun"]:
+					Game.world.wear.cond[c] = 100.0
+				Game.world.wear.state = ""
 				Game.world.missions.open.clear()
 				step = 3
 		3:

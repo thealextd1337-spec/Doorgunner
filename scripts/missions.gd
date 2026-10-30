@@ -9,11 +9,10 @@ extends Node
 ##   blackbox  land at an airliner crash site; pays salvage and one key part.
 ##   screamer  a screamer with a few shamblers near a town; it calls a horde every night. Done when it dies.
 ##   escort    refugees at a town walk to the base while the heli is within FOLLOW_DIST of them (a survivors POI that walks home).
-##   camp      STUB (P11): needs a node "bandits" under Game.world with camps() -> Array of {uid: String, pos: Vector2}, the live
-##             camps. Done when the offered uid is no longer listed. Until that node exists the type is not offered.
-##   medicine  STUB (P14): needs a node "villages" under Game.world with allies() -> Array of {uid: String, pos: Vector2}.
-##             Done when the heli lands within TARGET_DIST of the village with MEDICINE_COST base medicine (taken). A village can also
-##             offer one itself: Game.world.missions.offer("medicine", {"uid": ..., "pos": ...}).
+##   camp      a bandit camp (bandits.gd camps_near) within MAX_DIST of the base. Done when bandits.camps[uid] is cleared.
+##   medicine  an allied village (outposts.gd villages()). Done when the heli lands within TARGET_DIST of it with MEDICINE_COST
+##             base medicine (taken, outposts.deliver); failed when the village is gone. A neglected village offers one itself:
+##             Game.world.missions.offer("medicine", {"uid": ..., "pos": ...}).
 ## Rewards: scrap, XP, morale (morale.add), often a person with a rare skill (Game.People, joins the base at once), salvage and
 ## one `key_parts` (P15 will spend these on the heli repair; nothing reads the counter yet). Saves itself (hook "missions").
 
@@ -40,7 +39,7 @@ const NIGHT_HORDE := 4 # zombies the screamer calls each night
 const MEDICINE_COST := 2.0
 const BLACKBOX_SALVAGE := {"parts": 6.0, "electronics": 3.0}
 const PERSON_SKILLS := ["engineer", "driver"]
-const PROVIDERS := {"camp": ["bandits", "camps"], "medicine": ["villages", "allies"]} # type -> [node name, method]
+const PROVIDERS := {"camp": "bandits", "medicine": "outposts"} # type -> the main.gd node it needs
 const TYPES := { # time: seconds range, person: chance of a rare-skill recruit
 	"rooftop": {"title": "Rooftop rescue", "tag": "ROOF", "time": Vector2(240, 360), "scrap": Vector2i(40, 70), "xp": 60, "morale": 3.0, "person": 0.5},
 	"blackbox": {"title": "Black box", "tag": "BOX", "time": Vector2(480, 600), "scrap": Vector2i(20, 40), "xp": 40, "morale": 0.0, "person": 0.0},
@@ -176,8 +175,7 @@ func _recruit(skill: String) -> void:
 # --- helpers
 
 func _provider(type: String) -> Node:
-	var n: Node = Game.world.get_node_or_null(PROVIDERS[type][0])
-	return n if n != null and n.has_method(PROVIDERS[type][1]) else null
+	return Game.world.get(PROVIDERS[type])
 
 
 func _origin() -> Vector2:
@@ -370,13 +368,13 @@ func _tick_escort(m: Dictionary, _delta: float) -> String:
 	return ""
 
 
-# --- clear the camp (P11 stub)
+# --- clear the camp (bandits.gd)
 
 func _make_camp(_args: Dictionary) -> Dictionary:
 	var node := _provider("camp")
 	if node == null:
 		return {}
-	var list: Array = node.camps().filter(func(c): return not c["uid"] in used)
+	var list: Array = node.camps_near(_origin(), MAX_DIST).filter(func(c): return not c["uid"] in used)
 	if list.is_empty():
 		return {}
 	var c: Dictionary = list.pick_random()
@@ -385,12 +383,10 @@ func _make_camp(_args: Dictionary) -> Dictionary:
 
 func _tick_camp(m: Dictionary, _delta: float) -> String:
 	var node := _provider("camp")
-	if node != null and not node.camps().any(func(c): return c["uid"] == m["state"]["uid"]):
-		return "done"
-	return ""
+	return "done" if node != null and node.camps.get(m["state"]["uid"], {}).get("cleared", false) else ""
 
 
-# --- medicine run (P14 stub)
+# --- medicine run (outposts.gd villages)
 
 func _make_medicine(args: Dictionary) -> Dictionary:
 	if Game.base_medicine < MEDICINE_COST:
@@ -398,18 +394,25 @@ func _make_medicine(args: Dictionary) -> Dictionary:
 	var v: Dictionary = args
 	if not v.has("pos"):
 		var node := _provider("medicine")
-		var list: Array = node.allies() if node != null else []
+		var list: Array = node.villages().map(func(x): return {"uid": x["id"], "pos": x["pos"]}) if node != null else []
 		if list.is_empty():
 			return {}
 		v = list.pick_random()
+	if open.any(func(m): return m["type"] == "medicine" and m["state"]["uid"] == v["uid"]):
+		return {}
 	return {"pos": v["pos"], "text": "bring %d medicine to the allied village" % MEDICINE_COST, "state": {"uid": v["uid"]}}
 
 
 func _tick_medicine(m: Dictionary, _delta: float) -> String:
+	var node := _provider("medicine")
+	if node != null and not node.allies.has(m["state"]["uid"]):
+		return "failed" # the village fell
 	if not Game.heli.landed or not _near(m["pos"], TARGET_DIST):
 		return ""
 	if Game.base_medicine >= MEDICINE_COST:
 		Game.base_medicine -= MEDICINE_COST
+		if node != null:
+			node.deliver(m["state"]["uid"], "medicine", MEDICINE_COST)
 		return "done"
 	if Time.get_ticks_msec() - m["state"].get("warned", -100000) > 20000:
 		m["state"]["warned"] = Time.get_ticks_msec()

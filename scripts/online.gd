@@ -275,7 +275,7 @@ func _start_run() -> void:
 
 func _on_day(day: int) -> void:
 	if enabled and ranked and Game.running:
-		submit_run(_run["id"], {"day": day, "rescued": Game.rescued, "kills": Game.kills, "modifiers": _run["modifiers"]})
+		submit_run(_run["id"], {"day": day, "rescued": Game.saved_count(), "kills": Game.kills, "modifiers": _run["modifiers"]})
 
 
 # --- outbox ----------------------------------------------------------------------------------------------

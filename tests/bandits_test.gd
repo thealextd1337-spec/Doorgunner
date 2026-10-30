@@ -37,6 +37,7 @@ func _run() -> void:
 	_table()
 	_sites()
 	_camp()
+	await _capped_camp()
 	_technical()
 	_shoots_heli()
 	_rocket_and_flare()
@@ -279,12 +280,42 @@ func _zombies() -> void:
 			n.queue_free()
 
 
+## At BANDIT_CAP a camp holds guards back; they come out as slots free up, so killing every guard still clears it.
+func _capped_camp() -> void:
+	_clear_units()
+	var fillers := []
+	for i in sys.BANDIT_CAP - 2:
+		fillers.append(_unit("rifle", heli.position + Vector2(3000, 0), "patrol"))
+	var c: Dictionary = sys.add_camp("test:cap", "prison", _spot(heli.position, 300.0))
+	var total: int = c["garrison"].values().reduce(func(a, b): return a + b, 0)
+	assert(total > 2, "the test camp needs more than two guards: %s" % c["garrison"])
+	sys._tick() # wakes with room for two
+	var guards := func() -> Array: return get_tree().get_nodes_in_group("bandits").filter(func(u): return u.camp_uid == "test:cap" and u.role == "guard" and not u.is_queued_for_deletion())
+	assert(guards.call().size() == 2, "only two guards fit under the cap (%d)" % guards.call().size())
+	for u in fillers:
+		u.remove_from_group("bandits")
+		u.remove_from_group("enemies")
+		u.queue_free()
+	var rounds := 0
+	while not c["cleared"] and rounds < 20: # kill what is out, let the camp send the rest
+		rounds += 1
+		sys._tick()
+		_hold_all()
+		for u in guards.call():
+			u.hit(99999.0)
+		await frame # the dead leave the group, the camp has room again
+	assert(c["cleared"], "killing every guard as they come out clears a capped camp (%s left)" % c["garrison"])
+	_clear_units()
+
+
 func _raids() -> void:
 	_clear_units()
 	var base: Vector2 = main.base.global_position
 	sys.add_camp("test:raid", "motel", base + Vector2(1500, 0))
 	Game.first_assault_day = 3
 	sys.last_base_raid = -100
+	for d in range(4, 30):
+		assert(sys._zombie_night(d) == Assault.night_taken(d), "bandits ask assault.gd which nights are taken (day %d)" % d)
 	assert(not sys.plan_base_raid(12, true), "no base raid on a zombie assault night (day 12)")
 	assert(sys.plan_base_raid(13, true) and sys.base_raid_day == 13, "base raid planned for day 13")
 	assert(not sys.plan_base_raid(11, true), "and not before day %d" % sys.BASE_RAID_DAY)
@@ -300,8 +331,21 @@ func _raids() -> void:
 	assert(not sys.plan_base_raid(14, true), "base raids keep %d days apart" % sys.BASE_RAID_GAP)
 	var hp0 := 5000.0
 	Game.base_hp = hp0
-	_step(raiders, 80.0)
+	for u in raiders: # at their firing spots (the walk there depends on the seed's terrain)
+		u.position = u.goal
+	_step(raiders, 1.0)
+	assert(raiders.any(func(u): return u.target == main.base), "raiders at the fence shoot the base")
+	main.base._check_alert()
+	assert(main.base.threat and main.base.defenders.get_child_count() == Game.workers["militia"], "bandits at the fence put the militia on their posts")
+	_step(raiders, sys.RAID_SECONDS * 1.3) # thinks come every 0.4-0.6 s, raid_t counts 0.5 each
 	assert(Game.base_hp < hp0, "raiders shoot the base from beyond the fence (%.0f)" % Game.base_hp)
+	assert(raiders.all(func(u): return not is_instance_valid(u) or u.role == "home"), "%d s after setting out the raiders leave" % sys.RAID_SECONDS)
+	var rc: Dictionary = sys.camps[raiders[0].camp_uid]
+	var want := SpawnTable.bandits(SpawnTable.CAMP_ROWS, Game.day)
+	rc["garrison"] = want.duplicate()
+	for u in raiders.filter(func(u): return is_instance_valid(u)):
+		sys.unit_gone(u)
+	assert(rc["garrison"] == want, "returning raiders never push a garrison past CAMP_ROWS: %s vs %s" % [rc["garrison"], want])
 	Game.base_hp = Game.max_base_hp
 	_clear_units()
 	# a settlement raid: off-screen people go missing, with the heli close the raiders really come
@@ -326,6 +370,21 @@ func _raids() -> void:
 	heli.position = town.position + Vector2(2000, 0) # out of range: they walk in instead of shooting
 	_step(party2, 50.0)
 	assert(town.survivors.size() < left, "raiders abduct from the settlement (%d -> %d)" % [left, town.survivors.size()])
+	_clear_units()
+	# outposts and allied villages (outposts.gd) near a camp are raided at dusk, never on an assault day
+	var op: Node2D = main.outposts
+	var o := {"id": "o9", "site": "radio_mast", "pos": c["pos"] + Vector2(-500, 0), "fuel": 0.0, "ammo": 0, "hp": op.OUTPOST_HP, "day": 1}
+	op.list.append(o)
+	var hits := []
+	op.raided.connect(func(id, _res, source): hits.append([id, source]))
+	sys.outpost_raid = {}
+	assert(not sys.plan_outpost_raid(12, true), "no outpost raid on a zombie assault day")
+	assert(sys.plan_outpost_raid(13, true) and sys.outpost_raid["id"] == "o9", "an outpost raid is announced")
+	Game.time = sys.TOWN_RAID_AT + 0.01
+	sys._tick()
+	var strength: int = SpawnTable.bandits(SpawnTable.RAID_ROWS, 13)["rifle"]
+	assert(hits == [["o9", "bandits"]] and is_equal_approx(o["hp"], op.OUTPOST_HP - strength * op.HP_PER_POINT) and sys.outpost_raid.is_empty(), "the unmanned outpost takes the raid: %s hull %s" % [hits, o["hp"]])
+	op.list.erase(o)
 	heli.position = main.BASE_POS
 
 

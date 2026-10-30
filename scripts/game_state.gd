@@ -401,6 +401,12 @@ func _at(aboard: bool) -> Array:
 	return people.filter(func(p): return p["aboard"] == aboard and (aboard or p.get("post", "") == "")) # not the garrisons of outposts
 
 
+## Everyone saved this run who is alive and not aboard, outpost garrisons included: the score (meta, leaderboard, game over).
+## `rescued` stays the base population (food, work).
+func saved_count() -> int:
+	return people.filter(func(p): return not p["aboard"]).size()
+
+
 ## Count setter (rescued, passengers): new people join, or the newest leave.
 func _resize(aboard: bool, n: int) -> void:
 	var list := _at(aboard)
@@ -601,7 +607,7 @@ func end_run(reason: String) -> void:
 		return
 	running = false
 	Save.delete_run() # Ironman: gone before the game-over screen shows
-	record_run(day, rescued, kills)
+	record_run(day, saved_count(), kills)
 	run_ended.emit(reason)
 
 

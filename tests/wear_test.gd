@@ -36,11 +36,12 @@ func _run() -> void:
 	var plain := _wear_after_hits("")
 	var bandit := _wear_after_hits("bandit")
 	assert(plain > 0.0 and bandit > plain * 2.5, "bandit hits wear more: %s vs %s" % [bandit, plain])
+	assert(is_equal_approx(_wear_after_hits("rocket"), bandit), "rockets wear like bandit rounds")
 	_reset()
 	Game.hp = Game.max_hp
 	heli.take_damage(10.0, "bandit")
 	heli.take_damage(10.0)
-	assert(Game.hp < Game.max_hp and Wear.COMPONENTS.any(func(c): return wear.cond[c] < 100.0), "take_damage with and without a source")
+	assert(Game.hp < Game.max_hp and Wear.COMPONENTS.any(func(c): return wear.cond[c] < 100.0), "take_damage with and without a source (heli.damaged -> wear.on_hit)")
 	# --- effects start under 50 %
 	_reset()
 	assert(wear.speed_factor() == 1.0 and wear.spread_factor() == 1.0 and wear.fuel_factor() == 1.0, "healthy: no effects")
@@ -110,6 +111,7 @@ func _run() -> void:
 	if rough_pos != Vector2.ZERO:
 		var rough_loss := _crash_test(rough_pos, Vector2.ZERO)
 		assert(rough_loss >= Wear.CRASH_HULL / Game.stats["armor"] - 0.01 and rough_loss > open_loss * 2.0, "rough ground costs a lot: %s vs %s" % [rough_loss, open_loss])
+		assert(Game.world.is_landable(heli.position) and heli.position.distance_to(rough_pos) < 400.0, "the wreck ends up on open ground zombies can reach")
 	else:
 		print("WEAR: no rough ground near the start, crash landing not checked")
 	var hurt := 0

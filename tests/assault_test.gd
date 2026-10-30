@@ -40,6 +40,7 @@ func _run() -> void:
 	_announcement()
 	await _blood_moon()
 	await _save_mid_assault()
+	Save.delete_run() # the autosaves above must not leave a run behind
 	print("ASSAULT OK")
 	get_tree().quit(0)
 

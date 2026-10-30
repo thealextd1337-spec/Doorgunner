@@ -11,7 +11,9 @@ extends Node
 ## abduct survivors (prisoners of the camp), then walk home.
 ## Raids, announced by intercepted bandit radio: a settlement near a camp at dusk (TOWN_RAID_*; with the heli close
 ## the raiders really come, otherwise people just go missing), and from BASE_RAID_DAY the FOB at night, never on a
-## zombie assault's night (_zombie_night).
+## zombie assault's night (_zombie_night). Base raiders leave RAID_SECONDS after they set out, so a raid always ends.
+## Outposts and allied villages (outposts.gd targets()) within PATROL_REACH of a camp are raided at dusk too (outpost_raid):
+## resolved at once by outposts.raid with the strength of SpawnTable.RAID_ROWS riflemen.
 
 signal camp_cleared(uid: String) # for missions (P13 "Clear the camp")
 signal intercepted(what: String, pos: Vector2) # "town" / "base" raid announced: hint for missions
@@ -49,6 +51,7 @@ const BASE_RAID_CHANCE := 0.5 # per eligible day
 const BASE_RAID_AT := 0.85 # night
 const BASE_SPAWN_DIST := 700.0
 const RAID_STANDOFF := 70.0 # px beyond the fence the raiders shoot from
+const RAID_SECONDS := 75.0 # s after it set out (~25 s walk, ~50 s at the fence) a base raider takes what it can and leaves
 const BANDIT_CAP := 40 # alive at once
 const Technical := preload("res://scripts/technical.gd")
 const LANDMARKS := preload("res://scripts/chunk_manager.gd").LANDMARKS
@@ -56,6 +59,7 @@ const Poi := preload("res://scripts/poi.gd")
 
 var camps := {} # uid -> {uid, kind, pos, garrison {kind: n}, prisoners, cleared, known, looted}
 var town_raid := {} # planned for today: {poi, camp, day}
+var outpost_raid := {} # planned for today: {id, camp, day} (outposts.gd target)
 var base_raid_day := -1
 var last_base_raid := -100
 var _awake := {} # camp uid -> [unit nodes and the flag], runtime only
@@ -98,6 +102,7 @@ func _tick() -> void:
 		elif _awake.has(uid) and d > SLEEP_DIST:
 			_sleep(c)
 		elif _awake.has(uid):
+			_fill(c)
 			_patrol_cd[uid] = _patrol_cd.get(uid, randf_range(PATROL_INTERVAL.x, PATROL_INTERVAL.y)) - TICK
 			if _patrol_cd[uid] <= 0.0:
 				_patrol_cd[uid] = randf_range(PATROL_INTERVAL.x, PATROL_INTERVAL.y)
@@ -106,6 +111,10 @@ func _tick() -> void:
 		if town_raid["day"] == Game.day:
 			_town_raid()
 		town_raid = {}
+	if not outpost_raid.is_empty() and (outpost_raid["day"] != Game.day or Game.time >= TOWN_RAID_AT):
+		if outpost_raid["day"] == Game.day and not camps.get(outpost_raid["camp"], {"cleared": true})["cleared"] and Game.world.get("outposts"):
+			Game.world.outposts.raid(outpost_raid["id"], SpawnTable.bandits(SpawnTable.RAID_ROWS, Game.day)["rifle"], "bandits")
+		outpost_raid = {}
 	if base_raid_day == Game.day and Game.time >= BASE_RAID_AT:
 		base_raid_day = -1
 		if not _zombie_night(Game.day):
@@ -154,12 +163,24 @@ func _room() -> int:
 
 
 func _wake(c: Dictionary) -> void:
-	var nodes := []
+	var flag := Art.sprite("bandit_flag")
+	flag.position = c["pos"]
+	flag.z_index = 1
+	Game.world.add_child(flag)
+	_awake[c["uid"]] = [flag]
+	_fill(c)
+
+
+## Spawns the guards of awake camp `c` that are in its garrison but not out yet (BANDIT_CAP held some back), so killing
+## every guard always empties the garrison.
+func _fill(c: Dictionary) -> void:
 	var g: Dictionary = c["garrison"]
+	var nodes: Array = _awake[c["uid"]]
 	for kind in g:
-		for i in g[kind]:
+		var out := nodes.filter(func(n): return is_instance_valid(n) and n is Bandit and n.kind == kind and n.role == "guard").size()
+		for i in g[kind] - out:
 			if _room() <= 0:
-				break
+				return
 			var pos := _spot(c["pos"], 12.0 if kind == "mg" else randf_range(30.0, 80.0))
 			if kind == "technical":
 				var road = Technical.road_near(c["pos"], TECH_ROAD_REACH)
@@ -168,12 +189,6 @@ func _wake(c: Dictionary) -> void:
 					break
 				pos = Vector2(road) * 16.0 + Vector2(8, 8)
 			nodes.append(spawn_unit(kind, pos, "guard", c["pos"], c["uid"]))
-	var flag := Art.sprite("bandit_flag")
-	flag.position = c["pos"]
-	flag.z_index = 1
-	Game.world.add_child(flag)
-	nodes.append(flag)
-	_awake[c["uid"]] = nodes
 
 
 func _sleep(c: Dictionary) -> void:
@@ -258,7 +273,7 @@ func unit_home(u: Node2D) -> void:
 	if c.is_empty() or c["cleared"]:
 		u.queue_free()
 		return
-	c["garrison"][u.kind] = c["garrison"].get(u.kind, 0) + 1
+	_rejoin(c, u.kind)
 	if _awake.has(c["uid"]):
 		u.role = "guard"
 		_awake[c["uid"]].append(u)
@@ -270,7 +285,13 @@ func unit_home(u: Node2D) -> void:
 func unit_gone(u: Node2D) -> void:
 	var c: Dictionary = camps.get(u.camp_uid, {})
 	if not c.is_empty() and not c["cleared"]:
-		c["garrison"][u.kind] = c["garrison"].get(u.kind, 0) + 1
+		_rejoin(c, u.kind)
+
+
+## One unit back in camp `c`'s garrison, but never past today's CAMP_ROWS: raiders were never taken from it.
+func _rejoin(c: Dictionary, kind: String) -> void:
+	var n: int = c["garrison"].get(kind, 0)
+	c["garrison"][kind] = mini(n + 1, maxi(n, SpawnTable.bandits(SpawnTable.CAMP_ROWS, Game.day).get(kind, 0)))
 
 
 func unit_died(u: Node2D) -> void:
@@ -321,6 +342,7 @@ func _on_day(day: int) -> void:
 		for k in want:
 			c["garrison"][k] = maxi(c["garrison"].get(k, 0), mini(want[k], c["garrison"].get(k, 0) + 1))
 	plan_town_raid(day)
+	plan_outpost_raid(day)
 	plan_base_raid(day)
 
 
@@ -339,6 +361,25 @@ func plan_town_raid(day: int, force := false) -> bool:
 		Game.radio("Intercepted bandit radio: \"Hit the settlement at dusk, take the strong ones.\" (%s)" % Poi.where(Game.heli.global_position, p.global_position))
 		intercepted.emit("town", p.global_position)
 		return true
+	return false
+
+
+## Maybe plan today's dusk raid on an outpost or allied village (outposts.gd targets()) near a camp, never on a zombie
+## assault's day. True if planned.
+func plan_outpost_raid(day: int, force := false) -> bool:
+	var op: Node = Game.world.get("outposts")
+	if op == null or not outpost_raid.is_empty() or _zombie_night(day):
+		return false
+	for uid in camps:
+		var c: Dictionary = camps[uid]
+		if c["cleared"] or not (force or randf() < TOWN_RAID_CHANCE):
+			continue
+		for t in op.targets():
+			if t["pos"].distance_to(c["pos"]) <= PATROL_REACH:
+				outpost_raid = {"id": t["id"], "camp": uid, "day": day}
+				Game.radio("Intercepted bandit radio: \"The %s at dusk. Take everything.\" (%s)" % [t["kind"], Poi.where(Game.heli.global_position, t["pos"])])
+				intercepted.emit(t["kind"], t["pos"])
+				return true
 	return false
 
 
@@ -363,10 +404,8 @@ func _town_raid() -> void:
 
 
 ## The night of a zombie assault? Bandit base raids never share it.
-## shortcut: reads Game's assault clock; point this at P10's assault.gd query (blood moon nights too) once it is on main.
 func _zombie_night(day: int) -> bool:
-	return Game.attack_pending or Game.attack_active or (Game.base_founded and day >= Game.first_assault_day \
-		and (day - Game.first_assault_day) % Game.ATTACK_EVERY_DAYS == 0)
+	return Assault.night_taken(day)
 
 
 ## Maybe plan tonight's raid on the FOB (from BASE_RAID_DAY, BASE_RAID_GAP days apart, never on an assault night).
@@ -397,7 +436,8 @@ func base_raid() -> Array:
 	var party := SpawnTable.bandits(SpawnTable.RAID_ROWS, Game.day)
 	for kind in party:
 		for i in party[kind]:
-			var u := spawn_unit(kind, _spot(base + from.rotated(randf_range(-0.3, 0.3)) * BASE_SPAWN_DIST, 30.0), "base", base, camp_uid)
+			var at := _spot(base + from.rotated(randf_range(-0.3, 0.3)) * BASE_SPAWN_DIST, 30.0)
+			var u := spawn_unit(kind, at, "base", camps[camp_uid]["pos"] if camp_uid != "" else at, camp_uid) # home: where they go after RAID_SECONDS
 			u.goal = _spot(base + from.rotated(randf_range(-0.5, 0.5)) * (Game.base_radius + RAID_STANDOFF), 16.0)
 			units.append(u)
 	Sfx.play("alarm")
@@ -408,13 +448,14 @@ func base_raid() -> Array:
 ## Save hook "bandits": camps, plans and the units away from their camp (guards come back with the camp's garrison).
 func save_state() -> Dictionary:
 	var units := get_tree().get_nodes_in_group("bandits").filter(func(u): return u.role != "guard" and not u.is_queued_for_deletion())
-	return {"camps": camps.duplicate(true), "town_raid": town_raid.duplicate(), "base_raid_day": base_raid_day, "last_base_raid": last_base_raid,
+	return {"camps": camps.duplicate(true), "town_raid": town_raid.duplicate(), "outpost_raid": outpost_raid.duplicate(), "base_raid_day": base_raid_day, "last_base_raid": last_base_raid,
 		"units": units.map(func(u): return [u.kind, u.position, u.hp, u.max_hp, u.role, u.camp_uid, u.home, u.goal, u.poi_uid])}
 
 
 func load_state(d: Dictionary) -> void:
 	camps = d["camps"]
 	town_raid = d["town_raid"]
+	outpost_raid = d.get("outpost_raid", {})
 	base_raid_day = d["base_raid_day"]
 	last_base_raid = d["last_base_raid"]
 	for a in d["units"]:

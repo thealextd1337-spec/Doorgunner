@@ -232,6 +232,8 @@ func touchdown() -> bool:
 	h.take_damage(hull, "crash" if not open else "landing")
 	if not Game.running:
 		return true
+	if not open: # the wreck ends up on open ground, never a zombie-proof perch on water or a roof
+		h.position = landable_near(h.position)
 	if not Progression.owned("medic"): # the heli medic keeps passengers safe
 		var hurt := 0
 		for i in Game.passengers - Game.passengers_injured:
@@ -240,6 +242,16 @@ func touchdown() -> bool:
 	Game.radio("Pilot: %s Crew is on the engine, %d seconds." % ["Down on open ground." if open else "Came down in the trees, water or houses, she's torn up!", FIELD_SECONDS / field_speed()])
 	h.landed_changed.emit(true)
 	return true
+
+
+## The nearest landable spot to `pos` (rings of 16 px out to 400 px), `pos` itself if there is none.
+func landable_near(pos: Vector2) -> Vector2:
+	for r in range(16, 400, 16):
+		for i in 16:
+			var p := pos + Vector2(r, 0).rotated(i * TAU / 16.0)
+			if Game.world.is_landable(p):
+				return p
+	return pos
 
 
 ## One line for the HUD alert, "" when all is well.

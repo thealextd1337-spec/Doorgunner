@@ -78,6 +78,7 @@ var cover := NONE
 var in_cover := false
 var under_fire := 0.0
 var abduct_cd := ABDUCT_INTERVAL
+var raid_t := 0.0 # role "base": seconds since the raid set out (bandits.RAID_SECONDS); shortcut: not saved, a reload restarts it
 var nav := {} # main.gd nav_move state
 var sprite: Sprite2D
 var tracer := Vector2.ZERO # local end of the last round's tracer
@@ -168,6 +169,10 @@ func _think() -> void:
 						abduct_cd = ABDUCT_INTERVAL
 						Game.world.bandits.abduct(self, p)
 		"base":
+			raid_t += THINK
+			if raid_t >= Game.world.bandits.RAID_SECONDS:
+				role = "home" # took what they could (or found no way in): back to the camp
+				return
 			if nav.get("stuck", 0.0) > STUCK_RETRY: # no way to this spot (water, walls): try another side of the fence
 				nav["stuck"] = 0.0
 				var base_pos: Vector2 = Game.world.base.global_position

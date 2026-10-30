@@ -2,22 +2,12 @@ extends Node
 ## Headless test of the radio missions (docs/ROADMAP.md P13). main.gd adds this node when env SMOKE=missions (base founded):
 ##   SMOKE=missions godot --headless --path . --quit-after 30000
 ## Offers (timer, limit, targets in range), expiry, and each type start to finish: rooftop rescue, black box, screamer,
-## escort, plus camp and medicine against fake provider nodes; rewards, the J list, the save hook.
+## escort, plus camp (bandits.gd) and medicine (outposts.gd villages); rewards, the J list, the save hook.
 ## The clock, the spawner and the mission timer are driven by hand. A type with no site in range for the random seed
 ## is forced onto the nearest site of any distance (printed), so the ticks are always tested.
 
 const CM := preload("res://scripts/chunk_manager.gd")
 const M := preload("res://scripts/missions.gd")
-
-
-class FakeProvider extends Node:
-	var list := []
-
-	func camps() -> Array:
-		return list
-
-	func allies() -> Array:
-		return list
 
 
 var main: Node2D
@@ -98,7 +88,7 @@ func _offers() -> void:
 	assert(InputMap.has_action("missions"), "J is an action")
 	var types: Array = missions.available_types()
 	types.sort()
-	assert(types == ["blackbox", "escort", "rooftop", "screamer"], "no provider, no camp / medicine: %s" % [types])
+	assert(types == ["blackbox", "camp", "escort", "medicine", "rooftop", "screamer"], "bandits and outposts provide camp and medicine: %s" % [types])
 	for t in M.TYPES:
 		assert(missions.has_method("_make_" + t) and missions.has_method("_tick_" + t), "%s has make and tick" % t)
 	# the timer offers one (day 3, no assault) when some site is in range
@@ -285,35 +275,33 @@ func _escort() -> void:
 func _providers() -> void:
 	_reset()
 	Game.heli.position = _base()
-	# clear the camp: only with a "bandits" node
-	var bandits := FakeProvider.new()
-	bandits.name = "bandits"
-	main.add_child(bandits)
-	assert(missions.available_types().has("camp") and not missions.available_types().has("medicine"), "camp offered once bandits exist")
-	assert(missions.offer("camp").is_empty(), "no camps listed: nothing to offer")
-	bandits.list = [{"uid": "camp:7", "pos": _base() + Vector2(1800, 0)}]
+	# clear the camp: a bandit camp (bandits.gd) on a site in range, done when it is cleared
+	var bandits: Node = main.bandits
+	bandits.camps.clear()
+	assert(missions.offer("camp").is_empty(), "no camps: nothing to offer")
+	var site: Dictionary = main.chunks.sites_near(_base(), M.MAX_DIST).filter(func(x): return not x.uid in missions.used)[0]
+	bandits.add_camp(site.uid, "prison", site.pos)
 	var m: Dictionary = missions.offer("camp")
-	assert(not m.is_empty() and m["pos"] == _base() + Vector2(1800, 0) and m["state"]["uid"] == "camp:7", "camp mission at the camp")
+	assert(not m.is_empty() and m["pos"] == site.pos and m["state"]["uid"] == site.uid, "camp mission at the camp")
 	missions.step(0.1)
 	assert(missions.open.has(m), "open while the camp stands")
 	var scrap0 := Game.scrap
-	bandits.list = []
+	bandits.camps[site.uid]["cleared"] = true
 	missions.step(0.1)
-	assert(missions.open.is_empty() and Game.scrap >= scrap0 + m["reward"]["scrap"], "camp gone: done and paid")
-	bandits.list = [{"uid": "camp:7", "pos": _base() + Vector2(1800, 0)}]
+	assert(missions.open.is_empty() and Game.scrap >= scrap0 + m["reward"]["scrap"], "camp cleared: done and paid")
+	bandits.camps[site.uid]["cleared"] = false
 	assert(missions.offer("camp").is_empty(), "the same camp is not offered twice")
-	bandits.free()
-	# medicine: with villages, or offered by a village
-	assert(not missions.available_types().has("camp"), "camp gone with the provider")
-	var villages := FakeProvider.new()
-	villages.name = "villages"
-	main.add_child(villages)
-	villages.list = [{"uid": "village:1", "pos": _base() + Vector2(0, 1500)}]
+	bandits.camps.clear()
+	# medicine: to an allied village (outposts.gd), or offered by a village; delivered through outposts.deliver
+	var op: Node2D = main.outposts
+	var vpos := _base() + Vector2(0, 1500)
+	op.allies["village:1"] = {"uid": "village:1", "name": "Village 1", "pos": vpos, "last_visit": Game.day - 3, "next": Game.day + 2, "stock": {"food": 0.0, "water": 0.0}, "gifts": {}}
 	Game.base_medicine = 0.0
 	assert(missions.offer("medicine").is_empty(), "no medicine at the base: not offered")
 	Game.base_medicine = 5.0
 	var v: Dictionary = missions.offer("medicine")
-	assert(not v.is_empty() and v["pos"] == _base() + Vector2(0, 1500), "medicine run to the village")
+	assert(not v.is_empty() and v["pos"] == vpos and v["state"]["uid"] == "village:1", "medicine run to the village")
+	assert(missions.offer("medicine", {"uid": "village:1", "pos": vpos}).is_empty(), "one medicine run per village at a time")
 	Game.heli.position = v["pos"]
 	Game.heli.landed = false
 	missions.step(0.1)
@@ -325,10 +313,13 @@ func _providers() -> void:
 	Game.base_medicine = 5.0
 	missions.step(0.1)
 	assert(missions.open.is_empty() and is_equal_approx(Game.base_medicine, 5.0 - M.MEDICINE_COST), "delivered, medicine taken")
+	assert(op.allies["village:1"]["gifts"].get("medicine", 0.0) == M.MEDICINE_COST and op.allies["village:1"]["last_visit"] == Game.day, "outposts.deliver got it")
 	var own: Dictionary = missions.offer("medicine", {"uid": "village:2", "pos": _base() + Vector2(900, 900)}) # a village offering by itself
 	assert(not own.is_empty() and own["pos"] == _base() + Vector2(900, 900), "a village can offer its own")
-	villages.free()
 	Game.heli.landed = false
+	missions.step(0.1)
+	assert(missions.open.is_empty(), "village:2 is not an ally (gone): the run fails")
+	op.allies.clear()
 	_reset()
 	print("MISSIONS providers OK")
 

@@ -56,6 +56,7 @@ func _run() -> void:
 	var o: Dictionary = op.list[0]
 	assert(o["site"] == first["kind"] and op.garrison(o["id"]).size() == 2 and op.crew().is_empty(), "the crew became the garrison")
 	assert(Game.passengers == 0 and Game.rescued == 2, "garrison is neither passengers nor population")
+	assert(Game.saved_count() == 4, "but they still count as saved for the score: %d" % Game.saved_count())
 	assert(Game.injured == 0 and Game.assigned() <= 2, "workers fit the smaller base: %d" % Game.assigned())
 	Game.assign_jobs()
 	assert(op.garrison(o["id"]).all(func(p): return p["job"] == "" and p["post"] == o["id"]), "garrison off the job list")
@@ -104,6 +105,7 @@ func _run() -> void:
 	assert(o["ammo"] == 100 - op.RAID_AMMO, "the raid used crate ammo")
 	for p in op.garrison(o["id"]):
 		p["injured"] = false
+		p["skill"] = "" # soldiers would add defence and make the raid sizes below random
 	assert(op.defence(o) >= 4.0 + op.HELI_HELP, "two healthy men plus the heli: %s" % op.defence(o))
 	Game.day += 1
 	Game.day_changed.emit(Game.day)
@@ -178,6 +180,8 @@ func _run() -> void:
 	# neglect: unvisited villages fall by chance
 	var fell := []
 	op.fell.connect(func(i, k): fell.append([i, k]))
+	main.missions.open.clear()
+	Game.base_medicine = 5.0
 	for i in 80:
 		Game.day += 1
 		Game.day_changed.emit(Game.day)
@@ -185,6 +189,8 @@ func _run() -> void:
 			break
 	assert(op.allies.is_empty() and fell == [[id, "village"]], "an unvisited village falls: %s" % [fell])
 	assert(poi.survivors.is_empty(), "its people are gone")
+	assert(main.missions.open.any(func(m): return m["type"] == "medicine" and m["state"]["uid"] == id), "a neglected village radioed a medicine run")
+	main.missions.open.clear()
 	# --- save round trip
 	op.list.clear()
 	Game.passengers = 0
@@ -208,5 +214,14 @@ func _run() -> void:
 	var back: Dictionary = bytes_to_var(bytes)
 	assert(back["o"]["list"][0]["pos"] == op.list[0]["pos"] and back["p"][0]["post"] == op.list[0]["id"], "built-in types only: Vector2 and the post survive var_to_bytes")
 	assert(op.garrison(op.list[0]["id"]).size() == 2, "the garrison belongs to the outpost after loading")
+	# the run's score counts the garrisons: meta (and Online.end_run) get saved_count, not the base population
+	var meta0: Dictionary = Game.meta.duplicate(true)
+	var total0: int = Game.meta["total_rescued"]
+	var saved: int = Game.saved_count()
+	assert(saved > Game.rescued, "garrison makes the difference: %d saved, %d at the base" % [saved, Game.rescued])
+	Game.end_run("test over") # also deletes the autosave
+	assert(Game.meta["total_rescued"] == total0 + saved and not FileAccess.file_exists(Save.path()), "meta got %d" % (Game.meta["total_rescued"] - total0))
+	Game.meta = meta0 # the smoke profile's best day would unlock slots in other tests
+	Game._save_meta()
 	print("outposts_test OK")
 	get_tree().quit()

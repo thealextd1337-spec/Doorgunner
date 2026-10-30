@@ -376,8 +376,7 @@ func _raid_outpost(o: Dictionary, strength: float, res: Dictionary) -> void:
 
 
 func _kill(p: Dictionary) -> void:
-	Game.people.erase(p)
-	Game.person_lost.emit(p, true)
+	Game._remove(p, true)
 
 
 func _raid_village(v: Dictionary, strength: float, res: Dictionary) -> void:
@@ -538,6 +537,8 @@ func _on_day(day: int) -> void:
 		var away: int = day - v["last_visit"]
 		if away == NEGLECT_DAYS - 2:
 			Game.radio("Radio: %s has not seen us for %d days. Visit them." % [v["name"], away])
+			if Game.world.get("missions"):
+				Game.world.missions.offer("medicine", {"uid": v["uid"], "pos": v["pos"]})
 		elif away >= NEGLECT_DAYS and randf() < FALL_CHANCE:
 			_village_falls(v)
 
