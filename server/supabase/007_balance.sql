@@ -21,7 +21,7 @@ language plpgsql security definer set search_path = public, extensions, pg_temp 
 declare
   -- A game day lasts 900 s (DAY_SECONDS). Day 2 may come after c_first_day_seconds (tutorial), each later day
   -- after another c_min_day_seconds.
-  c_first_day_seconds constant int := 180;
+  c_first_day_seconds constant int := 150; -- tutorial jumps day 1 to evening: keep headroom for a slow first sync
   c_min_day_seconds constant int := 810;
   c_max_kills_per_day constant int := 300;
   c_max_rescued_per_day constant int := 60;

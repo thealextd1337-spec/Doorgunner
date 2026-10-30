@@ -221,7 +221,7 @@ func _ready() -> void:
 
 
 func new_run() -> void:
-	seed = int(OS.get_environment("RUN_SEED")) if OS.get_environment("RUN_SEED") != "" else randi() # RUN_SEED: fixed world (tests/longrun_test.gd)
+	seed = int(OS.get_environment("RUN_SEED")) if OS.is_debug_build() and OS.get_environment("RUN_SEED") != "" else randi() # RUN_SEED: fixed world (tests/longrun_test.gd); debug only, so ranked release runs can't replay a known world
 	hp = 100.0; max_hp = 100.0
 	day = 1; time = 0.25 # before the crew below: people record the day they joined
 	people = []; person_seq = 0

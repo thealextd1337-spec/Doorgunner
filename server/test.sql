@@ -121,7 +121,7 @@ select pg_temp.expect('implausible', 'select public.upsert_run(gen_random_uuid()
 select pg_temp.expect('run_invalid', 'select public.upsert_run(gen_random_uuid(), 0, 0, 0, false, false, ''{}'', ''v1'')');
 select pg_temp.expect('run_invalid', 'select public.upsert_run(gen_random_uuid(), 1, -1, 0, false, false, ''{}'', ''v1'')');
 
--- time passes: 1 h => up to day 6 allowed (007: 180 s for day 1, then 810 s a day); values never decrease; modifiers stay frozen
+-- time passes: 1 h => up to day 6 allowed (007: 150 s for day 1, then 810 s a day); values never decrease; modifiers stay frozen
 select pg_temp.age_run('a0000000-0000-0000-0000-000000000001', interval '1 hour');
 select pg_temp.act('00000000-0000-0000-0000-000000000001');
 select pg_temp.expect('implausible', 'select public.upsert_run(''a0000000-0000-0000-0000-000000000001'', 7, 0, 0, false, false, ''{}'', ''v1'')');

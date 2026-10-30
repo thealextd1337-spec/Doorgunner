@@ -248,7 +248,7 @@ func _process(delta: float) -> void:
 			Game.radio("Command: next push, %s!" % ("the last one" if surges.is_empty() else "more of them"))
 	elif attackers() == 0 and not Evac.holds_assault():
 		_end()
-	elif Game.day > start_day and Game.time >= DAWN and not final:
+	elif Game.day > start_day + int(blood) and Game.time >= DAWN and not final: # a blood moon holds a full extra day; unreachable stragglers must not keep it going forever
 		_scatter()
 	if THEMES.get(theme, {}).get("chain", false):
 		_escalate(delta)
