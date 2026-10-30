@@ -56,6 +56,21 @@ func _process(delta: float) -> void:
 					Game.world.wear.cond[c] = 100.0
 				Game.world.wear.state = ""
 				Game.world.missions.open.clear()
+				var wr: Node2D = Game.world.wrecks # a Chinook wreck on the sling hook (P15)
+				Game.heli.position = Game.world.base.position + Vector2(-500, -200)
+				Game.heli.vel = Vector2(60, 0)
+				wr.wrecks["shot_sling"] = {"type": "chinook", "pos": Game.heli.position, "rot": 0.4, "cond": 0.6, "keys": [], "state": "slung", "progress": 0.0, "days": 0, "heli": {}}
+				wr.hook = "shot_sling"
+				wr.hook_t = 0.0
+				wr.load_pos = Game.heli.position + Vector2(-30, 10)
+				step = 23
+		23:
+			if t > 6.4:
+				_save("shot_sling.png")
+				var wr: Node2D = Game.world.wrecks
+				wr.hook = ""
+				wr.wrecks["shot_sling"]["state"] = "lost"
+				wr._sync("shot_sling")
 				step = 3
 		3:
 			Game.time = 0.9
@@ -141,6 +156,14 @@ func _process(delta: float) -> void:
 				_save("shot_workers.png")
 				Game.take_item("searchlight")
 				Game.take_item("engine")
+				var wr: Node2D = Game.world.wrecks # HANGAR fleet rows: a wreck waiting, a repair project running (P15)
+				var bp: Vector2 = Game.world.base.position
+				wr.wrecks["shot_w1"] = {"type": "black_hawk", "pos": bp + Vector2(70, 50), "rot": 0.6, "cond": 0.55, "keys": ["turbine", "avionics"], "state": "base", "progress": 0.0, "days": 0, "heli": {}}
+				wr.wrecks["shot_w2"] = {"type": "little_bird", "pos": bp + Vector2(-70, 60), "rot": 2.0, "cond": 0.7, "keys": ["avionics"], "state": "repair", "progress": 4.2, "days": 10, "heli": {}}
+				for u in ["shot_w1", "shot_w2"]:
+					wr._sync(u)
+				while get_tree().paused:
+					Game.world.choice_ui.pick(0) # the take_item level-ups would cover the HANGAR
 				Game.world.base.ui.show_tab("HANGAR")
 				Game.world.base.ui.refresh()
 				step = 8
@@ -195,6 +218,8 @@ func _process(delta: float) -> void:
 			if t > 20.3:
 				_save("shot_settings.png")
 				Profiles.active()["enlisted"] = true # in memory only: no ENLIST pop-up over the hangar shot
+				Game.meta["total_kills"] = maxi(Game.meta["total_kills"], 500) # in memory: two modifiers unlocked for the title shot
+				Game.meta["runs"] = maxi(Game.meta["runs"], 3)
 				var title: CanvasLayer = preload("res://scripts/title_ui.gd").new()
 				Game.world.add_child(title)
 				title.open()
@@ -204,6 +229,8 @@ func _process(delta: float) -> void:
 			if t > 20.6:
 				_save("shot_title_hangar.png")
 				title_ui()._toggle_hangar()
+				title_ui().mods = ["dense_horde"]
+				title_ui()._refresh_setup()
 				step = 11
 		11:
 			if t > 20.9:

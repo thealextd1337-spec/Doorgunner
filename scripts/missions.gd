@@ -14,7 +14,7 @@ extends Node
 ##             base medicine (taken, outposts.deliver); failed when the village is gone. A neglected village offers one itself:
 ##             Game.world.missions.offer("medicine", {"uid": ..., "pos": ...}).
 ## Rewards: scrap, XP, morale (morale.add), often a person with a rare skill (Game.People, joins the base at once), salvage and
-## one `key_parts` (P15 will spend these on the heli repair; nothing reads the counter yet). Saves itself (hook "missions").
+## one `key_parts` (a counter; the typed key part itself goes to wrecks.gd, P15). Saves itself (hook "missions").
 
 signal changed
 
@@ -154,7 +154,8 @@ func _finish(m: Dictionary, ok: bool, expired := false) -> void:
 		for k in r.get("salvage", {}):
 			Game.salvage[k] += r["salvage"][k]
 		if r.get("key_part", false):
-			key_parts += 1 # P15: spent on the heli repair
+			key_parts += 1 # count of key parts earned; the typed part goes to wrecks.gd for the heli repair
+			Game.world.wrecks.add_key()
 		if r.has("person"):
 			_recruit(r["person"])
 		Game.radio("Command: %s complete. %s." % [m["title"], reward_text(r)])

@@ -26,6 +26,8 @@ var pending := 0 # 1 landing, -1 taking off
 var heat := 0.0 # minigun spread growth 0..1, gone at Lv5
 var aim_override := Vector2.ZERO # tests: aim direction used instead of the mouse when non-zero
 var no_angle := 0.0 # seconds the HUD keeps showing "no firing angle"
+var size := 1.0 # heli type scale (wrecks.gd)
+var fire_cd2 := 0.0 # second door gun of a twin-gun type (Black Hawk)
 var body: Sprite2D
 var rotor: Sprite2D
 var shadow: Sprite2D
@@ -54,6 +56,7 @@ func _process(delta: float) -> void:
 	if not Game.running:
 		return
 	fire_cd -= delta
+	fire_cd2 -= delta
 	heat = maxf(0.0, heat - delta)
 	no_angle -= delta
 	muzzle.visible = fire_cd > _interval() - 0.04
@@ -74,15 +77,17 @@ func _process(delta: float) -> void:
 		Game.cycle_weapon()
 	_move(delta)
 	_fuel(delta)
-	Game.make_noise(global_position, 0.05 if landed else 0.25 + vel.length() / MAX_SPEED * 0.2)
+	Game.make_noise(global_position, (0.05 if landed else 0.25 + vel.length() / MAX_SPEED * 0.2) * Game.world.wrecks.htype()["noise"])
 	if Input.is_action_pressed("fire") and not Game.world.ui_open:
 		_fire()
+		if Game.world.wrecks.htype()["twin"] and Game.heli_weapons.size() > 1:
+			_fire(Game.heli_weapons[(Game.heli_weapons.find(Game.weapon) + 1) % Game.heli_weapons.size()])
 	var h := 0.0 if landed else 1.0
 	shadow.position = shadow.position.lerp(Vector2(10, 14) * h, 10 * delta)
 	shadow.rotation = body.rotation
 	rotor.rotation += (25.0 if not landed else 4.0) * delta
 	rotor.position = body.position
-	body.scale = Vector2.ONE * Art.SCALE * (1.0 + 0.08 * h)
+	body.scale = Vector2.ONE * Art.SCALE * (1.0 + 0.08 * h) * size
 
 
 func _move(delta: float) -> void:
@@ -92,7 +97,7 @@ func _move(delta: float) -> void:
 		position += vel * delta
 		return
 	var wear: Node = Game.world.wear
-	var max_speed: float = MAX_SPEED * Game.stats["speed"] * Game.weight_factor * wear.speed_factor()
+	var max_speed: float = MAX_SPEED * Game.stats["speed"] * Game.weight_factor * wear.speed_factor() * Game.world.wrecks.speed_factor()
 	vel += dir * wear.thrust() * ACCEL * max_speed / MAX_SPEED * delta # thrust scales with engine and weight too, so their top speed is reachable
 	vel -= vel * wear.drag(DRAG) * delta
 	if vel.length() > max_speed:
@@ -112,7 +117,7 @@ func _move(delta: float) -> void:
 func _fuel(delta: float) -> void:
 	if landed:
 		return
-	var burn: float = (FUEL_IDLE + vel.length() / MAX_SPEED * FUEL_FLY) / Game.stats["fuel_eff"] * Game.world.wear.fuel_factor()
+	var burn: float = (FUEL_IDLE + vel.length() / MAX_SPEED * FUEL_FLY) / Game.stats["fuel_eff"] * Game.world.wear.fuel_factor() * Game.world.wrecks.fuel_factor()
 	Game.fuel = max(0.0, Game.fuel - burn * delta)
 	if Game.fuel <= 0.0:
 		Game.end_run("Out of fuel: the helicopter went down.")
@@ -128,6 +133,8 @@ func _toggle_landing() -> void:
 			pending = -1
 			transition = SPOOL
 			Sfx.play("takeoff")
+	elif Game.world.wrecks.slung():
+		Game.radio("Pilot: not with a load on the hook. Let it go first (G).")
 	elif vel.length() <= LAND_SPEED and Game.world.is_landable(position):
 		pending = 1
 		transition = SPOOL
@@ -162,9 +169,9 @@ func weapon_range() -> float:
 	return Weapons.TABLE[Game.weapon]["range"] * Game.stats["range"]
 
 
-func _interval() -> float:
-	var rate: float = 1.0 + 0.1 * (maxi(1, Progression.level("minigun")) - 1) if Game.weapon == "minigun" else 1.0
-	return Weapons.TABLE[Game.weapon]["interval"] / Game.stats["fire_rate"] / rate
+func _interval(id: String = Game.weapon) -> float:
+	var rate: float = 1.0 + 0.1 * (maxi(1, Progression.level("minigun")) - 1) if id == "minigun" else 1.0
+	return Weapons.TABLE[id]["interval"] / Game.stats["fire_rate"] / rate
 
 
 ## Save hook "heli" (the weapon itself is in Game).
@@ -197,10 +204,11 @@ func refresh_systems() -> void:
 			n.queue_free()
 
 
-func _fire() -> void:
-	var id: String = Game.weapon
+## Fires `id`: the equipped gun, or the second door gun of a twin-gun type (own cooldown fire_cd2).
+func _fire(id: String = Game.weapon) -> void:
+	var second := id != Game.weapon
 	var w: Dictionary = Weapons.TABLE[id]
-	if fire_cd > 0.0 or Game.ammo < w["ammo_per_shot"] or not Game.world.wear.gun_ok():
+	if (fire_cd2 if second else fire_cd) > 0.0 or Game.ammo < w["ammo_per_shot"] or not Game.world.wear.gun_ok():
 		return
 	var aim := aim_dir()
 	if not in_arc(aim):
@@ -208,10 +216,13 @@ func _fire() -> void:
 		return
 	var lv := maxi(1, Progression.level(id))
 	var dmg: float = w["damage"] * Game.stats["damage"] * (1.0 + DMG_PER_LEVEL.get(id, 0.0) * (lv - 1))
-	if fire_cd < -1.0 and Progression.level("training") >= 5:
+	if fire_cd < -1.0 and Progression.level("training") >= 5 and not second:
 		dmg *= 2.0 # Gunnery Lv5: first shot after a pause crits
-	fire_cd = _interval()
-	Game.world.wear.shot(fire_cd)
+	if second:
+		fire_cd2 = _interval(id)
+	else:
+		fire_cd = _interval()
+	Game.world.wear.shot(_interval(id))
 	Game.ammo -= w["ammo_per_shot"]
 	Sfx.play("gun", null, -4.0)
 	Game.make_noise(global_position, 1.0)
@@ -235,7 +246,7 @@ func _fire() -> void:
 		for o in tracers:
 			var b := bullet_script.new()
 			b.setup(global_position + aim * 16 + aim.orthogonal() * o, aim.rotated(spread), dmg, w["pierce"] + Game.stats["pierce"],
-				w["bullet_speed"], weapon_range() / (w["bullet_speed"] * Game.stats["bullet_speed"]), splash)
+				w["bullet_speed"], w["range"] * Game.stats["range"] / (w["bullet_speed"] * Game.stats["bullet_speed"]), splash)
 			b.chain = 2 if id == "railgun" and lv >= 5 else 0
 			b.bounce = 1 if Progression.level("hardcore") >= 5 else 0
 			Game.world.add_child(b)
