@@ -21,8 +21,10 @@ const SPAWN_RADIUS := 720.0 # px from the base
 const SPAWN_INTERVAL := 0.5 # s between two attackers of a push
 const FROM_DIRECTION := 0.7 # share of the attackers that come from the announced direction
 const DIRECTION_SPREAD := 0.4 # rad either side of it
-const BASE_SIZE := 20 # attackers = BASE_SIZE + SIZE_PER_DAY * day
+const BASE_SIZE := 20 # attackers = BASE_SIZE + SIZE_PER_DAY * day (+ LATE_PER_DAY a day after LATE_FROM)
 const SIZE_PER_DAY := 6
+const LATE_FROM := 25 # from this day the waves grow faster: days 31-40 of the long run were the safest (few losses, scrap past 4000)
+const LATE_PER_DAY := 4 # extra attackers per day after LATE_FROM (balance 1.0.0-beta; a flat 8 per day broke weak runs by day 12, 6 the weakest by day 39)
 const FIRST_THEME := 2 # themes from this assault on
 const EVENING := 0.6 # time of day the evening before the assault is announced
 const FIRST_DELAY := 2 # main.found_base: the first assault comes on founding day + this
@@ -36,11 +38,14 @@ const FINAL_BOSSES := 2
 const HOLD_AT := 0.05 # time of day the blood moon stops the clock at (dark, before dawn at 0.2)
 const HOLD_MAX := 480.0 # s the night can be held; the assault still lasts until the last attacker is dead
 const PHASED_FROM := 30 # waves this big come in 2-3 pushes (a blood moon always in 3)
+const DAWN := 0.25 # time of day the stragglers of last night's assault give up (those stuck behind rivers or rock kept it going for days)
 const PAUSE := 20.0 # s between two pushes (shorter once the push is dead)
 const QUICK_PAUSE := 6.0
 const ESCALATE_EVERY := 6.0
 const ESCALATE_MAX := 60 # extra zombies a screamer chain may add
 const RAM_SPEED := 1.6 # brute ram: walking speed factor
+const Chunks := preload("res://scripts/chunk_manager.gd")
+const RAM_LOOK := 48.0 # px: a ram that ran into something it cannot smash walks the normal path until this much is clear
 const COMPASS := ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"]
 const NIGHT_SKY := Color(0.2, 0.22, 0.45)
 const BLOOD_SKY := Color(0.62, 0.1, 0.1)
@@ -67,6 +72,7 @@ var esc_cd := 0.0
 var extra := 0 # zombies a screamer chain added so far
 var held := 0.0 # s the blood moon held the night
 var last_theme := ""
+var start_day := 0 # day the running assault began; its stragglers scatter at DAWN the morning after
 
 
 func _ready() -> void:
@@ -89,7 +95,7 @@ static func blood_moon(day: int) -> bool:
 
 
 static func wave_size(day: int) -> int:
-	return BASE_SIZE + SIZE_PER_DAY * day
+	return BASE_SIZE + SIZE_PER_DAY * day + LATE_PER_DAY * maxi(0, day - LATE_FROM)
 
 
 static func _inst() -> Assault:
@@ -127,9 +133,26 @@ static func ram(e: Node2D, delta: float) -> bool:
 	var to: Vector2 = Game.world.base.global_position - e.global_position
 	if to.length() <= e.radius + 50.0:
 		return false
+	if e.state.get("detour", false):
+		if _wall_ahead(e.position, to.normalized()):
+			return false # walking around rock, water or a hedge on the normal path until the way ahead is clear
+		e.state.erase("detour")
+	var before: Vector2 = e.position
 	e._face(to)
 	e._step(to, delta, RAM_SPEED)
+	if e.position == before and _wall_ahead(e.position, to.normalized()):
+		e.state["detour"] = true # nothing to smash: a ram stuck there kept the assault going for ever (P18 long run)
 	return true
+
+
+## Terrain within RAM_LOOK px along `dir` that no ram can smash (rock, water, hedge, warehouse; not sandbags or houses).
+static func _wall_ahead(pos: Vector2, dir: Vector2) -> bool:
+	for d in range(8, int(RAM_LOOK) + 1, 8):
+		var p := pos + dir * d
+		var cell := Vector2i((p / 16.0).floor())
+		if not Game.world.is_walkable(p) and not Game.sandbags.get(cell, {}).get("built", false) and Game.world.chunks.get_cell_atlas_coords(cell).x != Chunks.T.BUILDING and Game.world.base.building_at(cell).is_empty():
+			return true
+	return false
 
 
 ## hud: the alert text while an assault runs ("" otherwise): name of the theme, blood moon, attackers left.
@@ -225,6 +248,8 @@ func _process(delta: float) -> void:
 			Game.radio("Command: next push, %s!" % ("the last one" if surges.is_empty() else "more of them"))
 	elif attackers() == 0 and not Evac.holds_assault():
 		_end()
+	elif Game.day > start_day + int(blood) and Game.time >= DAWN and not final: # a blood moon holds a full extra day; unreachable stragglers must not keep it going forever
+		_scatter()
 	if THEMES.get(theme, {}).get("chain", false):
 		_escalate(delta)
 
@@ -296,6 +321,7 @@ func _on_attack(day: int) -> void:
 	held = 0.0
 	extra = 0
 	esc_cd = ESCALATE_EVERY
+	start_day = day
 	var kinds := _compose(day, total)
 	var pushes := 1
 	if total >= PHASED_FROM and not tutorial:
@@ -348,6 +374,17 @@ func _spawn(kind: String, radius := SPAWN_RADIUS) -> void:
 		e.state["ram"] = true
 
 
+## Morning after: the attackers still out there stop going for the base and wander off; the assault counts as held.
+func _scatter() -> void:
+	var left := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.get("target_base") and not e.is_queued_for_deletion():
+			e.target_base = false
+			left += 1
+	Game.radio("Command: daylight. The last %d of them are scattering." % left)
+	_end()
+
+
 func _end() -> void:
 	Game.attack_active = false
 	Game.meta["assaults_held"] += 1
@@ -366,7 +403,7 @@ func _end() -> void:
 
 func save_state() -> Dictionary:
 	return {"plan": plan, "theme": theme, "blood": blood, "final": final, "dir": dir, "queue": queue, "surges": surges, "pause": pause, "spawn_cd": spawn_cd,
-		"esc_cd": esc_cd, "extra": extra, "held": held, "last_theme": last_theme}
+		"esc_cd": esc_cd, "extra": extra, "held": held, "last_theme": last_theme, "start_day": start_day}
 
 
 func load_state(d: Dictionary) -> void:
@@ -383,3 +420,4 @@ func load_state(d: Dictionary) -> void:
 	extra = d["extra"]
 	held = d["held"]
 	last_theme = d["last_theme"]
+	start_day = d.get("start_day", Game.day) # runs saved before 1.0.0-beta: counted from the day they are loaded

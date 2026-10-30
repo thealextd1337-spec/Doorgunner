@@ -1,4 +1,4 @@
--- Doorgunner backend tests. Run AFTER migrations 001-005 (and the generated word list, if you like), in the SQL editor
+-- Doorgunner backend tests. Run AFTER migrations 001-007 (and the generated word list, if you like), in the SQL editor
 -- or with psql. Everything happens in one transaction that is rolled back at the end: no data is left behind.
 -- Success = the last result shows "ALL TESTS PASSED". A failure raises "FAIL: ..." - then run `rollback;` once.
 -- The seed words below are test-only; they are rolled back and do not replace the generated word list (P3).
@@ -74,8 +74,8 @@ select pg_temp.ok(public.name_error('äbc') = 'name_invalid', 'non-ascii');
 select pg_temp.ok(public.name_error('---') = 'name_invalid', 'no alphanumeric');
 select pg_temp.ok(public.name_error('BadWord') = 'name_banned', 'banned via name_error');
 
-select pg_temp.ok(public.run_points(5, 2, 30, true) = 2580, 'run_points formula');
-select pg_temp.ok(public.run_points(5, 2, 30, true, 1.5) = 3870, 'run_points with factor');
+select pg_temp.ok(public.run_points(5, 2, 30, true) = 5580, 'run_points formula (007: victory 5000)');
+select pg_temp.ok(public.run_points(5, 2, 30, true, 1.5) = 8370, 'run_points with factor');
 
 -- 2. access control ------------------------------------------------------------
 set local role anon;
@@ -116,20 +116,21 @@ select pg_temp.ok(public.upsert_run('a0000000-0000-0000-0000-000000000001', 1, 2
                   'points: 1*100 + 2*25 + 10');
 select pg_temp.expect('rate_limit', 'select public.upsert_run(''a0000000-0000-0000-0000-000000000001'', 1, 3, 11, false, false, ''{}'', ''v1'')');
 select pg_temp.expect('implausible', 'select public.upsert_run(gen_random_uuid(), 2, 0, 0, false, false, ''{}'', ''v1'')');          -- day 2 at t=0
-select pg_temp.expect('implausible', 'select public.upsert_run(gen_random_uuid(), 1, 0, 401, false, false, ''{}'', ''v1'')');        -- kills > 400/day
+select pg_temp.expect('implausible', 'select public.upsert_run(gen_random_uuid(), 1, 0, 301, false, false, ''{}'', ''v1'')');        -- kills > 300/day (007)
 select pg_temp.expect('implausible', 'select public.upsert_run(gen_random_uuid(), 1, 61, 0, false, false, ''{}'', ''v1'')');         -- rescued > 60/day
 select pg_temp.expect('run_invalid', 'select public.upsert_run(gen_random_uuid(), 0, 0, 0, false, false, ''{}'', ''v1'')');
 select pg_temp.expect('run_invalid', 'select public.upsert_run(gen_random_uuid(), 1, -1, 0, false, false, ''{}'', ''v1'')');
 
--- time passes: 1 h => up to day 11 allowed; values never decrease; modifiers stay frozen
+-- time passes: 1 h => up to day 6 allowed (007: 150 s for day 1, then 810 s a day); values never decrease; modifiers stay frozen
 select pg_temp.age_run('a0000000-0000-0000-0000-000000000001', interval '1 hour');
 select pg_temp.act('00000000-0000-0000-0000-000000000001');
+select pg_temp.expect('implausible', 'select public.upsert_run(''a0000000-0000-0000-0000-000000000001'', 7, 0, 0, false, false, ''{}'', ''v1'')');
 select pg_temp.expect('implausible', 'select public.upsert_run(''a0000000-0000-0000-0000-000000000001'', 12, 0, 0, false, false, ''{}'', ''v1'')');
 select pg_temp.ok(public.upsert_run('a0000000-0000-0000-0000-000000000001', 5, 1, 3, false, false, '{dense,big}', 'v2') = 5*100 + 2*25 + 10,
                   'day grows, rescued/kills never shrink, modifiers of later calls are ignored');
 select pg_temp.age_run('a0000000-0000-0000-0000-000000000001', interval '1 minute');
 select pg_temp.act('00000000-0000-0000-0000-000000000001');
-select pg_temp.ok(public.upsert_run('a0000000-0000-0000-0000-000000000001', 3, 2, 10, true, true, '{}', 'v2') = 5*100 + 2*25 + 10 + 2000,
+select pg_temp.ok(public.upsert_run('a0000000-0000-0000-0000-000000000001', 3, 2, 10, true, true, '{}', 'v2') = 5*100 + 2*25 + 10 + 5000,
                   'final call (ended + victory), lower day ignored');
 select pg_temp.expect('run_ended', 'select public.upsert_run(''a0000000-0000-0000-0000-000000000001'', 6, 2, 10, true, true, ''{}'', ''v2'')');
 select pg_temp.ok((select ended and victory and day = 5 and game_version = 'v2' from public.runs where id = 'a0000000-0000-0000-0000-000000000001'),
@@ -153,10 +154,10 @@ select pg_temp.expect('rate_limit_new_runs', 'select public.upsert_run(gen_rando
 
 -- 5. leaderboards ------------------------------------------------------------------
 reset role;
-select pg_temp.ok((select value from public.leaderboard_points where name = 'Alex_One') = 2560 + 170 + 300 + 100,
+select pg_temp.ok((select value from public.leaderboard_points where name = 'Alex_One') = 5560 + 170 + 300 + 100,
                   'points sum over runs');
 select pg_temp.ok((select rank from public.leaderboard_points where name = 'Alex_One') = 1, 'rank 1');
-select pg_temp.ok((select value from public.best_run where name = 'Alex_One') = 2560, 'best single run');
+select pg_temp.ok((select value from public.best_run where name = 'Alex_One') = 5560, 'best single run');
 select pg_temp.ok((select value from public.leaderboard_days where name = 'Alex_One') = 5 + 1 + 1 + 1, 'days sum');
 select pg_temp.ok((select value from public.leaderboard_rescued where name = 'Alex_One') = 2, 'rescued sum');
 select pg_temp.ok((select value from public.leaderboard_kills where name = 'Alex_One') = 15, 'kills sum');

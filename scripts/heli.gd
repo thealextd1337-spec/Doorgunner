@@ -83,7 +83,7 @@ func _process(delta: float) -> void:
 		if Game.world.wrecks.htype()["twin"] and Game.heli_weapons.size() > 1:
 			_fire(Game.heli_weapons[(Game.heli_weapons.find(Game.weapon) + 1) % Game.heli_weapons.size()])
 	var h := 0.0 if landed else 1.0
-	shadow.position = shadow.position.lerp(Vector2(10, 14) * h, 10 * delta)
+	shadow.position = shadow.position.lerp(Vector2(10, 14) * h, minf(1.0, 10 * delta))
 	shadow.rotation = body.rotation
 	rotor.rotation += (25.0 if not landed else 4.0) * delta
 	rotor.position = body.position
@@ -93,7 +93,7 @@ func _process(delta: float) -> void:
 func _move(delta: float) -> void:
 	var dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if landed or pending == 1:
-		vel = vel.lerp(Vector2.ZERO, 4.0 * delta)
+		vel = vel.lerp(Vector2.ZERO, minf(1.0, 4.0 * delta)) # minf: a long frame must not overshoot
 		position += vel * delta
 		return
 	var wear: Node = Game.world.wear

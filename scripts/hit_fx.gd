@@ -39,7 +39,7 @@ static func death(e: Node2D) -> void:
 	c.modulate = Color(0.5, 0.38, 0.38, 0.9)
 	c.z_index = 0
 	Game.world.add_child(c)
-	corpses = corpses.filter(func(o: Node2D) -> bool: return is_instance_valid(o))
+	corpses.assign(corpses.filter(func(o) -> bool: return is_instance_valid(o))) # untyped: a freed corpse is no Node2D any more
 	corpses.append(c)
 	while corpses.size() > MAX_CORPSES:
 		corpses.pop_front().queue_free()

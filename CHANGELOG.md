@@ -4,6 +4,27 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## 1.0.0-beta - 2026-10-30
+Balance pass over long runs (P18): a bot played 40-day runs on several worlds before and after these changes.
+- Morale no longer gets stuck at 100 or slides to 0 for good: each day it moves a quarter of the way back towards 60,
+  then the day's events count. A base with power and beds for everyone settles in the 80s, a hungry one near 40, and
+  it recovers within a few days once the problem is fixed. Power and "beds for all" give +3 a day (was +5).
+- Heli wear is half as fast (rotor 0.6, engine 0.8, gearbox 0.5 % per flight minute). The Workshop now keeps 10
+  salvage parts for heli repairs instead of breaking every part down into scrap: before, the hangar never had parts
+  and engines failed far from home.
+- An Ammo worker makes 60 ammo a day (was 40): the base ran dry right before the big assaults.
+- Assaults grow faster after day 25 (+4 more attackers per day on top of the usual +6): the late game was too safe.
+- Fix: a brute ram that walks into rock, water or a hedge now goes around it instead of pushing at it for ever.
+- Fix: attackers that cannot reach the base (behind a river, stuck in rock) no longer keep an assault going for days:
+  at dawn the next morning the last of them scatter and the assault counts as held.
+- Fix: shooting a zombie den with the door gun no longer throws a script error.
+- Fix: corpses fade out again (an error kept them on the ground after the first one faded).
+- Fix: the build bar no longer covers the minimap; with all 11 tools it wraps into a second row.
+- Leaderboard: an evacuation victory is worth 5000 points (was 2000). The server checks runs against the real
+  15-minute day (server/supabase/007_balance.sql).
+- Dev: `SMOKE=longrun` (tests/longrun_test.gd) plays 40 days with a bot and writes build/longrun.csv; it takes 15-40
+  minutes and is not part of the quick test loop.
+
 ## 0.9.0 - 2026-10-30
 - Heli wrecks and a fleet (P15): airfields, checkpoints and airliner crash sites can hold a wrecked Little Bird, Black
   Hawk, Chinook or Hind. Hover over one and press **G** to hook it on the sling (slow, heavy, it swings and snags on
