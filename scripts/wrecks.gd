@@ -211,7 +211,8 @@ func _sling(delta: float) -> void:
 	var f := d.normalized() * maxf(0.0, d.length() - ROPE) * SPRING
 	load_vel += (f - load_vel * DAMP) * delta
 	load_pos += load_vel * delta
-	h.vel -= f * TUG * delta
+	if not h.landed: # a landed heli is not dragged by its load
+		h.vel -= f * TUG * delta
 	if h.position.distance_to(load_pos) > ROPE_MAX:
 		load_pos = h.position - (h.position - load_pos).normalized() * ROPE_MAX
 	w["pos"] = load_pos

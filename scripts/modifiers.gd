@@ -4,8 +4,10 @@ extends Node
 ## Each is a meta unlock of the profile (UNLOCK: a meta.json counter and the value it must reach).
 ## main.gd keeps it as `modifiers`, it saves itself (hook "modifiers"); a run saved before P15 has none. Ids this version does not
 ## know (a newer save) are kept for the server but do nothing here.
-## Effects live where they bite, each one call of on(id): spawner.gd (dense_horde), bandits.gd (warlords), poi.gd (scarcity),
-## game_state.gd wells (dry_season), start(): hull (glass_cockpit), hud.gd / poi.gd map reveal (blackout).
+## Effects live where they bite, each one call of on(id): spawner.gd (dense_horde), bandits.gd (warlords; convoys.gd ambushes
+## through bandits.first_camp_day), poi.gd and convoys.gd loot (scarcity; village / outpost stock not), game_state.gd wells
+## (dry_season), start(): hull (glass_cockpit), hud.gd / poi.gd / radio.gd / bandits.gd map reveal (blackout; radio mission
+## targets in missions.gd stay marked, the mission needs them).
 
 const TABLE := {
 	"dense_horde": {"name": "Dense Horde", "desc": "+50 % zombies", "factor": 1.3},

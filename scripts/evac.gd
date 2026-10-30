@@ -129,10 +129,7 @@ func _land() -> void:
 	board = 0.0
 	Sfx.play("alarm")
 	Game.radio("Pilot: transport on final. Keep the strip clear until everyone is aboard!")
-	Game.world.assault.add_push(int(Assault.wave_size(siege_day) * LANDING_PUSH))
-	var b: Node = Game.world.get("bandits")
-	if b != null:
-		b.siege_raid()
+	Game.world.assault.add_push(int(Assault.wave_size(siege_day) * LANDING_PUSH)) # the bandits' siege raid came at siege start (_on_attack)
 	_ensure_plane()
 
 
@@ -149,8 +146,13 @@ func _board(delta: float) -> void:
 			Game.radio("Pilot: %d hostile(s) on the strip, I can't load under fire!" % n)
 		return
 	board += delta
-	if board >= BOARD_SECONDS:
+	if board >= board_seconds():
 		_boarded()
+
+
+## Loading time: BOARD_SECONDS, faster with a Chinook as the active heli (heli_types.gd "evac").
+func board_seconds() -> float:
+	return BOARD_SECONDS / Game.world.wrecks.htype()["evac"]
 
 
 ## Zombies and bandits on or within HOLD_MARGIN px of the strip.
@@ -163,6 +165,8 @@ func hostiles_on_strip() -> int:
 
 
 func _boarded() -> void:
+	if victory: # counted once per run
+		return
 	phase = "choice"
 	flown = Game.people.filter(func(p): return not p["aboard"] and p.get("post", "") == "").map(func(p): return p["name"])
 	victory = true
@@ -171,6 +175,7 @@ func _boarded() -> void:
 	Online.mark_victory() # the server hears of it now, the run may go on
 	Game.radio("Pilot: everyone is aboard. Your call, gunner.")
 	boarded.emit()
+	Save.autosave() # a save from before boarding must not replay it (a second victory)
 
 
 ## Victory screen: STAY BEHIND (true) keeps the run going, END RUN (false) finishes it as a win.
@@ -197,7 +202,9 @@ func engineer() -> Variant:
 
 
 func tool_visible(kind: String) -> bool:
-	return phase == "" and (announced if kind == "radio" else (contact if kind == "airstrip" else true))
+	if kind not in ["radio", "airstrip"]:
+		return true
+	return phase == "" and (announced if kind == "radio" else contact)
 
 
 ## Why `kind` cannot be placed right now regardless of the spot, "" if it can.
@@ -339,7 +346,7 @@ func status() -> String:
 			if taxi < TAXI_SECONDS:
 				return "\nEVAC: transport landing"
 			var n := hostiles_on_strip()
-			return "\nEVAC: CLEAR THE STRIP (%d hostile)" % n if n > 0 else "\nEVAC: loading %d/%d s" % [board, BOARD_SECONDS]
+			return "\nEVAC: CLEAR THE STRIP (%d hostile)" % n if n > 0 else "\nEVAC: loading %d/%d s" % [board, board_seconds()]
 	return ""
 
 
@@ -354,7 +361,7 @@ func _ensure_plane() -> void:
 		plane.z_index = 3
 		Game.world.add_child(plane)
 		plane.setup(strip_rect(b).get_center(), Vector2.RIGHT if b["rot"] == 0 else Vector2.DOWN)
-	plane.place(taxi, board / BOARD_SECONDS if taxi >= TAXI_SECONDS else 0.0)
+	plane.place(taxi, board / board_seconds() if taxi >= TAXI_SECONDS else 0.0)
 
 
 ## The strip as drawn: dark surface, edge lines, centre dashes and threshold bars. Long axis along x, the node turns.

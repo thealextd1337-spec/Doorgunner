@@ -157,6 +157,34 @@ func _run() -> void:
 	cv.refresh_tab()
 	assert(cv._ui["dest"].item_count > 0 and "trucks at home 0" in cv._ui["pool"].text, "CONVOY tab lists destinations")
 	main.base.ui.close()
+	# --- Warlords: camps and ambushes from day 1; the camp share's day term never goes negative
+	var mods: Node = main.modifiers
+	var bd: Node = main.bandits
+	assert(bd.first_camp_day() == bd.CAMP_DAY, "camps from CAMP_DAY")
+	mods.active = ["warlords"]
+	assert(bd.first_camp_day() == 1, "Warlords: camps from day 1")
+	var day0 := Game.day
+	Game.day = 1
+	var rolls := []
+	for i in 200:
+		rolls.append(cv._roll_ambush(c, [500.0]))
+	assert(rolls.any(func(r): return r >= 0.0), "Warlords: ambushes on day 1")
+	mods.active = []
+	assert(cv._roll_ambush(c, [500.0]) < 0.0, "no ambush on day 1 without Warlords")
+	Game.day = day0
+	# --- Scarcity: convoy loot -30 %
+	var lc := {"id": "cx", "dest": {"uid": "scarcity-test", "kind": "town", "name": "x", "pos": Vector2.ZERO}, "cargo": {}, "leg": "loot"}
+	mods.active = ["scarcity"]
+	cv._load(lc)
+	mods.active = []
+	var food: float = lc["cargo"]["food"]
+	assert(food >= roundf(cv.LOOT["town"]["food"] * 0.7 * 0.8) and food <= roundf(cv.LOOT["town"]["food"] * 0.7 * 1.2), "Scarcity: %d food" % food)
+	# --- no convoy leaves during the evacuation
+	cv.trucks = 1
+	main.evac.phase = "countdown"
+	assert("evacuation" in cv.send(dest.uid, driver["id"], 0), "SEND refused during the countdown")
+	main.evac.phase = ""
+	cv.trucks = 0
 	# old saves: no "convoys" system, defaults stay
 	cv.load_state({"list": [], "trucks": 0, "seq": 0, "trips": {}})
 	assert(cv.list.is_empty(), "empty state loads")

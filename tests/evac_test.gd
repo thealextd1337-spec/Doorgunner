@@ -197,6 +197,7 @@ func _airstrip() -> void:
 	e.step(0.1)
 	assert(e.phase == "countdown" and e.siege_day == 18 and _logged("transport lands"), "countdown of 3 days: siege day %d" % e.siege_day)
 	assert(not e.tool_visible("airstrip") and e.status().contains("transport in 3 day"), "status: %s" % e.status())
+	assert(e.tool_visible("sandbag") and e.tool_visible("motor_pool") and e.tool_visible("demolish"), "the other build tools stay during the countdown")
 	# bandit raids keep out of the siege night, but not of other nights
 	main.bandits.camps["evac_test"] = {"uid": "evac_test", "kind": "prison", "pos": main.base.global_position + Vector2(2500, 0), "garrison": {}, "prisoners": 0,
 		"cleared": false, "known": true, "looted": false}
@@ -272,11 +273,12 @@ func _landing_and_boarding() -> void:
 	e.step(0.1)
 	assert(e.phase == "siege", "not yet")
 	Game.time = 0.0405
+	var bandits0 := get_tree().get_nodes_in_group("bandits").size()
 	e.step(0.1)
 	assert(e.phase == "landed" and e.plane != null and _logged("on final"), "the transport lands in the second half of the night")
 	var push := int(Assault.wave_size(d) * Evac.LANDING_PUSH)
 	assert(main.assault.queued() == push, "landing push of %d: %d" % [push, main.assault.queued()])
-	assert(get_tree().get_nodes_in_group("bandits").size() > 0, "a second raid")
+	assert(get_tree().get_nodes_in_group("bandits").size() == bandits0, "no second bandit raid at the landing")
 	_clear_enemies()
 	var centre: Vector2 = Evac.strip_rect(e.strip()).get_center()
 	e.step(Evac.TAXI_SECONDS)
@@ -292,11 +294,22 @@ func _landing_and_boarding() -> void:
 	e.step(5.0)
 	assert(is_equal_approx(e.board, b0 + 5.0), "loading goes on: %f" % e.board)
 	assert(Game.running and e.phase == "landed", "not loaded yet")
+	var w: Node2D = main.wrecks # a Chinook loads faster (heli_types "evac" 1.5)
+	var t0: String = w.wrecks[w.active]["type"]
+	w.wrecks[w.active]["type"] = "chinook"
+	assert(is_equal_approx(e.board_seconds(), Evac.BOARD_SECONDS / 1.5) and e.status().contains("/40 s"), "Chinook boarding: %s" % e.status())
+	w.wrecks[w.active]["type"] = t0
+	assert(is_equal_approx(e.board_seconds(), Evac.BOARD_SECONDS), "other helis load in BOARD_SECONDS")
 	e.step(Evac.BOARD_SECONDS - e.board - 0.5)
 	assert(e.phase == "landed", "half a second short")
 	_online_setup()
 	e.step(1.0)
 	assert(e.phase == "choice", "loaded")
+	var on_disk: Dictionary = Save.read()["systems"]["evac"]
+	assert(on_disk["phase"] == "choice" and on_disk["victory"], "boarding saves at once: %s" % [on_disk])
+	var v: int = Game.meta["victories"]
+	e._boarded()
+	assert(Game.meta["victories"] == v, "boarding twice counts once")
 
 
 ## A ranked run waiting in the outbox of an unreachable server.
@@ -328,6 +341,7 @@ func _stay_behind() -> void:
 	assert(Game.meta["victories"] == victories and not Online._run["ended"], "counted once, run not ended")
 	assert(e.plane.leaving == 0.0, "the transport takes off")
 	assert(e.tool_note("airstrip") != "" and not e.tool_visible("airstrip") and not e.tool_visible("radio"), "no second evacuation: %s" % e.tool_note("airstrip"))
+	assert(e.tool_visible("sandbag") and e.tool_visible("motor_pool"), "building goes on after STAY BEHIND")
 	var siege := e.siege_day
 	Game.day += 5
 	e.step(0.1)

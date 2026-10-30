@@ -361,7 +361,11 @@ func injure(n: int) -> void:
 
 
 ## Someone at the base dies (an injured one if `was_injured`, else preferably an idle one). Returns the name, "" if none.
-func lose_person(was_injured := false) -> String:
+func lose_person(was_injured := false, who := {}) -> String:
+	if not who.is_empty(): # a given person (convoys.gd: a crew member of a lost truck)
+		_remove(who, true)
+		radio("Base: %s didn't make it." % who["name"])
+		return who["name"]
 	var list := _at(false).filter(func(p): return p["injured"] == was_injured)
 	if list.is_empty():
 		list = _at(false)

@@ -186,17 +186,23 @@ func _site_route(a: Vector2i, b: Vector2i) -> Array:
 	return route
 
 
-## A* over the road cells of the roads between the route's sites (and leaving its ends) and the route sites' streets.
+## A* over the road cells of the roads between consecutive route sites (and all roads leaving its two ends) and the
+## route sites' streets.
 func _cell_path(route: Array, from: Vector2, to: Vector2) -> PackedVector2Array:
 	var ch: TileMapLayer = Game.world.chunks
+	var pairs := []
+	for i in route.size() - 1:
+		pairs.append([route[i], route[i + 1]])
+	for m: Vector2i in [route[0], route[-1]]:
+		for q: Vector2i in _links(m): # all their roads: start and goal may sit on another one (a site's streets do not always join its ports)
+			pairs.append([m, q])
 	var edges := []
-	for i in route.size():
-		var m: Vector2i = route[i]
-		var near: Array = _links(m) # all its roads: a site's own streets do not always join its two ports
-		for q: Vector2i in near:
-			var e := Vector4i(m.x, m.y, q.x, q.y) if m < q else Vector4i(q.x, q.y, m.x, m.y)
-			if not e in edges:
-				edges.append(e)
+	for pq in pairs:
+		var m: Vector2i = pq[0]
+		var q: Vector2i = pq[1]
+		var e := Vector4i(m.x, m.y, q.x, q.y) if m < q else Vector4i(q.x, q.y, m.x, m.y)
+		if not e in edges:
+			edges.append(e)
 	var cells := {}
 	for e: Vector4i in edges:
 		ch._edge(e)
@@ -311,7 +317,7 @@ func ambush_spots(c: Dictionary) -> Array:
 
 
 func _roll_ambush(c: Dictionary, spots: Array) -> float:
-	if spots.is_empty() or Game.day < Game.world.bandits.CAMP_DAY:
+	if spots.is_empty() or Game.day < Game.world.bandits.first_camp_day():
 		return -1.0
 	var d: float = spots.pick_random()
 	var camp: bool = not Game.world.bandits.camps_near(_at(c, d), AMBUSH_CAMP_REACH).is_empty()
@@ -385,6 +391,8 @@ func send(uid: String, driver_id: int, n: int) -> String:
 		return "Build a Motor Pool first (BUILD tab)."
 	if trucks <= 0:
 		return "No truck at home. Build one from salvage."
+	if Game.world.evac.phase in ["countdown", "siege", "landed"]:
+		return "The evacuation is under way: every truck stays home to hold the base."
 	var dest := {}
 	for d in destinations():
 		if d["uid"] == uid:
@@ -506,7 +514,8 @@ func _tick_near(c: Dictionary, pos: Vector2) -> void:
 func _ambush(c: Dictionary) -> void:
 	c["foes"] = randi_range(AMBUSH_SIZE.x, AMBUSH_SIZE.y) + Game.day / AMBUSH_DAYS
 	c["kill"] = 0.0
-	Game.radio("ALERT: Convoy %s under attack, %s from the base! Requesting air cover." % [c["id"].substr(1), Poi.where(Game.world.base.position, pos_of(c))])
+	var alone := " No escort: the truck can't hold on its own!" if escorts(c).is_empty() and not _nodes.has(c["id"]) else ""
+	Game.radio("ALERT: Convoy %s under attack, %s from the base! Requesting air cover.%s" % [c["id"].substr(1), Poi.where(Game.world.base.position, pos_of(c)), alone])
 	Sfx.play("alarm")
 
 
@@ -604,7 +613,7 @@ func _load(c: Dictionary) -> void:
 			var f := maxf(MIN_YIELD, pow(DEPLETE, trips.get(dest["uid"], 0)))
 			trips[dest["uid"]] = trips.get(dest["uid"], 0) + 1
 			for k in table:
-				cargo[k] = roundf(table[k] * f * randf_range(0.8, 1.2))
+				cargo[k] = roundf(Game.world.modifiers.loot(table[k] * f * randf_range(0.8, 1.2))) # villages / outposts give their stock as is
 	c["cargo"] = cargo
 	c["leg"] = "back"
 	Game.radio("Convoy %s loaded (%s), heading home." % [c["id"].substr(1), _cargo_text(cargo)])
@@ -641,7 +650,7 @@ func _lost(c: Dictionary) -> void:
 	var died := 0
 	for p in crew(c):
 		if randf() < LOST_DEATH:
-			Game._remove(p, true)
+			Game.lose_person(false, p)
 			died += 1
 		else:
 			p["injured"] = true
