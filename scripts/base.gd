@@ -4,6 +4,7 @@ extends Node2D
 ## blueprints too; demolition orders clear houses, hedges and fences for scrap. A generator powers a night light.
 
 const RADIUS := 60.0
+const ALERT_RANGE := 120.0 # px beyond the fence where infected put the militia on their posts
 const PAD_REACH := 48.0
 const CELL := 16.0
 const PAD_CLEAR := 40.0 # no sandbags on the helipad
@@ -21,7 +22,11 @@ const DEMOLISH := {"house": [40.0, 15, 4.0, 2.0], "hedge": [6.0, 2, 0.0, 0.0], "
 
 var turrets: Node2D
 var sandbags: Node2D # one Sprite2D per cell, keyed in bags
-var defenders: Node2D # militia posted during an assault (invisible: militia pawns stand on the posts)
+var defenders: Node2D # militia posted during an assault or alert (invisible: militia pawns stand on the posts)
+var threat := false # infected within ALERT_RANGE of the fence (checked twice a second)
+var on_alert: bool: # assault or threat: militia man the posts
+	get:
+		return Game.attack_active or threat
 var pawns: Node2D # base_pawn.gd, one per rescued up to PAWN_MAX
 var told_no_base := false # "no base yet" said once per run
 var pawn_t := 0.0 # seconds to the next sync_pawns
@@ -110,13 +115,14 @@ func rebuild() -> void:
 func _process(delta: float) -> void:
 	queue_redraw()
 	ghost.queue_redraw()
-	if not Game.attack_active and defenders.get_child_count() > 0:
+	if not on_alert and defenders.get_child_count() > 0:
 		for d in defenders.get_children():
 			d.queue_free()
 	light.enabled = Game.power and Game.is_night()
 	pawn_t -= delta
 	if pawn_t <= 0.0:
 		pawn_t = 0.5
+		_check_alert()
 		sync_pawns()
 		_call_settlers()
 	if Game.workers["build"] <= 0:
@@ -684,6 +690,9 @@ func add_pawn(pos: Vector2, arriving: bool) -> Node2D:
 ## Militia take up rifles on watchtowers first (+50 % reach), then the outermost built sandbags (not wire)
 ## (a 60 px ring without any). Only as many fire as there are rifles.
 func _on_attack(_day: int) -> void:
+	for d in defenders.get_children(): # an alert may have posted them already
+		defenders.remove_child(d)
+		d.queue_free()
 	var towers: Array = Game.buildings.filter(func(b): return b["kind"] == "watchtower" and b["built"]).map(func(b): return cell_pos(b["cell"]))
 	var posts: Array = Game.sandbags.keys().filter(func(c): return Game.sandbags[c]["built"] and Game.sandbags[c]["kind"] == "sandbag").map(cell_pos)
 	posts.sort_custom(func(a, b): return a.distance_squared_to(global_position) > b.distance_squared_to(global_position))
@@ -701,6 +710,14 @@ func _on_attack(_day: int) -> void:
 		t.position = posts[i] - global_position if i < posts.size() else Vector2(RADIUS, 0).rotated(i * TAU / n)
 		t.visible = i >= PAWN_MAX # the militia pawn walks to this post (base_pawn.gd)
 		defenders.add_child(t)
+
+
+## Outside assaults the militia also man their posts while infected are within ALERT_RANGE of the fence.
+func _check_alert() -> void:
+	var r: float = Game.base_radius + ALERT_RANGE
+	threat = Game.base_founded and get_tree().get_nodes_in_group("enemies").any(func(e): return e.global_position.distance_squared_to(global_position) < r * r)
+	if threat and not Game.attack_active and defenders.get_child_count() == 0:
+		_on_attack(Game.day)
 
 
 func take_damage(amount: float) -> void:

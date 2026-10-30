@@ -6,6 +6,7 @@ extends Node2D
 ## hard to see there. A chase (survivor or landed heli) ends after CHASE_MAX s without reaching the target or
 ## LOSE_SIGHT s with houses, hedges or woods in between; that target is then ignored for GIVE_UP s.
 
+const KILL_SCRAP := 1 # every kill strips some scrap off the gear (playtest 0.7.0: scrap ran short)
 const KINDS := {
 	"shambler": {"hp": 45.0, "speed": 12.0, "dmg": 8.0, "xp": 4, "radius": 8.0},
 	"runner": {"hp": 25.0, "speed": 42.0, "dmg": 6.0, "xp": 6, "radius": 7.0},
@@ -301,6 +302,7 @@ func hit(amount: float, dir := Vector2.ZERO, head := false) -> void:
 
 func _die() -> void:
 	Game.kills += 1
+	Game.scrap += KILL_SCRAP
 	Game.add_xp(cfg["xp"])
 	if randf() < 0.02:
 		Game.base_rifles += 1.0 # a rifle off the body, goes to the base armory

@@ -228,9 +228,25 @@ func _run() -> void:
 	Game.base_attack_started.emit(3)
 	assert(main.base.defenders.get_child_count() == 2 and main.base.defenders.get_child(0).rifle, "2 defenders posted")
 	Game.attack_active = false
+	for stray in get_tree().get_nodes_in_group("enemies"): # wandering infected near the fence would keep them on alert
+		stray.free()
+	main.base._check_alert()
 	await process_frame
 	await process_frame
 	assert(main.base.defenders.get_child_count() == 0, "defenders stood down")
+	# outside an assault the militia also man the posts while infected are near the fence
+	var near: Node2D = main.spawn_enemy("shambler", main.base.global_position + Vector2(Game.base_radius + 40.0, 0))
+	main.base._check_alert()
+	assert(main.base.on_alert and main.base.defenders.get_child_count() == 2, "alert: militia posted without an assault")
+	near.free()
+	main.base._check_alert()
+	await process_frame
+	assert(not main.base.on_alert and main.base.defenders.get_child_count() == 0, "alert over: stood down")
+	# TAB folds the base menu away and back
+	main.base.ui.toggle()
+	assert(not main.base.ui.main_panel.visible and not main.ui_open and main.base.ui.toggle_btn.visible, "menu folded, gun free")
+	main.base.ui.toggle()
+	assert(main.base.ui.main_panel.visible and main.ui_open, "menu back")
 	# block 2: a militia post without a rifle never fires
 	assert(main.base.ui.set_worker("militia", 1), "one militia")
 	Game.base_rifles = 0.0

@@ -79,7 +79,7 @@ func _animate(delta: float) -> void:
 
 ## The defender post (turret.gd) this militia pawn stands on during an assault, else null.
 func _post() -> Node2D:
-	if job != "militia" or not Game.attack_active or slot >= base.defenders.get_child_count():
+	if job != "militia" or not base.on_alert or slot >= base.defenders.get_child_count():
 		return null
 	var p: Node2D = base.defenders.get_child(slot)
 	return p if global_position.distance_to(p.global_position) < 8.0 else null
@@ -130,7 +130,7 @@ func _pick() -> void:
 		_go(base.door("clinic") + Vector2(slot % 4 * 6 - 9, -10), "lie")
 	elif job == "militia":
 		var posts: Node2D = base.defenders
-		_go(posts.get_child(slot).global_position if Game.attack_active and slot < posts.get_child_count() else _patrol())
+		_go(posts.get_child(slot).global_position if base.on_alert and slot < posts.get_child_count() else _patrol())
 	elif Game.is_night() and camper:
 		_go(home + Vector2(Game.base_radius - 14, 0).rotated(fence_angle), "lie")
 	elif Game.is_night():

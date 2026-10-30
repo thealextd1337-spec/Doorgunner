@@ -34,10 +34,20 @@ func _ready() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		autosave()
+	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		release_keys()
+
+
+## Keys held while the window or browser tab loses focus never get their release event: let go of all of them,
+## or the heli keeps flying after an alt-tab / tab switch.
+static func release_keys() -> void:
+	for a in InputMap.get_actions():
+		Input.action_release(a)
 
 
 func _on_page_hidden(args: Array) -> void:
 	if args[0].type == "pagehide" or JavaScriptBridge.eval("document.visibilityState") == "hidden":
+		release_keys()
 		autosave()
 
 

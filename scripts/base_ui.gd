@@ -60,6 +60,8 @@ var perimeter_btn: Button
 var status_panel: Control
 var main_panel: Control
 var build_bar: Control # bottom bar shown instead of the panels while placing
+var collapsed := false # TAB or the toggle button: menu folded away, the door gun can fire from the pad
+var toggle_btn: Button
 var bar_btns := {} # BUILD_INFO kind -> toggle Button
 var loadout_info: Label
 var loadout_rows := {} # key -> value Label
@@ -143,6 +145,13 @@ func _ready() -> void:
 	_hangar_tab(main)
 	status_panel = status.get_parent()
 	main_panel = main.get_parent()
+	toggle_btn = Button.new()
+	toggle_btn.add_theme_font_override("font", mono)
+	toggle_btn.add_theme_font_size_override("font_size", 13)
+	toggle_btn.position = Vector2(300, 10) # in the gap between the status column (10-290) and the main panel (650+)
+	toggle_btn.size = Vector2(140, 26)
+	toggle_btn.pressed.connect(toggle)
+	root.add_child(toggle_btn)
 	# bottom build bar: one button per tool, centred, growing up from the bottom edge
 	var bar := _panel(root, Vector2.ZERO, 0)
 	build_bar = bar.get_parent()
@@ -402,8 +411,25 @@ func show_tab(tab: String) -> void:
 
 func open() -> void:
 	visible = true
+	collapsed = false
 	Game.world.ui_open = true
 	refresh()
+
+
+## Fold the menu away (heli stays on the pad) or bring it back.
+func toggle() -> void:
+	collapsed = not collapsed
+	Game.world.ui_open = not collapsed
+	if collapsed:
+		get_parent().placing = false # refreshes
+	else:
+		refresh()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_TAB:
+		toggle()
+		get_viewport().set_input_as_handled()
 
 
 func close() -> void:
@@ -536,9 +562,10 @@ func refresh() -> void:
 	perimeter_btn.disabled = plvl >= Game.PERIMETER_MAX or busy or Game.scrap < base.building_cost("perimeter")
 	perimeter_btn.tooltip_text = "maximum level" if plvl >= Game.PERIMETER_MAX else ("the current stage is still being built" if busy \
 		else ("needs %d scrap, you have %d" % [base.building_cost("perimeter"), Game.scrap] if perimeter_btn.disabled else "Build workers put up the next fence ring"))
-	status_panel.visible = not base.placing
-	main_panel.visible = not base.placing
-	build_bar.visible = base.placing
+	status_panel.visible = not base.placing and not collapsed
+	main_panel.visible = not base.placing and not collapsed
+	build_bar.visible = base.placing and not collapsed
+	toggle_btn.text = "BASE MENU [TAB]" if collapsed else "HIDE MENU [TAB]"
 	# HANGAR
 	loadout_info.text = "weight %d/%d pts (over 8: -4 %% speed each)  speed x%.2f\nseats %d  fuel %d  ammo %d  armour x%.2f" % [
 		Game.loadout_points(), Game.loadout_budget, Game.weight_factor, Game.seats, Game.max_fuel, Game.max_ammo, Game.stats["armor"]]
