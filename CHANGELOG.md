@@ -4,6 +4,10 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## 0.7.2 - 2026-10-30
+- WORKERS tab: pin a person to a job (PIN TO; pinned people keep it, the +/- counts spread the rest), sort and filter
+  the people list, each row shows skill level, trait, job, whether it fits the skill and the work rate.
+
 ## 0.7.1 - 2026-10-30
 - Militia also man their posts and shoot when infected come near the fence, not only during assaults.
 - **TAB** (or the button between the panels) folds the base menu away while landed on the pad; the door gun can fire.
