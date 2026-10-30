@@ -14,6 +14,7 @@ var tutorial: Node # tutorial.gd while one runs
 var morale: Node # morale.gd
 var assault: Node # assault.gd
 var bandits: Node # bandits.gd
+var wear: Node # wear.gd
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec built]
 
@@ -58,6 +59,8 @@ func _ready() -> void:
 	add_child(assault)
 	bandits = preload("res://scripts/bandits.gd").new() # registers its own save hook
 	add_child(bandits)
+	wear = preload("res://scripts/wear.gd").new() # registers its own save hook
+	add_child(wear)
 	night = CanvasModulate.new()
 	add_child(night)
 	spawner = preload("res://scripts/spawner.gd").new()
