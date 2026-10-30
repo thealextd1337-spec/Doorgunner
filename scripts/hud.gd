@@ -160,6 +160,8 @@ func _draw_compass() -> void:
 		_arrow(center, Game.world.base.global_position, Color(0.9, 0.9, 0.3), "BASE")
 	if is_instance_valid(Game.world.radio_target):
 		_arrow(center, Game.world.radio_target.global_position, Color(0.4, 1, 0.5), "RADIO")
+	for m: Dictionary in Game.world.missions.open:
+		_arrow(center, m["pos"], Color(1.0, 0.75, 0.3), Game.world.missions.TYPES[m["type"]]["tag"])
 
 
 ## Left and right door gun arcs turning with the heli body, lit on the side the mouse aims at; aim line red outside both.
@@ -224,6 +226,8 @@ func _draw_minimap() -> void:
 			p.discovered = true
 		if p.discovered:
 			minimap.draw_rect(Rect2(to_map.call(p.global_position) - Vector2(2, 2), Vector2(4, 4)), POI_COLORS.get(p.kind, Color.WHITE))
+	for m: Dictionary in Game.world.missions.open:
+		minimap.draw_rect(Rect2(to_map.call(m["pos"]) - Vector2(3, 3), Vector2(6, 6)), Color(1.0, 0.75, 0.3), false, 1.5)
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.get("concealed"):
 			continue # in the forest

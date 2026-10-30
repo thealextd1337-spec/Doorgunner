@@ -29,6 +29,17 @@ func _process(delta: float) -> void:
 			if t > 5.0: # 1.5 s spool + ~3 s flight
 				Input.action_release("move_right")
 				_save("shot_flight.png")
+				var ms: Node = Game.world.missions # the J list with three missions
+				ms._add("rooftop", {"pos": Game.heli.position + Vector2(300, -200), "text": "a family is stuck on a roof in a city", "state": {}})
+				ms._add("screamer", {"pos": Game.heli.position + Vector2(-600, 500), "text": "a screamer is calling hordes at a village", "state": {}})
+				ms._add("blackbox", {"pos": Game.heli.position + Vector2(1500, 900), "text": "recover the black box from the airliner crash site", "state": {}})
+				Game.world.get_children().filter(func(c): return c.get("panel") != null and c.layer == 6)[0]._unhandled_input(_j_key())
+				step = 21
+		21:
+			if t > 5.4:
+				_save("shot_missions.png")
+				Game.world.get_children().filter(func(c): return c.get("panel") != null and c.layer == 6)[0]._unhandled_input(_j_key())
+				Game.world.missions.open.clear()
 				step = 3
 		3:
 			Game.time = 0.9
@@ -151,6 +162,14 @@ func _process(delta: float) -> void:
 			if t > 21.8:
 				_save("shot_leaderboard.png")
 				get_tree().quit()
+
+
+func _j_key() -> InputEventKey:
+	var ev := InputEventKey.new()
+	ev.keycode = KEY_J
+	ev.physical_keycode = KEY_J
+	ev.pressed = true
+	return ev
 
 
 func title_ui() -> CanvasLayer:
