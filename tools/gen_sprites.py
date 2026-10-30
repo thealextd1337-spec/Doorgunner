@@ -1209,6 +1209,7 @@ def main():
         images.update(avatars())
         images.update(infected())
         images.update(bandits())
+        images.update(convoy_sprites())
         for name, im in images.items():
             w, h = SIZES[name]
             assert im.size == (w * OUT, h * OUT), (name, im.size)
@@ -1502,6 +1503,28 @@ def bandits():
 
 SIZES.update({"bandit": (10, 10), "bandit_rpg": (10, 10), "mg_nest": (16, 16), "technical": (10, 18), "rocket": (4, 8),
               "bandit_flag": (10, 16)})
+
+
+# ---------------------------------------------------------------- convoys (P16)
+
+def truck():
+    """Olive cargo truck facing up: cab in front, canvas-covered bed behind."""
+    s = Spr(12, 22)
+    body = (104, 112, 74)
+    s.paint(s.m().rect(1.2, 0.6, 10.8, 7.4, 1.4), body, sh=0.8)  # cab
+    s.paint(s.m().rect(2.2, 2.0, 9.8, 4.0, 0.4), P["glass"], sh=0, edge=False)  # windscreen
+    s.paint(s.m().rect(0.6, 8.0, 11.4, 21.4, 0.8), (150, 140, 104), sh=0.9)  # canvas bed
+    for y in (11.0, 14.5, 18.0):
+        s.paint(s.m().rect(0.8, y, 11.2, y + 0.6), dk((150, 140, 104), 0.75), sh=0, edge=False)  # hoops
+    s.paint(s.m().rect(0.2, 2.2, 1.0, 5.6).rect(11.0, 2.2, 11.8, 5.6), dk(body, 0.6), sh=0, edge=False)  # mirrors
+    return s.drop(0.4)
+
+
+def convoy_sprites():
+    return {"truck": truck().out()}
+
+
+SIZES.update({"truck": (12, 22)})
 
 
 if __name__ == "__main__":

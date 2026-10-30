@@ -103,7 +103,7 @@ var workshop_progress := 0.0 # salvage units owed to the workshop, carried betwe
 # base block 2 (docs/BASE.md): buildings, perimeter, water/medicine/rifles, injuries, power
 # kind -> [name, scrap, build seconds, footprint cells]; "perimeter" costs scrap x next level and has no footprint
 const BUILDINGS := {"barracks": ["Barracks", 40, 90.0, 2], "clinic": ["Field Clinic", 50, 90.0, 2], "generator": ["Generator", 60, 60.0, 1],
-	"well": ["Well", 30, 60.0, 1], "watchtower": ["Watchtower", 35, 45.0, 1], "perimeter": ["Perimeter", 60, 60.0, 0]}
+	"well": ["Well", 30, 60.0, 1], "watchtower": ["Watchtower", 35, 45.0, 1], "motor_pool": ["Motor Pool", 80, 90.0, 2], "perimeter": ["Perimeter", 60, 60.0, 0]}
 const BASE_RADIUS := 160.0
 const PERIMETER_STEP := 60.0
 const PERIMETER_MAX := 5

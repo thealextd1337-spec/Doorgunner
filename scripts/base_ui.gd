@@ -1,8 +1,9 @@
 extends CanvasLayer
 ## Base menu, shown while the heli sits on the pad, in the title screen's look (olive/black panels, sand text, yellow accent).
 ## Left: status column (population, stocks with per-day deltas, power, next assault), refreshed twice a second.
-## Right: tabs BUILD (upgrades, buildings to place), WORKERS (jobs table), HANGAR (loadout, weapons, fitted items).
-## While placing (base.placing) both give way to a compact build bar along the bottom edge (hotkeys 1-8, base.gd).
+## Right: tabs BUILD (upgrades, buildings to place), WORKERS (jobs table), HANGAR (loadout, weapons, fitted items),
+## CONVOY (an empty box here, filled and refreshed by convoys.gd).
+## While placing (base.placing) both give way to a compact build bar along the bottom edge (hotkeys 1-9, base.gd).
 ## buy(id) applies effects to Game directly.
 
 const SAND := Color(0.91, 0.86, 0.71)
@@ -23,9 +24,9 @@ const UPGRADES := {
 }
 const UPGRADE_INFO := {"turrets": "+1 auto turret on the ring", "fuel": "+25 heli fuel, +200 depot", "armory": "+60 heli ammo, +400 store, +1 rifle/day",
 	"workshop": "salvage processing; Lv 2/3/4 add heli slots", "repair": "patch the base hull"}
-# placing tools in build bar order (hotkeys 1..8)
+# placing tools in build bar order (hotkeys 1..9)
 const BUILD_INFO := {"sandbag": "militia posts", "wire": "slows and cuts zombies", "barracks": "+4 beds", "clinic": "2 patient beds",
-	"generator": "power, 10 fuel/day", "well": "+8 water/day", "watchtower": "post, +50 % reach", "demolish": "houses, hedges, fences for scrap"}
+	"generator": "power, 10 fuel/day", "well": "+8 water/day", "watchtower": "post, +50 % reach", "motor_pool": "trucks for convoys (CONVOY tab)", "demolish": "houses, hedges, fences for scrap"}
 # loadout key -> [label, min, max]
 const LOADOUT := {
 	"seats": ["Seats (1 pt each)", 2, 8],
@@ -133,10 +134,10 @@ func _ready() -> void:
 	var tab_row := HBoxContainer.new()
 	tab_row.add_theme_constant_override("separation", 6)
 	main.add_child(tab_row)
-	for t in ["BUILD", "WORKERS", "HANGAR"]:
+	for t in ["BUILD", "WORKERS", "HANGAR", "CONVOY"]:
 		var b := Button.new()
 		b.text = t
-		b.custom_minimum_size = Vector2(120, 34)
+		b.custom_minimum_size = Vector2(110, 34)
 		b.add_theme_font_override("font", mono)
 		b.add_theme_font_size_override("font_size", 16)
 		b.pressed.connect(show_tab.bind(t))
@@ -150,6 +151,8 @@ func _ready() -> void:
 	_build_tab(main)
 	_workers_tab(main)
 	_hangar_tab(main)
+	tabs["CONVOY"] = VBoxContainer.new()
+	main.add_child(tabs["CONVOY"])
 	status_panel = status.get_parent()
 	main_panel = main.get_parent()
 	toggle_btn = Button.new()

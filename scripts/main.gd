@@ -19,6 +19,7 @@ var missions: Node # missions.gd (radio missions, J)
 var outposts: Node2D # outposts.gd: outposts and allied villages
 var wrecks: Node2D # wrecks.gd: heli wrecks, sling hook, repairs, fleet (P15)
 var modifiers: Node # modifiers.gd: run modifiers (P15)
+var convoys: Node2D # convoys.gd: trucks on the road network (CONVOY tab)
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec built]
 
@@ -67,10 +68,12 @@ func _ready() -> void:
 	add_child(wear)
 	outposts = preload("res://scripts/outposts.gd").new() # registers its own save hook
 	add_child(outposts)
-	modifiers = preload("res://scripts/modifiers.gd").new() # registers its own save hook
-	add_child(modifiers)
 	wrecks = preload("res://scripts/wrecks.gd").new() # registers its own save hook
 	add_child(wrecks)
+	modifiers = preload("res://scripts/modifiers.gd").new() # registers its own save hook
+	add_child(modifiers)
+	convoys = preload("res://scripts/convoys.gd").new() # registers its own save hook
+	add_child(convoys)
 	night = CanvasModulate.new()
 	add_child(night)
 	spawner = preload("res://scripts/spawner.gd").new()

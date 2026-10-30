@@ -128,6 +128,7 @@ func _process(_delta: float) -> void:
 		Game.base_water, Game.base_medicine, Game.base_rifles, Game.injured, "on" if Game.power else "off", Game.built("generator") * Game.GEN_FUEL, Game.noise_level * 100.0,
 		"TONIGHT" if Game.attack_pending or Game.attack_active else "in %d day(s)" % (next_attack if next_attack > 0 else Game.ATTACK_EVERY_DAYS)]
 	info.text += Game.world.outposts.status()
+	info.text += Game.world.convoys.status()
 	if Game.passengers >= Game.seats and Game.passengers > 0: # full cabin: who is aboard
 		info.text += "\nABOARD " + ", ".join(Game.people.filter(func(p): return p["aboard"]).map(preload("res://scripts/people.gd").short))
 	info.visible = not Game.world.ui_open # base menu shows the same numbers
@@ -228,6 +229,7 @@ func _draw_minimap() -> void:
 	if Game.base_founded:
 		minimap.draw_rect(Rect2(to_map.call(Game.world.base.global_position) - Vector2(3, 3), Vector2(6, 6)), Color(1, 1, 0.3))
 	Game.world.outposts.draw_map(minimap, to_map)
+	Game.world.convoys.draw_map(minimap, to_map)
 	for p in Game.world.pois:
 		if not is_instance_valid(p) or p.done:
 			continue
