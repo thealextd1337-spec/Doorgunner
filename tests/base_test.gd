@@ -252,7 +252,7 @@ func _run() -> void:
 	Game.base_rifles = 0.0
 	Game.attack_active = true
 	Game.base_attack_started.emit(3)
-	main.spawner.wave_left = 0
+	main.assault.clear_wave()
 	var post: Node2D = main.base.defenders.get_child(0)
 	assert(not post.armed, "no rifle, unarmed")
 	var z2: Node2D = main.spawn_enemy("shambler", post.global_position + Vector2(40, 0), true)

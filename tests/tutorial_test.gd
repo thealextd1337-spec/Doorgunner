@@ -82,7 +82,7 @@ func _run() -> void:
 		await process_frame
 		if Game.attack_active:
 			break
-	assert(Game.attack_active and main.spawner.wave_left <= 8, "small assault: %d" % main.spawner.wave_left)
+	assert(Game.attack_active and main.assault.queued() <= 8, "small assault: %d" % main.assault.queued())
 	Game.meta["tutorial_done"] = prev_done # keep the player's own save as it was
 	Game._save_meta()
 	print("TUTORIAL OK  rescued=%d scrap=%d" % [Game.rescued, Game.scrap])
