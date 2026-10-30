@@ -4,6 +4,12 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## Unreleased
+- Evacuation (P17): from day 15 a Radio Station (Engineer, electronics) makes contact with the military; an Airstrip
+  (4x24 cells inside the fence) starts a 3-day countdown to the final siege, the biggest assault of the run plus a bandit
+  raid. Hold the strip while the transport lands and loads, then END RUN as a victory or STAY BEHIND and play on (the
+  victory stays counted in the profile and on the leaderboard).
+
 ## 0.8.0 - 2026-10-30
 - Assaults with character (P10): the evening before, a Watchtower radios where they will come from and the HUD points
   an arrow at the fence. Assaults come in 2-3 pushes with a breather between them, and from the 2nd one with a theme

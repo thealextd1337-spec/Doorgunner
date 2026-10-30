@@ -10,7 +10,7 @@ const CELL := 16.0
 const PAD_CLEAR := 40.0 # no sandbags on the helipad
 const HANGAR := Rect2(-86, -56, 32, 32) # local rect of the hangar sprite, kept clear
 const WATER_REACH := 400.0 # water job needs a river or lake this close
-const TINTS := {"barracks": Color(0.62, 0.7, 0.36), "clinic": Color(1.5, 1.5, 1.5), "generator": Color(0.36, 0.36, 0.4), "well": Color(0.58, 0.68, 0.82), "motor_pool": Color(0.8, 0.72, 0.5)}
+const TINTS := {"barracks": Color(0.62, 0.7, 0.36), "clinic": Color(1.5, 1.5, 1.5), "generator": Color(0.36, 0.36, 0.4), "well": Color(0.58, 0.68, 0.82), "motor_pool": Color(0.8, 0.72, 0.5), "radio": Color(0.55, 0.62, 0.7)}
 const Chunks := preload("res://scripts/chunk_manager.gd")
 const Pawn := preload("res://scripts/base_pawn.gd")
 const UI := preload("res://scripts/base_ui.gd")
@@ -170,10 +170,13 @@ func _draw_ghost() -> void:
 	if not placing:
 		return
 	var n := footprint(place_kind)
-	var cell := mouse_cell(n)
+	var cell := place_cell()
 	var tint := Color(0.4, 1.0, 0.4, 0.6) if can_place(place_kind, cell) else Color(1.0, 0.3, 0.3, 0.6)
-	var r := Rect2(_cell_rect(cell).position, Vector2(n, n) * CELL)
+	var r := Rect2(_cell_rect(cell).position, (Vector2(Evac.strip_size(place_rot)) if place_kind == "airstrip" else Vector2(n, n)) * CELL)
 	var label := "%d scrap" % building_cost(place_kind) if Game.BUILDINGS.has(place_kind) else ""
+	var why: String = Game.world.evac.refusal(place_kind, cell, place_rot)
+	if why != "":
+		label = why # the evacuation buildings say what is missing
 	if place_kind in ["sandbag", "wire"]:
 		var f := piece_frame(cell, place_kind, place_rot)
 		ghost.draw_texture_rect_region(Art.tex(place_kind), r, Rect2(f * 64, 0, 64, 64), tint)
@@ -201,7 +204,7 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled() # back to the base menu, not into the settings
 	elif event.is_action_pressed("rotate"):
 		place_rot = 1 - place_rot
-	elif event is InputEventKey and event.pressed and not event.echo and event.keycode >= KEY_1 and event.keycode < KEY_1 + UI.BUILD_INFO.size():
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode >= KEY_1 and event.keycode < KEY_1 + mini(UI.BUILD_INFO.size(), 9):
 		place_kind = UI.BUILD_INFO.keys()[event.keycode - KEY_1] # bottom bar hotkeys
 		ui.refresh()
 
@@ -210,7 +213,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not placing or not (event is InputEventMouseButton and event.pressed):
 		return
 	if event.button_index == MOUSE_BUTTON_LEFT:
-		place(place_kind, mouse_cell(footprint(place_kind)))
+		place(place_kind, place_cell())
 	elif event.button_index == MOUSE_BUTTON_RIGHT:
 		var cell := mouse_cell()
 		remove_sandbag(cell)
@@ -221,6 +224,13 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Grid cell under the mouse; for an n-cell footprint the top-left cell of the footprint centred on the mouse.
 func mouse_cell(n := 1) -> Vector2i:
 	return Vector2i(((get_global_mouse_position() - Vector2(n - 1, n - 1) * CELL / 2) / CELL).floor())
+
+
+## Top-left cell of what the tool places under the mouse (an airstrip is centred on it).
+func place_cell() -> Vector2i:
+	if place_kind == "airstrip":
+		return Vector2i(((get_global_mouse_position() - Vector2(Evac.strip_size(place_rot)) * CELL / 2) / CELL).round())
+	return mouse_cell(footprint(place_kind))
 
 
 func footprint(kind: String) -> int:
@@ -242,7 +252,7 @@ func can_place(kind: String, cell: Vector2i) -> bool:
 		return not demolish_target(cell).is_empty()
 	if kind in ["sandbag", "wire"]:
 		return Game.sandbags.size() < Game.SANDBAG_MAX and Game.scrap >= piece_cost(kind) and free_cell(cell)
-	if Game.scrap < building_cost(kind):
+	if Game.scrap < building_cost(kind) or Game.world.evac.refusal(kind, cell, place_rot) != "":
 		return false
 	var n := footprint(kind)
 	for x in n:
@@ -261,7 +271,7 @@ func free_cell(cell: Vector2i) -> bool:
 	var pos := cell_pos(cell)
 	var d := pos.distance_to(global_position)
 	return d <= Game.base_radius and d >= PAD_CLEAR and not HANGAR.has_point(pos - global_position) and Game.world.is_landable(pos) \
-		and not Game.sandbags.has(cell) and building_at(cell).is_empty()
+		and not Game.sandbags.has(cell) and building_at(cell).is_empty() and not Game.world.evac.on_strip(cell)
 
 
 func piece_cost(kind: String) -> int:
@@ -375,10 +385,16 @@ func place_building(kind: String, cell: Vector2i) -> bool:
 	var n: int = Game.BUILDINGS[kind][3]
 	Game.scrap -= building_cost(kind)
 	var b := {"kind": kind, "cell": cell, "built": false, "progress": 0.0}
+	if kind == "airstrip":
+		b["rot"] = place_rot
 	Game.buildings.append(b)
+	Game.world.evac.pay(kind, 1)
 	_site_node(b)
-	for x in range(-1, n + 1): # base floor tiles only around the buildings
-		for y in range(-1, n + 1):
+	if kind == "airstrip":
+		Game.world.evac.clear_strip(b) # trees go, the strip keeps its ground
+	var margin := 1 if n > 0 else 0
+	for x in range(-margin, n + margin): # base floor tiles only around the buildings
+		for y in range(-margin, n + margin):
 			var c := cell + Vector2i(x, y)
 			if Game.world.chunks.is_landable(cell_pos(c)):
 				Game.world.chunks.edit(c, Chunks.T.BASE_FLOOR)
@@ -401,9 +417,12 @@ func expand_perimeter() -> bool:
 ## RMB on a building blueprint: refunded and gone. Finished buildings stay.
 func remove_blueprint(cell: Vector2i) -> void:
 	var b := building_at(cell)
+	if b.is_empty() and Game.world.evac.on_strip(cell):
+		b = Game.world.evac.strip()
 	if b.is_empty() or b["built"]:
 		return
 	Game.scrap += building_cost(b["kind"])
+	Game.world.evac.pay(b["kind"], -1)
 	Game.buildings.erase(b)
 	site_nodes[b["cell"]].queue_free()
 	site_nodes.erase(b["cell"])
@@ -443,7 +462,9 @@ func _site_node(b: Dictionary) -> void:
 	var node := Node2D.new()
 	node.position = cell_pos(b["cell"]) + Vector2(n - 1, n - 1) * CELL / 2 - global_position
 	node.modulate.a = 0.4
-	if b["kind"] == "watchtower":
+	if b["kind"] == "airstrip":
+		Evac.strip_node(node, b, global_position)
+	elif b["kind"] == "watchtower":
 		var pad := Art.sprite("helipad")
 		pad.scale = Vector2.ONE * CELL / 192.0
 		node.add_child(pad)
@@ -460,6 +481,8 @@ func _site_node(b: Dictionary) -> void:
 			c.size = r.size
 			c.color = Color(0.85, 0.1, 0.1)
 			node.add_child(c)
+	if b["kind"] == "radio":
+		Evac.add_mast(node)
 	sites.add_child(node)
 	site_nodes[b["cell"]] = node
 
