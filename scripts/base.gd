@@ -432,6 +432,8 @@ func load_state(d: Dictionary) -> void:
 		demolitions.append(o)
 	build_progress = d["build_progress"]
 	told_no_base = d["told_no_base"]
+	if Game.attack_active:
+		_on_attack(Game.day) # saved mid-assault: the militia take their posts again
 	if Game.heli.landed:
 		_on_landed.call_deferred(true) # saved on the pad: resupply and base menu as if just landed
 

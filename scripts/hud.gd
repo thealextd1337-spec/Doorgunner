@@ -48,7 +48,7 @@ func _ready() -> void:
 	slots_label.add_theme_font_size_override("font_size", 13)
 	# logical canvas is fixed at 1280x720 (stretch mode canvas_items)
 	info = _label(root, Vector2(620, 10), 650, HORIZONTAL_ALIGNMENT_RIGHT)
-	log_label = _label(root, Vector2(10, 600), 620)
+	log_label = _label(root, Vector2(10, 575), 620) # five lines end above the hint row (y 690)
 	log_label.modulate = Color(0.8, 1, 0.8)
 	hint = _label(root, Vector2(390, 690), 500, HORIZONTAL_ALIGNMENT_CENTER)
 	alert = _label(root, Vector2(390, 60), 500, HORIZONTAL_ALIGNMENT_CENTER)
@@ -127,18 +127,22 @@ func _process(_delta: float) -> void:
 		Game.base_hp, Game.max_base_hp, Game.base_fuel, Game.base_ammo, Game.base_food, Game.salvage["metal"], Game.salvage["parts"], Game.salvage["electronics"],
 		Game.base_water, Game.base_medicine, Game.base_rifles, Game.injured, "on" if Game.power else "off", Game.built("generator") * Game.GEN_FUEL, Game.noise_level * 100.0,
 		"TONIGHT" if Game.attack_pending or Game.attack_active else "in %d day(s)" % (next_attack if next_attack > 0 else Game.ATTACK_EVERY_DAYS)]
+	info.text += Game.world.outposts.status()
 	if Game.passengers >= Game.seats and Game.passengers > 0: # full cabin: who is aboard
 		info.text += "\nABOARD " + ", ".join(Game.people.filter(func(p): return p["aboard"]).map(preload("res://scripts/people.gd").short))
 	info.visible = not Game.world.ui_open # base menu shows the same numbers
-	slots_label.text = Progression.slot_line()
+	slots_label.text = Progression.slot_line() + "     " + Game.world.wear.status_line()
 	slots_label.visible = not Game.world.ui_open # would show through between the base menu panels
 	if Game.heli:
-		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" + ("   [B] found the base here" if Game.heli.can_found() else "") if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q][E] turn   [X] weapon   [ESC] sound" + ("   [F] loudspeaker" if Game.heli_items.has("loudspeaker") else "")
-	alert.text = "BASE UNDER ATTACK" if Game.attack_active and fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0 else ""
+		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" + ("   [B] found the base here" if Game.heli.can_found() else "") + Game.world.outposts.hint() if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q][E] turn   [X] weapon   [ESC] sound" + ("   [F] loudspeaker" if Game.heli_items.has("loudspeaker") else "")
+	alert.text = Assault.alert_text() if fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0 else ""
 	if Game.fuel < Game.max_fuel * 0.2 and alert.text == "":
 		alert.text = "LOW FUEL"
 	if Game.heli and Game.heli.no_angle > 0.0 and alert.text == "":
 		alert.text = "no firing angle: swing the heli"
+	var wear_alert: String = Game.world.wear.alert()
+	if wear_alert != "":
+		alert.text = wear_alert # engine trouble outranks everything else
 	compass.queue_redraw()
 	minimap.queue_redraw()
 
@@ -160,6 +164,9 @@ func _draw_compass() -> void:
 		_arrow(center, Game.world.base.global_position, Color(0.9, 0.9, 0.3), "BASE")
 	if is_instance_valid(Game.world.radio_target):
 		_arrow(center, Game.world.radio_target.global_position, Color(0.4, 1, 0.5), "RADIO")
+	Assault.draw_arrow(compass)
+	for m: Dictionary in Game.world.missions.open:
+		_arrow(center, m["pos"], Color(1.0, 0.75, 0.3), Game.world.missions.TYPES[m["type"]]["tag"])
 
 
 ## Left and right door gun arcs turning with the heli body, lit on the side the mouse aims at; aim line red outside both.
@@ -217,6 +224,7 @@ func _draw_minimap() -> void:
 		return ((wp - heli_pos) / MAP_SCALE + Vector2(half, half)).clamp(Vector2(2, 2), Vector2(MAP_SIZE - 2, MAP_SIZE - 2))
 	if Game.base_founded:
 		minimap.draw_rect(Rect2(to_map.call(Game.world.base.global_position) - Vector2(3, 3), Vector2(6, 6)), Color(1, 1, 0.3))
+	Game.world.outposts.draw_map(minimap, to_map)
 	for p in Game.world.pois:
 		if not is_instance_valid(p) or p.done:
 			continue
@@ -224,6 +232,8 @@ func _draw_minimap() -> void:
 			p.discovered = true
 		if p.discovered:
 			minimap.draw_rect(Rect2(to_map.call(p.global_position) - Vector2(2, 2), Vector2(4, 4)), POI_COLORS.get(p.kind, Color.WHITE))
+	for m: Dictionary in Game.world.missions.open:
+		minimap.draw_rect(Rect2(to_map.call(m["pos"]) - Vector2(3, 3), Vector2(6, 6)), Color(1.0, 0.75, 0.3), false, 1.5)
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e.get("concealed"):
 			continue # in the forest

@@ -2,6 +2,7 @@ extends Node2D
 ## Player helicopter: WASD flight, mouse door gun, landing, fuel/ammo/hp.
 
 signal landed_changed(landed: bool)
+signal damaged(amount: float, source: String) # every hit, for wear (P12): source "" (zombies, crashes), "bandit", "rocket"
 
 const ACCEL := 150.0
 const MAX_SPEED := 115.0
@@ -90,9 +91,10 @@ func _move(delta: float) -> void:
 		vel = vel.lerp(Vector2.ZERO, 4.0 * delta)
 		position += vel * delta
 		return
-	var max_speed: float = MAX_SPEED * Game.stats["speed"] * Game.weight_factor
-	vel += dir * ACCEL * max_speed / MAX_SPEED * delta # thrust scales with engine and weight too, so their top speed is reachable
-	vel -= vel * DRAG * delta
+	var wear: Node = Game.world.wear
+	var max_speed: float = MAX_SPEED * Game.stats["speed"] * Game.weight_factor * wear.speed_factor()
+	vel += dir * wear.thrust() * ACCEL * max_speed / MAX_SPEED * delta # thrust scales with engine and weight too, so their top speed is reachable
+	vel -= vel * wear.drag(DRAG) * delta
 	if vel.length() > max_speed:
 		vel = vel.normalized() * max_speed
 	position += vel * delta
@@ -110,15 +112,19 @@ func _move(delta: float) -> void:
 func _fuel(delta: float) -> void:
 	if landed:
 		return
-	var burn: float = (FUEL_IDLE + vel.length() / MAX_SPEED * FUEL_FLY) / Game.stats["fuel_eff"]
+	var burn: float = (FUEL_IDLE + vel.length() / MAX_SPEED * FUEL_FLY) / Game.stats["fuel_eff"] * Game.world.wear.fuel_factor()
 	Game.fuel = max(0.0, Game.fuel - burn * delta)
 	if Game.fuel <= 0.0:
 		Game.end_run("Out of fuel: the helicopter went down.")
 
 
 func _toggle_landing() -> void:
+	if Game.world.wear.touchdown():
+		return # autorotation: SPACE puts her down where she is
 	if landed:
-		if Game.fuel > 0.0:
+		if Game.world.wear.grounded():
+			Game.radio("Pilot: the crew is still working on the engine.")
+		elif Game.fuel > 0.0:
 			pending = -1
 			transition = SPOOL
 			Sfx.play("takeoff")
@@ -194,7 +200,7 @@ func refresh_systems() -> void:
 func _fire() -> void:
 	var id: String = Game.weapon
 	var w: Dictionary = Weapons.TABLE[id]
-	if fire_cd > 0.0 or Game.ammo < w["ammo_per_shot"]:
+	if fire_cd > 0.0 or Game.ammo < w["ammo_per_shot"] or not Game.world.wear.gun_ok():
 		return
 	var aim := aim_dir()
 	if not in_arc(aim):
@@ -205,6 +211,7 @@ func _fire() -> void:
 	if fire_cd < -1.0 and Progression.level("training") >= 5:
 		dmg *= 2.0 # Gunnery Lv5: first shot after a pause crits
 	fire_cd = _interval()
+	Game.world.wear.shot(fire_cd)
 	Game.ammo -= w["ammo_per_shot"]
 	Sfx.play("gun", null, -4.0)
 	Game.make_noise(global_position, 1.0)
@@ -222,7 +229,7 @@ func _fire() -> void:
 			"rockets": shots = 3
 	if id == "minigun" and lv < 5:
 		heat = minf(1.0, heat + 0.1)
-	var jitter: float = w["spread_deg"] / 2.0 * (1.0 + heat)
+	var jitter: float = w["spread_deg"] / 2.0 * (1.0 + heat) * Game.world.wear.spread_factor()
 	for i in shots:
 		var spread := deg_to_rad((i - (shots - 1) / 2.0) * 6.0 + randf_range(-jitter, jitter))
 		for o in tracers:
@@ -234,10 +241,11 @@ func _fire() -> void:
 			Game.world.add_child(b)
 
 
-## Damage from any source. Ground enemies should only call this when landed.
-func take_damage(amount: float) -> void:
+## Damage from any source. Zombies only call this when landed; bandits (source "bandit", "rocket") shoot it in the air.
+func take_damage(amount: float, source := "") -> void:
 	if not Game.running:
 		return
+	damaged.emit(amount, source)
 	Game.hp -= amount / Game.stats["armor"]
 	if Game.passengers > Game.passengers_injured and randf() < 0.1 and not Progression.owned("medic"):
 		Game.passengers_injured += 1 # the heli medic system keeps passengers safe

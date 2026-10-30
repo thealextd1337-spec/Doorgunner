@@ -45,6 +45,7 @@ const STOCKS := {"fuel": ["fuel", Color(0.9, 0.75, 0.2)], "ammo": ["ammo", Color
 	"electronics": ["electr.", Color(0.4, 0.75, 0.7)]}
 const Weapons := preload("res://scripts/weapons.gd")
 const People := preload("res://scripts/people.gd")
+const Wear := preload("res://scripts/wear.gd")
 
 var mono := SystemFont.new()
 var pop_label: Label
@@ -67,6 +68,8 @@ var bar_btns := {} # BUILD_INFO kind -> toggle Button
 var loadout_info: Label
 var loadout_rows := {} # key -> value Label
 var weapon_box: VBoxContainer
+var wear_rows := {} # part -> [fill ColorRect, value Label, effect Label, repair Button]
+var wear_msg: Label # why the last repair order was refused
 var worker_info: Label
 var job_rows := {} # job -> [count Label, - Button, + Button, note Label]
 var worker_msg: Label # why the last + was refused, cleared after 3 s
@@ -441,8 +444,64 @@ func _hangar_tab(main: VBoxContainer) -> void:
 				loadout_rows[k].custom_minimum_size.x = 26
 				loadout_rows[k].horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 				grid.add_child(loadout_rows[k])
+	v.add_child(_label("HELI CONDITION  (wear in flight and from hits; repairs run while the heli sits on the pad)", 12, ACCENT, true))
+	var wgrid := GridContainer.new()
+	wgrid.columns = 5
+	wgrid.add_theme_constant_override("h_separation", 8)
+	v.add_child(wgrid)
+	for c in Wear.COMPONENTS:
+		var name := _label(Wear.NAMES[c], 13)
+		name.custom_minimum_size.x = 84
+		wgrid.add_child(name)
+		var bar := ColorRect.new()
+		bar.custom_minimum_size = Vector2(120, 8)
+		bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		bar.color = Color(0, 0, 0, 0.6)
+		wgrid.add_child(bar)
+		var fill := ColorRect.new()
+		fill.size = Vector2(0, 8)
+		bar.add_child(fill)
+		var val := _label("", 13, SAND, true)
+		val.custom_minimum_size.x = 44
+		val.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		wgrid.add_child(val)
+		var note := _label("", 12, DIM, true)
+		note.custom_minimum_size.x = 100
+		wgrid.add_child(note)
+		var b := Button.new()
+		b.focus_mode = Control.FOCUS_NONE # SPACE takes off, it must not click the button
+		b.custom_minimum_size = Vector2(150, 26)
+		b.add_theme_font_override("font", mono)
+		b.add_theme_font_size_override("font_size", 12)
+		b.pressed.connect(_order_repair.bind(c))
+		wgrid.add_child(b)
+		wear_rows[c] = [fill, val, note, b]
+	wear_msg = _label("", 12, BAD, true)
+	v.add_child(wear_msg)
 	weapon_box = VBoxContainer.new()
 	v.add_child(weapon_box)
+
+
+func _order_repair(part: String) -> void:
+	wear_msg.text = Game.world.wear.order_repair(part)
+	_refresh_wear()
+
+
+## The four condition bars and their repair buttons (also on the status tick, the repairs progress).
+func _refresh_wear() -> void:
+	var wear: Node = Game.world.wear
+	for c in Wear.COMPONENTS:
+		var r: Array = wear_rows[c]
+		var v: float = wear.cond[c]
+		r[0].size.x = 120.0 * v / 100.0
+		r[0].color = GOOD if v >= Wear.LOW_BELOW else (ACCENT if v >= Wear.FAIL_BELOW else BAD)
+		r[1].text = "%d %%" % ceili(v)
+		r[2].text = "may fail!" if c == "engine" and v < Wear.FAIL_BELOW else (Wear.EFFECTS[c] if v < Wear.LOW_BELOW else "")
+		r[2].add_theme_color_override("font_color", BAD if r[2].text == "may fail!" else DIM)
+		var on: bool = wear.orders.has(c)
+		r[3].text = "working... (cancel)" if on else ("Repair %d parts" % wear.repair_cost(c) if v < 100.0 else "like new")
+		r[3].disabled = v >= 100.0 and not on
+		r[3].tooltip_text = "~%d s with the repair crew; parts: %d" % [wear.repair_seconds(c), Game.salvage["parts"]] if v < 100.0 else ""
 
 
 func show_tab(tab: String) -> void:
@@ -557,6 +616,7 @@ func _refresh_status() -> void:
 	power_label.add_theme_color_override("font_color", GOOD if Game.power else DIM)
 	assault_label.text = "ASSAULT  %s" % _assault_eta()
 	assault_label.add_theme_color_override("font_color", BAD if Game.attack_active or Game.attack_pending else SAND)
+	_refresh_wear()
 
 
 ## "UNDER ATTACK", or in-game hours until the next assault (time 0.8 of every third day).
@@ -658,7 +718,7 @@ func _refresh_people() -> void:
 	for c in people_box.get_children():
 		people_box.remove_child(c) # a person button may be mid-signal, so no free()
 		c.queue_free()
-	var here: Array = Game.people.filter(func(p): return not p["aboard"])
+	var here: Array = Game.people.filter(func(p): return not p["aboard"] and p.get("post", "") == "")
 	var shown := People.view(here, people_sort, people_filter)
 	people_count.text = "%d of %d" % [shown.size(), here.size()]
 	for p in shown:

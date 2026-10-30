@@ -14,6 +14,9 @@ func _run() -> void:
 	var process_frame := get_tree().process_frame
 	await process_frame
 	await process_frame
+	main.spawner.set_process(false) # stray zombies would hunt the lone test survivor (it has no settlement parent)
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.queue_free()
 	var chunks: TileMapLayer = main.chunks
 	for x in range(26, 57):
 		for y in range(4, 47):

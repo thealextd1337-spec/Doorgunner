@@ -12,6 +12,11 @@ var radio_target: Node2D # POI currently highlighted on the HUD compass
 var ui_open := false # overlays set this so clicks do not fire the gun
 var tutorial: Node # tutorial.gd while one runs
 var morale: Node # morale.gd
+var assault: Node # assault.gd
+var bandits: Node # bandits.gd
+var wear: Node # wear.gd
+var missions: Node # missions.gd (radio missions, J)
+var outposts: Node2D # outposts.gd: outposts and allied villages
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec built]
 
@@ -52,13 +57,24 @@ func _ready() -> void:
 	Save.register("enemies", _save_enemies, _load_enemies)
 	morale = preload("res://scripts/morale.gd").new() # registers its own save hook
 	add_child(morale)
+	assault = preload("res://scripts/assault.gd").new() # registers its own save hook
+	add_child(assault)
+	bandits = preload("res://scripts/bandits.gd").new() # registers its own save hook
+	add_child(bandits)
+	wear = preload("res://scripts/wear.gd").new() # registers its own save hook
+	add_child(wear)
+	outposts = preload("res://scripts/outposts.gd").new() # registers its own save hook
+	add_child(outposts)
 	night = CanvasModulate.new()
 	add_child(night)
 	spawner = preload("res://scripts/spawner.gd").new()
 	add_child(spawner)
 	add_child(preload("res://scripts/radio.gd").new())
+	missions = preload("res://scripts/missions.gd").new() # registers its own save hook
+	add_child(missions)
 	hud = preload("res://scripts/hud.gd").new()
 	add_child(hud)
+	add_child(preload("res://scripts/missions_ui.gd").new())
 	choice_ui = preload("res://scripts/choice_ui.gd").new()
 	add_child(choice_ui)
 	add_child(preload("res://scripts/game_over_ui.gd").new())
@@ -131,7 +147,7 @@ func start_tutorial() -> void:
 
 func _process(_delta: float) -> void:
 	var d := Game.darkness()
-	night.color = Color(1, 1, 1).lerp(Color(0.2, 0.22, 0.45), d)
+	night.color = Color(1, 1, 1).lerp(Assault.sky(), d)
 
 
 ## Off-screen settlements slowly fall to the horde: rescue early or lose them.
@@ -335,14 +351,14 @@ func _load_pois(d: Dictionary) -> void:
 	radio_target = by_uid.get(d["radio_target"])
 
 
-const ENEMIES_SAVED := 150 # the nearest to the base or heli, the rest are dropped
+const ENEMIES_SAVED := 150 # base attackers, then the nearest to the base or heli; the rest are dropped
 
 
 ## Save hook "enemies": kind, position, hp and stats, target_base.
 func _save_enemies() -> Array:
 	var list := get_tree().get_nodes_in_group("enemies").filter(func(e): return "target_base" in e and not e.is_queued_for_deletion())
 	var near := func(e: Node2D) -> float: return minf(e.position.distance_squared_to(heli.position), e.position.distance_squared_to(base.position))
-	list.sort_custom(func(a, b): return near.call(a) < near.call(b))
+	list.sort_custom(func(a, b): return a.target_base and not b.target_base or a.target_base == b.target_base and near.call(a) < near.call(b)) # attackers first
 	return list.slice(0, ENEMIES_SAVED).map(func(e): return [e.kind, e.position, e.hp, e.max_hp, e.speed, e.dmg, e.target_base, e.state.duplicate()])
 
 

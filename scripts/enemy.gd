@@ -119,7 +119,7 @@ func _process(delta: float) -> void:
 			spawn_cd = 10.0
 			for i in 2:
 				Game.world.spawn_enemy("runner", global_position + Vector2(30, 0).rotated(randf() * TAU), target_base)
-	if _system_hooks(delta) or Infected.tick(self, delta):
+	if _system_hooks(delta) or Infected.tick(self, delta) or Assault.ram(self, delta):
 		return
 	# 1. base assault
 	if target_base:
@@ -129,6 +129,11 @@ func _process(delta: float) -> void:
 	var prey := _find_prey()
 	if prey and _pursue(prey, radius + 4.0, delta):
 		_approach(delta, prey, radius + 4.0, func(_d): prey.get_parent().lose_survivor_node(prey))
+		return
+	# 2b. bandits close by (P11): they shoot at zombies, zombies go for them
+	var foe := Bandit.foe_for(self, delta)
+	if foe and _pursue(foe, radius + foe.radius + 2.0, delta):
+		_approach(delta, foe, radius + foe.radius + 2.0, foe.hit)
 		return
 	# 3. landed heli: everything nearby converges
 	if heli.landed and to_heli.length() < AGGRO_DIST and _pursue(heli, radius + heli.RADIUS + 4.0, delta):
@@ -303,7 +308,7 @@ func hit(amount: float, dir := Vector2.ZERO, head := false) -> void:
 func _die() -> void:
 	Game.kills += 1
 	Game.scrap += KILL_SCRAP
-	Game.add_xp(cfg["xp"])
+	Game.add_xp(cfg["xp"] * Assault.xp_mult(self))
 	if randf() < 0.02:
 		Game.base_rifles += 1.0 # a rifle off the body, goes to the base armory
 	if randf() < 0.2 or cfg.get("boss", false):

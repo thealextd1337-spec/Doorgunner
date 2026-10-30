@@ -375,6 +375,7 @@ Kämpfe sind „stumpf“: Jeder neue Typ kontert eine bestimmte Verteidigung od
   (die Nacht wird bis dahin verlängert), Boss garantiert, Belohnung ×2 XP, Moral +10 nach dem Halten.
 - **Belagerungsphasen:** Welle in 2–3 Schüben mit Pausen (Zeit zum Nachladen und Reparieren) statt Dauerstrom.
 - Test `SMOKE=assault`: Themenwelle spawnt passende Typen, Blutmond endet nicht vor dem letzten Angreifer.
+- **Umgesetzt (P10):** `Assault.night_taken(day)` (statisch) sagt, ob an dem Tag ein Angriff fällt (inkl. Blutmond und eines gerade anstehenden/laufenden); P11-Überfälle dürfen diese Nacht nicht nehmen. `Assault.blood_moon(day)` nur für Blutmonde. Speichern im Angriff ist erlaubt (Hook `assault`), das Aufschieben in `save.gd` ist entfernt. Ein Tor gibt es im Spiel nicht: der Rammbock läuft geradlinig auf die Basis zu und zerschlägt Sandsäcke und Häuser im Weg.
 
 ### P11 Banditen-Fraktion · Opus 5.5
 - **Lager:** an Landmarken (Gefängnis, Checkpoint, Motel, Steinbruch) über `chunks.sites_near`. Ab Tag 4 erste Lager,

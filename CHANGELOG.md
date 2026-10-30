@@ -4,6 +4,26 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## 0.8.0 - 2026-10-30
+- Assaults with character (P10): the evening before, a Watchtower radios where they will come from and the HUD points
+  an arrow at the fence. Assaults come in 2-3 pushes with a breather between them, and from the 2nd one with a theme
+  (runner storm, brute ram, screamer chain, spitter siege). Every 9th night is a **blood moon**: red sky, a boss, a
+  bigger wave and double XP. The run now also saves in the middle of an assault.
+- Bandits (P11): from day 4 they hold prisons, checkpoints, motels and quarries. Riflemen, MG nests, RPG gunners and
+  technicals shoot the heli in the air: keep moving, keep your distance, drop flares against rockets. They fight the
+  zombies, carry people off from settlements, raid settlements, outposts and villages at dusk and, from day 12, the
+  base at night (never on an assault night). Clear a camp for XP, morale, freed prisoners and its stash.
+- Heli wear (P12): rotor, engine, gearbox and door gun wear in flight and from hits (bandit rounds and rockets hit
+  them hardest). Worn parts slow you, spread the gun, burn fuel or jam. A dying engine can quit: glide down in
+  autorotation, land with **SPACE** and repair on site. The HANGAR tab repairs parts with salvage.
+- Radio missions (P13, **J**): rooftop rescues, black boxes, screamers, escorts, clearing bandit camps and medicine
+  runs to allied villages, for scrap, XP, morale and sometimes a skilled recruit.
+- Outposts and villages (P14): fly 2 militia (**O** on the base pad) to a gas station, checkpoint or radio mast and
+  hold it: a pad to refuel, rearm and save. **P** next to a cleared settlement makes it an allied village that
+  sends food and water; visit it or it may fall.
+- Outpost garrisons count as rescued for the leaderboard and lifetime progress.
+- Fix: the radio log no longer runs into the key hints at the bottom of the screen.
+
 ## 0.7.2 - 2026-10-30
 - WORKERS tab: pin a person to a job (PIN TO; pinned people keep it, the +/- counts spread the rest), sort and filter
   the people list, each row shows skill level, trait, job, whether it fits the skill and the work rate.

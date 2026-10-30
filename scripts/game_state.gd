@@ -387,16 +387,24 @@ func _remove(p: Dictionary, died: bool) -> void:
 
 ## Everyone aboard moves into the base. Returns how many.
 func deliver() -> int:
-	var n := passengers
+	var n := 0
 	for p in people:
-		p["aboard"] = false
+		if p["aboard"] and p.get("post", "") == "": # a crew on its way to an outpost (outposts.gd) stays aboard
+			p["aboard"] = false
+			n += 1
 	if n > 0:
 		people_delivered.emit(n)
 	return n
 
 
 func _at(aboard: bool) -> Array:
-	return people.filter(func(p): return p["aboard"] == aboard)
+	return people.filter(func(p): return p["aboard"] == aboard and (aboard or p.get("post", "") == "")) # not the garrisons of outposts
+
+
+## Everyone saved this run who is alive and not aboard, outpost garrisons included: the score (meta, leaderboard, game over).
+## `rescued` stays the base population (food, work).
+func saved_count() -> int:
+	return people.filter(func(p): return not p["aboard"]).size()
 
 
 ## Count setter (rescued, passengers): new people join, or the newest leave.
@@ -485,6 +493,8 @@ func _process(delta: float) -> void:
 	_treat(d)
 	noise_level = maxf(0.0, noise_level - delta * 0.35)
 	time += d
+	if Assault.holds_dawn():
+		time = Assault.HOLD_AT
 	if time >= 1.0:
 		time -= 1.0
 		day += 1
@@ -597,7 +607,7 @@ func end_run(reason: String) -> void:
 		return
 	running = false
 	Save.delete_run() # Ironman: gone before the game-over screen shows
-	record_run(day, rescued, kills)
+	record_run(day, saved_count(), kills)
 	run_ended.emit(reason)
 
 
@@ -744,7 +754,7 @@ func _setup_input() -> void:
 	var keys := {
 		"move_up": [KEY_W, KEY_UP], "move_down": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
-		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R],
+		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R], "missions": [KEY_J], "outpost": [KEY_O], "protect": [KEY_P],
 	}
 	for action in keys:
 		if not InputMap.has_action(action):

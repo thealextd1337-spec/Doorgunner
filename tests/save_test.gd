@@ -3,7 +3,7 @@ extends Node
 ##   SMOKE=save godot --headless --path . --quit-after 30000
 ## 1. Load 10 chunks, found the base away from the start site, load more chunks, build a sandbag, finish a POI,
 ##    demolish a house, break into one, save, reload the scene, load: same resources, same tiles at 500 cells,
-##    POI still done, sandbag standing, prop still gone. 2. An assault defers the autosave until it is over.
+##    POI still done, sandbag standing, prop still gone. 2. An assault no longer defers the autosave (the wave is saved too: SMOKE=assault).
 ## 3. Another SAVE_FORMAT is discarded. 4. Death deletes run.sav.
 ## The node moves itself under the root so it survives the reload; the copy main.gd adds after it frees itself.
 
@@ -158,17 +158,13 @@ func _run() -> void:
 	await frame
 	assert(main.base.pawns.get_child_count() == mini(Game.rescued, main.base.PAWN_MAX), "pawns rebuilt")
 	print("SAVE load OK  %d tiles, %d events, %d POIs, %d zombies" % [cells.size(), events.size(), n_pois, n_enemies])
-	# --- an assault defers the save until it is over
+	# --- an assault does not defer the save: written at once, with the wave state
 	Game.scrap = 4242
 	Game.attack_active = true
-	assert(not Save.autosave() and Save.deferred, "no save during an assault")
-	assert(Save.read()["systems"]["game"]["scrap"] != 4242, "old run kept")
-	for i in 30: # spawner ends the assault (no attackers), then Save writes
-		await frame
-		if not Save.deferred:
-			break
-	assert(not Game.attack_active and not Save.deferred, "assault over, deferred save written")
-	assert(Save.read()["systems"]["game"]["scrap"] == 4242, "deferred save has the new state")
+	assert(Save.autosave(), "saved during an assault")
+	var saved: Dictionary = Save.read()["systems"]
+	assert(saved["game"]["scrap"] == 4242 and saved["game"]["attack_active"] and saved.has("assault"), "the save has the assault")
+	Game.attack_active = false
 	# --- another SAVE_FORMAT is discarded
 	var data := Save.read()
 	data["format"] = Save.SAVE_FORMAT - 1

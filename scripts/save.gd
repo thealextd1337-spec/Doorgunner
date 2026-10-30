@@ -5,8 +5,8 @@ extends Node
 ## Loading: CONTINUE sets `pending` and reloads the scene; main._ready calls load_run() before Game.new_run(), then
 ## every hook registered during that frame gets its data straight away, so the load order is the registration order
 ## (main.gd: Game -> heli -> world -> POIs -> base -> enemies -> everything else).
-## Saved on landing at the base pad, at the day change, every AUTOSAVE_SECONDS and on closing; never during an
-## assault (deferred until it ends) or the tutorial. Death deletes the run (Game.end_run).
+## Saved on landing at the base pad, at the day change, every AUTOSAVE_SECONDS and on closing, also in the middle of an
+## assault (assault.gd saves the wave); never during the tutorial. Death deletes the run (Game.end_run).
 
 const SAVE_FORMAT := 2 # 2: P7 people, P8 world generator; bump when saved data changes shape: older runs are discarded, no migration during development
 const AUTOSAVE_SECONDS := 120.0
@@ -14,7 +14,6 @@ const OLD_NOTICE := "Your saved run is from an older version and cannot be conti
 
 var pending := false # CONTINUE pressed: main._ready loads the run instead of starting a new one
 var notice := "" # shown once on the title (discarded run)
-var deferred := false # a save was asked for during an assault, written once it is over
 var _hooks := {} # key -> [save_fn, load_fn], in registration order
 var _loading := {} # systems of the run being loaded, handed to hooks as they register this frame
 var _t := AUTOSAVE_SECONDS
@@ -55,7 +54,7 @@ func _process(delta: float) -> void:
 	if not Game.running or get_tree().paused:
 		return
 	_t -= delta
-	if _t <= 0.0 or (deferred and not _in_assault()):
+	if _t <= 0.0:
 		autosave()
 
 
@@ -73,25 +72,17 @@ func has_run() -> bool:
 	return FileAccess.file_exists(path()) or FileAccess.file_exists(path() + ".bak")
 
 
-func _in_assault() -> bool:
-	return Game.attack_active or Game.attack_pending
-
-
-## Writes run.sav. False when nothing was written: no run, tutorial running, or an assault (then deferred).
+## Writes run.sav. False when nothing was written: no run or the tutorial running.
 func autosave() -> bool:
 	if not Game.running or Game.world == null or not is_instance_valid(Game.world) or is_instance_valid(Game.world.tutorial):
 		return false
-	if _in_assault():
-		deferred = true # the assault wave counters (spawner.gd) are not saved
-		return false
-	deferred = false
 	_t = AUTOSAVE_SECONDS
 	var systems := {}
 	for key in _hooks:
 		if _hooks[key][0].is_valid():
 			systems[key] = _hooks[key][0].call()
 	var data := {"version": ProjectSettings.get_setting("application/config/version", "0.0.0"), "format": SAVE_FORMAT,
-		"saved_at": Time.get_unix_time_from_system(), "head": {"day": Game.day, "time": Game.time, "rescued": Game.rescued, "kills": Game.kills},
+		"saved_at": Time.get_unix_time_from_system(), "head": {"day": Game.day, "time": Game.time, "rescued": Game.saved_count(), "kills": Game.kills},
 		"systems": systems}
 	_write(var_to_bytes(data))
 	Game._save_meta() # meta changes mid-run too (assaults held, boss kills)
@@ -156,7 +147,6 @@ func delete_run() -> void:
 	for p in [path(), path() + ".bak", path() + ".tmp"]:
 		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(p)
-	deferred = false
 
 
 ## NEW RUN over a saved one: it counts as lost (meta progress as on death), then it is gone.

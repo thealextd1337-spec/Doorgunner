@@ -1,10 +1,11 @@
 extends Node
-## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (no base at the start, then founds it at the start site; flight, combat, level-up cards, base BUILD / WORKERS / HANGAR,
+## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (no base at the start, then founds it at the start site; flight, combat, bandits, level-up cards, base BUILD / WORKERS / HANGAR,
 ## base pawns after delivering 6, settings, title hangar), quits.
 ## Time-based so it works at any refresh rate.
 
 var t := 0.0
 var step := 0
+var t_out := 0.0
 
 
 func _ready() -> void:
@@ -29,6 +30,32 @@ func _process(delta: float) -> void:
 			if t > 5.0: # 1.5 s spool + ~3 s flight
 				Input.action_release("move_right")
 				_save("shot_flight.png")
+				var ms: Node = Game.world.missions # the J list with three missions
+				ms._add("rooftop", {"pos": Game.heli.position + Vector2(300, -200), "text": "a family is stuck on a roof in a city", "state": {}})
+				ms._add("screamer", {"pos": Game.heli.position + Vector2(-600, 500), "text": "a screamer is calling hordes at a village", "state": {}})
+				ms._add("blackbox", {"pos": Game.heli.position + Vector2(1500, 900), "text": "recover the black box from the airliner crash site", "state": {}})
+				Game.world.get_children().filter(func(c): return c.get("panel") != null and c.layer == 6)[0]._unhandled_input(_j_key())
+				step = 21
+		21:
+			if t > 5.4:
+				_save("shot_missions.png")
+				Game.world.get_children().filter(func(c): return c.get("panel") != null and c.layer == 6)[0]._unhandled_input(_j_key())
+				# the HUD with everything at once: mission arrows, the assault arrow at the fence, worn parts and an engine alarm
+				Game.heli.position = Game.world.base.position + Vector2(-60, -40)
+				Game.world.assault.plan = {"day": Game.day + 1, "theme": "", "dir": 2, "blood": false, "known": true, "tower": true}
+				for c in ["rotor", "engine", "gearbox", "gun"]:
+					Game.world.wear.cond[c] = 18.0
+				Game.world.wear.state = "warn"
+				Game.world.wear.t = 10.0
+				step = 22
+		22:
+			if t > 5.8:
+				_save("shot_hud.png")
+				Game.world.assault.plan = {}
+				for c in ["rotor", "engine", "gearbox", "gun"]:
+					Game.world.wear.cond[c] = 100.0
+				Game.world.wear.state = ""
+				Game.world.missions.open.clear()
 				step = 3
 		3:
 			Game.time = 0.9
@@ -42,6 +69,26 @@ func _process(delta: float) -> void:
 				_save("shot_night_combat.png")
 				Input.action_release("fire")
 				Game.heli.aim_override = Vector2.ZERO
+				Game.time = 0.5 # bandits by day: riflemen, an MG nest, a technical and an RPG on aim (red line), a rocket in flight
+				for e in get_tree().get_nodes_in_group("enemies"):
+					if "target_base" in e: # the zombies would draw the bandits' fire
+						e.queue_free()
+				var at: Vector2 = Game.heli.position + Vector2(0, 120)
+				for i in 4:
+					Game.world.bandits.spawn_unit("rifle", at + Vector2(-90 + 60 * i, 20 * (i % 2)), "guard", at, "")
+				Game.world.bandits.spawn_unit("mg", at + Vector2(110, -40), "guard", at, "")
+				Game.world.bandits.spawn_unit("technical", at + Vector2(-140, -60), "guard", at, "")
+				var rpg: Node2D = Game.world.bandits.spawn_unit("rpg", at + Vector2(40, 60), "guard", at, "")
+				rpg.fire_cd = 0.0
+				rpg.fire_rocket(Game.heli).position = at + Vector2(-40, -70)
+				step = 41
+		41:
+			if t > 6.4:
+				_save("shot_bandits.png")
+				for b in get_tree().get_nodes_in_group("bandits") + get_tree().get_nodes_in_group("rockets"):
+					b.queue_free()
+				Game.hp = Game.max_hp
+				Game.time = 0.9
 				Game.add_xp(100)
 				step = 5
 		5:
@@ -107,6 +154,38 @@ func _process(delta: float) -> void:
 			if t > 20.0:
 				_save("shot_pawns.png")
 				Engine.time_scale = 1.0
+				step = 81
+		81: # an outpost with a garrison, then an allied village (P14)
+			Game.world.base.ui.visible = false
+			var op: Node2D = Game.world.outposts
+			var at: Vector2 = Game.world.BASE_POS + Vector2(900, 0)
+			Game.heli.position = at
+			var o := {"id": "o1", "site": "gas_station", "pos": at, "fuel": 40.0, "ammo": 80, "hp": 100.0, "day": Game.day}
+			op.list.append(o)
+			for i in 3:
+				var p := Game.People.make(Game.seed, 900 + i, Game.day, false)
+				p["post"] = "o1"
+				Game.people.append(p)
+			op._rebuild(o)
+			op.alert["o1"] = 99.0
+			t_out = t
+			step = 82
+		82:
+			if t > t_out + 1.2:
+				_save("shot_outpost.png")
+				var pos: Vector2 = Game.heli.position + Vector2(-900, 600)
+				var poi: Node2D = Game.world.spawn_poi("survivors", pos, RandomNumberGenerator.new(), 4)
+				Game.heli.position = pos + Vector2(24, 0)
+				Game.heli.landed = true
+				Game.world.outposts.protect()
+				t_out = t
+				step = 83
+		83:
+			if t > t_out + 1.2:
+				_save("shot_village.png")
+				Game.world.outposts.list.clear()
+				Game.world.outposts.alert.clear()
+				Game.heli.position = Game.world.BASE_POS
 				Game.world.base.ui.visible = true
 				for c in Game.world.get_children():
 					if c is CanvasLayer and c.layer == 25:
@@ -151,6 +230,14 @@ func _process(delta: float) -> void:
 			if t > 21.8:
 				_save("shot_leaderboard.png")
 				get_tree().quit()
+
+
+func _j_key() -> InputEventKey:
+	var ev := InputEventKey.new()
+	ev.keycode = KEY_J
+	ev.physical_keycode = KEY_J
+	ev.pressed = true
+	return ev
 
 
 func title_ui() -> CanvasLayer:
