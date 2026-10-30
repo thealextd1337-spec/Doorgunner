@@ -1,15 +1,9 @@
 extends Node
-## Zombie spawning: hordes around towns, plus the base assault waves.
+## Zombie spawning: hordes around towns. The base assault waves are scripts/assault.gd.
 
 const HORDE_INTERVAL := 3.0
 
 var horde_cd := 3.0
-var wave_left := 0
-var wave_cd := 0.0
-
-
-func _ready() -> void:
-	Game.base_attack_started.connect(_on_attack)
 
 
 func _process(delta: float) -> void:
@@ -19,17 +13,6 @@ func _process(delta: float) -> void:
 	if horde_cd <= 0.0:
 		horde_cd = HORDE_INTERVAL
 		_horde()
-	if wave_left > 0:
-		wave_cd -= delta
-		if wave_cd <= 0.0:
-			wave_cd = 0.5
-			wave_left -= 1
-			var pos: Vector2 = Game.world.base.global_position + Vector2(720, 0).rotated(randf() * TAU)
-			Game.world.spawn_enemy(SpawnTable.pick(Game.danger_at(Vector2.ZERO), SpawnTable.context(pos)), pos, true)
-	elif Game.attack_active and _attackers_alive() == 0:
-		Game.attack_active = false
-		Game.radio("Base secured. Good work, gunner.")
-		Game.meta["assaults_held"] += 1
 
 
 ## A horde (SpawnTable.horde: 6-12 zombies, later sometimes a runner pack) spawned around a town near the heli (towns are where the dead are).
@@ -64,20 +47,3 @@ func call_wave(pos: Vector2, count: int) -> void:
 		var p := pos + Vector2(380.0 + randf() * 120.0, 0).rotated(randf() * TAU)
 		Game.world.spawn_enemy(SpawnTable.pick(danger, SpawnTable.context(p)), p)
 
-
-func _on_attack(day: int) -> void:
-	wave_left = Game.tutorial_wave if Game.tutorial_wave > 0 else 20 + day * 6
-	wave_cd = 0.0
-	Sfx.play("alarm")
-	var tutorial := Game.tutorial_wave > 0
-	Game.tutorial_wave = 0
-	if not tutorial and (day - Game.first_assault_day) % (Game.ATTACK_EVERY_DAYS * 2) == Game.ATTACK_EVERY_DAYS: # every second assault
-		Game.world.spawn_enemy("boss", Game.world.base.global_position + Vector2(800, 0).rotated(randf() * TAU), true)
-
-
-func _attackers_alive() -> int:
-	var n := 0
-	for e in get_tree().get_nodes_in_group("enemies"):
-		if "target_base" in e and e.target_base:
-			n += 1
-	return n

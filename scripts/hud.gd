@@ -134,7 +134,7 @@ func _process(_delta: float) -> void:
 	slots_label.visible = not Game.world.ui_open # would show through between the base menu panels
 	if Game.heli:
 		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" + ("   [B] found the base here" if Game.heli.can_found() else "") if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q][E] turn   [X] weapon   [ESC] sound" + ("   [F] loudspeaker" if Game.heli_items.has("loudspeaker") else "")
-	alert.text = "BASE UNDER ATTACK" if Game.attack_active and fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0 else ""
+	alert.text = Assault.alert_text() if fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0 else ""
 	if Game.fuel < Game.max_fuel * 0.2 and alert.text == "":
 		alert.text = "LOW FUEL"
 	if Game.heli and Game.heli.no_angle > 0.0 and alert.text == "":
@@ -160,6 +160,7 @@ func _draw_compass() -> void:
 		_arrow(center, Game.world.base.global_position, Color(0.9, 0.9, 0.3), "BASE")
 	if is_instance_valid(Game.world.radio_target):
 		_arrow(center, Game.world.radio_target.global_position, Color(0.4, 1, 0.5), "RADIO")
+	Assault.draw_arrow(compass)
 
 
 ## Left and right door gun arcs turning with the heli body, lit on the side the mouse aims at; aim line red outside both.

@@ -485,6 +485,8 @@ func _process(delta: float) -> void:
 	_treat(d)
 	noise_level = maxf(0.0, noise_level - delta * 0.35)
 	time += d
+	if Assault.holds_dawn():
+		time = Assault.HOLD_AT
 	if time >= 1.0:
 		time -= 1.0
 		day += 1

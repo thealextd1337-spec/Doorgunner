@@ -12,6 +12,7 @@ var radio_target: Node2D # POI currently highlighted on the HUD compass
 var ui_open := false # overlays set this so clicks do not fire the gun
 var tutorial: Node # tutorial.gd while one runs
 var morale: Node # morale.gd
+var assault: Node # assault.gd
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec built]
 
@@ -52,6 +53,8 @@ func _ready() -> void:
 	Save.register("enemies", _save_enemies, _load_enemies)
 	morale = preload("res://scripts/morale.gd").new() # registers its own save hook
 	add_child(morale)
+	assault = preload("res://scripts/assault.gd").new() # registers its own save hook
+	add_child(assault)
 	night = CanvasModulate.new()
 	add_child(night)
 	spawner = preload("res://scripts/spawner.gd").new()
@@ -131,7 +134,7 @@ func start_tutorial() -> void:
 
 func _process(_delta: float) -> void:
 	var d := Game.darkness()
-	night.color = Color(1, 1, 1).lerp(Color(0.2, 0.22, 0.45), d)
+	night.color = Color(1, 1, 1).lerp(Assault.sky(), d)
 
 
 ## Off-screen settlements slowly fall to the horde: rescue early or lose them.
