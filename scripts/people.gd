@@ -1,7 +1,8 @@
 extends RefCounted
 ## Named survivors (docs/ROADMAP.md P7). A person is a Dictionary in Game.people (built-in types only, saved as is):
 ##   {id, name, skill, skill_lv 1-3, trait ("" or one of TRAITS), injured, job ("" = idle), aboard (in the heli),
-##    origin_day (joined the run), job_days (days worked in a job matching the skill), pin ("" = auto, else the job the player fixed)}
+##    origin_day (joined the run), job_days (days worked in a job matching the skill), pin ("" = auto, else the job the player fixed),
+##    post ("" = base, "load" = flown to an outpost, "o<n>" = garrison of that outpost: neither at the base nor aboard-counted, see outposts.gd)}
 ## Game.rescued / injured / passengers / passengers_injured are counts over this list. Game.workers stays the wanted
 ## number per job (pinned people count towards it); assign() seats the pinned first, then matching skill (best level first), then anyone.
 ## Saves from before pins have no "pin": read it with p.get("pin", "").
@@ -45,7 +46,7 @@ static func make(run_seed: int, seq: int, day: int, aboard: bool) -> Dictionary:
 	var last: PackedStringArray = _names["last"]
 	return {"id": seq, "name": "%s %s" % [first[rng.randi() % first.size()], last[rng.randi() % last.size()]], "skill": skill, "skill_lv": 1,
 		"trait": TRAITS[rng.randi() % TRAITS.size()] if rng.randf() < TRAIT_CHANCE else "", "injured": false, "job": "", "aboard": aboard,
-		"origin_day": day, "job_days": 0, "pin": ""}
+		"origin_day": day, "job_days": 0, "pin": "", "post": ""}
 
 
 static func matches(p: Dictionary, job: String) -> bool:

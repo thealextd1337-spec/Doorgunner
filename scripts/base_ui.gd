@@ -658,7 +658,7 @@ func _refresh_people() -> void:
 	for c in people_box.get_children():
 		people_box.remove_child(c) # a person button may be mid-signal, so no free()
 		c.queue_free()
-	var here: Array = Game.people.filter(func(p): return not p["aboard"])
+	var here: Array = Game.people.filter(func(p): return not p["aboard"] and p.get("post", "") == "")
 	var shown := People.view(here, people_sort, people_filter)
 	people_count.text = "%d of %d" % [shown.size(), here.size()]
 	for p in shown:

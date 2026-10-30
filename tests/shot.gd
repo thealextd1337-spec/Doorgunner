@@ -5,6 +5,7 @@ extends Node
 
 var t := 0.0
 var step := 0
+var t_out := 0.0
 
 
 func _ready() -> void:
@@ -107,6 +108,38 @@ func _process(delta: float) -> void:
 			if t > 20.0:
 				_save("shot_pawns.png")
 				Engine.time_scale = 1.0
+				step = 81
+		81: # an outpost with a garrison, then an allied village (P14)
+			Game.world.base.ui.visible = false
+			var op: Node2D = Game.world.outposts
+			var at: Vector2 = Game.world.BASE_POS + Vector2(900, 0)
+			Game.heli.position = at
+			var o := {"id": "o1", "site": "gas_station", "pos": at, "fuel": 40.0, "ammo": 80, "hp": 100.0, "day": Game.day}
+			op.list.append(o)
+			for i in 3:
+				var p := Game.People.make(Game.seed, 900 + i, Game.day, false)
+				p["post"] = "o1"
+				Game.people.append(p)
+			op._rebuild(o)
+			op.alert["o1"] = 99.0
+			t_out = t
+			step = 82
+		82:
+			if t > t_out + 1.2:
+				_save("shot_outpost.png")
+				var pos: Vector2 = Game.heli.position + Vector2(-900, 600)
+				var poi: Node2D = Game.world.spawn_poi("survivors", pos, RandomNumberGenerator.new(), 4)
+				Game.heli.position = pos + Vector2(24, 0)
+				Game.heli.landed = true
+				Game.world.outposts.protect()
+				t_out = t
+				step = 83
+		83:
+			if t > t_out + 1.2:
+				_save("shot_village.png")
+				Game.world.outposts.list.clear()
+				Game.world.outposts.alert.clear()
+				Game.heli.position = Game.world.BASE_POS
 				Game.world.base.ui.visible = true
 				for c in Game.world.get_children():
 					if c is CanvasLayer and c.layer == 25:
