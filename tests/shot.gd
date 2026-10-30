@@ -147,6 +147,18 @@ func _process(delta: float) -> void:
 		8:
 			if t > 8.3:
 				_save("shot_hangar.png")
+				var cv: Node2D = Game.world.convoys # P16: a Motor Pool, a truck, a driver, destinations
+				Game.buildings.append({"kind": "motor_pool", "cell": Vector2i(-99, -99), "built": true, "progress": 0.0})
+				cv.trucks = 1
+				Game.people[1]["skill"] = "driver"
+				for s in Game.world.chunks.sites_near(Game.world.BASE_POS, 3000.0):
+					Game.world.chunks._ensure(Vector2i((s.pos / 512.0).floor()))
+				Game.world.base.ui.show_tab("CONVOY")
+				cv.refresh_tab()
+				step = 85
+		85:
+			if t > 8.45:
+				_save("shot_convoy_tab.png")
 				Game.world.base.ui.visible = false # the pawns walk into the barracks, change and go to work
 				Engine.time_scale = 4.0
 				step = 80
@@ -183,6 +195,20 @@ func _process(delta: float) -> void:
 		83:
 			if t > t_out + 1.2:
 				_save("shot_village.png")
+				var cv: Node2D = Game.world.convoys # a truck on the road (P16)
+				for d in cv.destinations():
+					if cv.send(d["uid"], Game.people[1]["id"], 0) == "":
+						break
+				if not cv.list.is_empty():
+					var c: Dictionary = cv.list[0]
+					c["d"] = cv.length(c) * 0.4
+					c["amb"] = {"out": -1.0, "back": -1.0}
+					Game.heli.position = cv.pos_of(c) + Vector2(40, -30)
+				t_out = t
+				step = 84
+		84:
+			if t > t_out + 1.5:
+				_save("shot_convoy.png")
 				Game.world.outposts.list.clear()
 				Game.world.outposts.alert.clear()
 				Game.heli.position = Game.world.BASE_POS

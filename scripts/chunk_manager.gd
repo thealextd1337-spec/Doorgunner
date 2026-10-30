@@ -99,7 +99,7 @@ var _pending := {} # chunk -> {cell: Vector2i(tile, alt)}: edits to chunks not l
 var _sites := {} # macro cell -> site() dictionary
 var _near := {} # macro cell -> its two nearest site neighbours (macro cells)
 var _layouts := {} # macro cell -> _layout() result
-var _edges := {} # Vector4i(macro a, macro b) -> true once its road is in _road
+var _edges := {} # Vector4i(macro a, macro b) -> its road cells (true: no road) once its road is in _road
 var _cand := {} # chunk -> edges whose road may cross it
 var _roads_ok := {} # chunk -> true once every road that may cross it is in _road
 var _road := {} # cell -> Vector2i(tile, alt) of all roads computed so far
@@ -675,7 +675,9 @@ func _edge(e: Vector4i) -> void:
 	var sb := site(Vector2i(e.z, e.w))
 	var paved: bool = "city" in [sa.kind, sb.kind] or sa.kind in ["suburb", "industrial", "highway"] and sb.kind in ["suburb", "industrial", "highway"]
 	var saved := _begin(M.EDGE)
-	for p: Array in _paved_path(_route(best[1], best[2], [la.cells, lb.cells], [_box(sa), _box(sb)]), paved):
+	var path := _paved_path(_route(best[1], best[2], [la.cells, lb.cells], [_box(sa), _box(sb)]), paved)
+	_edges[e] = path.map(func(p): return p[0]) # its cells, for the convoys' road graph (convoys.gd)
+	for p: Array in path:
 		var o: Vector2i = _road.get(p[0], NO)
 		var v: Vector2i = p[1]
 		if _rank(v.x) > _rank(o.x) or _rank(v.x) == _rank(o.x) and v.y > o.y: # the same whatever order roads come in
