@@ -420,6 +420,12 @@ func plan_base_raid(day: int, force := false) -> bool:
 	return true
 
 
+## Explicit override for the evacuation's final siege (evac.gd): a raid on top of the zombie assault, which plan_base_raid never
+## allows. Works without any camp. Returns the raiders.
+func siege_raid() -> Array:
+	return base_raid()
+
+
 ## The raid party (SpawnTable.RAID_ROWS) comes from the nearest camp's side and shoots from beyond the fence.
 func base_raid() -> Array:
 	var base: Vector2 = Game.world.base.global_position

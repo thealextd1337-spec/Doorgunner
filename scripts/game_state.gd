@@ -103,7 +103,8 @@ var workshop_progress := 0.0 # salvage units owed to the workshop, carried betwe
 # base block 2 (docs/BASE.md): buildings, perimeter, water/medicine/rifles, injuries, power
 # kind -> [name, scrap, build seconds, footprint cells]; "perimeter" costs scrap x next level and has no footprint
 const BUILDINGS := {"barracks": ["Barracks", 40, 90.0, 2], "clinic": ["Field Clinic", 50, 90.0, 2], "generator": ["Generator", 60, 60.0, 1],
-	"well": ["Well", 30, 60.0, 1], "watchtower": ["Watchtower", 35, 45.0, 1], "perimeter": ["Perimeter", 60, 60.0, 0]}
+	"well": ["Well", 30, 60.0, 1], "watchtower": ["Watchtower", 35, 45.0, 1], "perimeter": ["Perimeter", 60, 60.0, 0],
+	"radio": ["Radio Station", 90, 90.0, 2], "airstrip": ["Airstrip", 150, 120.0, 0]} # radio / airstrip: evac.gd (airstrip: 4x24 cells, stored with "rot")
 const BASE_RADIUS := 160.0
 const PERIMETER_STEP := 60.0
 const PERIMETER_MAX := 5
@@ -197,7 +198,7 @@ func scrap_item(id: String) -> int:
 	recompute()
 	return refund
 
-const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0,
+const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0, "victories": 0,
 	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "shake": 1, "tutorial_done": 0, "version": ""} # sound off by default for now; M or ESC menu turns it on
 var meta := META_DEFAULT.duplicate() # the active profile's meta.json plus the SETTINGS_KEYS of settings.json
 var profiles := {"list": [], "last": ""}
@@ -602,23 +603,23 @@ func radio(msg: String) -> void:
 	radio_message.emit(msg)
 
 
-func end_run(reason: String) -> void:
+func end_run(reason: String, victory := false) -> void:
 	if not running:
 		return
 	running = false
 	Save.delete_run() # Ironman: gone before the game-over screen shows
-	record_run(day, saved_count(), kills)
+	record_run(day, saved_count(), kills, victory or Evac.won()) # a death after STAY BEHIND still carries the victory
 	run_ended.emit(reason)
 
 
 ## A finished run (death or an abandoned saved run) counts towards the meta progress.
-func record_run(run_day: int, run_rescued: int, run_kills: int) -> void:
+func record_run(run_day: int, run_rescued: int, run_kills: int, victory := false) -> void:
 	meta["runs"] += 1
 	meta["total_rescued"] += run_rescued
 	meta["total_kills"] += run_kills
 	meta["best_day"] = max(meta["best_day"], run_day)
 	_save_meta()
-	Online.end_run(run_day, run_rescued, run_kills)
+	Online.end_run(run_day, run_rescued, run_kills, victory)
 
 
 ## Save hook "game" (main.gd registers it first).

@@ -23,9 +23,10 @@ const UPGRADES := {
 }
 const UPGRADE_INFO := {"turrets": "+1 auto turret on the ring", "fuel": "+25 heli fuel, +200 depot", "armory": "+60 heli ammo, +400 store, +1 rifle/day",
 	"workshop": "salvage processing; Lv 2/3/4 add heli slots", "repair": "patch the base hull"}
-# placing tools in build bar order (hotkeys 1..8)
+# placing tools in build bar order (hotkeys 1..9)
 const BUILD_INFO := {"sandbag": "militia posts", "wire": "slows and cuts zombies", "barracks": "+4 beds", "clinic": "2 patient beds",
-	"generator": "power, 10 fuel/day", "well": "+8 water/day", "watchtower": "post, +50 % reach", "demolish": "houses, hedges, fences for scrap"}
+	"generator": "power, 10 fuel/day", "well": "+8 water/day", "watchtower": "post, +50 % reach", "demolish": "houses, hedges, fences for scrap",
+	"radio": "military contact: needs an Engineer + electronics", "airstrip": "evacuation strip, 4x24 cells, R turns it"} # radio / airstrip: evac.gd, shown when available
 # loadout key -> [label, min, max]
 const LOADOUT := {
 	"seats": ["Seats (1 pt each)", 2, 8],
@@ -181,7 +182,7 @@ func _ready() -> void:
 		b.focus_mode = Control.FOCUS_NONE # SPACE takes off, it must not click the bar
 		b.custom_minimum_size = Vector2(96, 40)
 		b.add_theme_font_override("font", mono)
-		b.text = "%d %s\n%s" % [i + 1, t[0].to_upper(), "+scrap" if kind == "demolish" else "%d scrap" % t[1]]
+		b.text = "%s%s\n%s" % ["%d " % (i + 1) if i < 9 else "", t[0].to_upper(), "+scrap" if kind == "demolish" else "%d scrap" % t[1]]
 		b.tooltip_text = BUILD_INFO[kind]
 		b.toggled.connect(func(_on: bool):
 			get_parent().place_kind = kind
@@ -661,6 +662,11 @@ func refresh() -> void:
 			b.text = "%sDEMOLISH  -  %s\n%d orders" % ["> " if on else "", BUILD_INFO[kind], base.demolitions.size()]
 		b.disabled = Game.scrap < t[1] and not on
 		b.tooltip_text = "needs %d scrap, you have %d" % [t[1], Game.scrap] if b.disabled else "click, then click inside the fence to place"
+		var note: String = Game.world.evac.tool_note(kind)
+		if note != "":
+			b.tooltip_text = note
+		b.visible = Game.world.evac.tool_visible(kind) or (base.placing and base.place_kind == kind)
+		bar_btns[kind].visible = b.visible
 		bar_btns[kind].set_pressed_no_signal(base.place_kind == kind)
 		bar_btns[kind].disabled = Game.scrap < t[1] and base.place_kind != kind
 	var plvl: int = base.perimeter_level()

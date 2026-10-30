@@ -227,6 +227,13 @@ func end_run(run_day: int, run_rescued: int, run_kills: int, victory := false) -
 		submit_run(st["id"], {"day": run_day, "rescued": run_rescued, "kills": run_kills, "ended": true, "victory": victory, "modifiers": st["modifiers"]})
 
 
+## Evacuation victory (evac.gd) while the run goes on (STAY BEHIND): the run is NOT ended, the server only learns victory = true
+## (upsert_run keeps it on a running run) and keeps it through every later update, death included.
+func mark_victory() -> void:
+	if enabled and ranked and Game.running and not _run.is_empty() and not _run["ended"]:
+		submit_run(_run["id"], {"day": Game.day, "rescued": Game.saved_count(), "kills": Game.kills, "victory": true, "modifiers": _run["modifiers"]})
+
+
 ## Title text: NOTICE for an unranked saved run or while offline, else "".
 func title_notice() -> String:
 	if not enabled or not is_registered():

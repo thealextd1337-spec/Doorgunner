@@ -268,7 +268,7 @@ func open() -> void:
 		profile_ui.enlist(p.get("id", ""), true) # first start (or no profile left): pick a callsign and portrait
 	else:
 		_sync_profile()
-	stats.text = "NO SERVICE RECORD. FIRST SORTIE." if m["runs"] == 0 else "SERVICE RECORD  sorties %d  rescued %d  kills %d  best day %d" % [m["runs"], m["total_rescued"], m["total_kills"], m["best_day"]]
+	stats.text = "NO SERVICE RECORD. FIRST SORTIE." if m["runs"] == 0 else "SERVICE RECORD  sorties %d  rescued %d  kills %d  best day %d%s" % [m["runs"], m["total_rescued"], m["total_kills"], m["best_day"], "  victories %d" % m["victories"] if m["victories"] > 0 else ""]
 	var h := Save.head() # an outdated run is discarded here and leaves Save.notice
 	cont_btn.visible = not h.is_empty()
 	if cont_btn.visible:

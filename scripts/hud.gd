@@ -127,7 +127,7 @@ func _process(_delta: float) -> void:
 		Game.base_hp, Game.max_base_hp, Game.base_fuel, Game.base_ammo, Game.base_food, Game.salvage["metal"], Game.salvage["parts"], Game.salvage["electronics"],
 		Game.base_water, Game.base_medicine, Game.base_rifles, Game.injured, "on" if Game.power else "off", Game.built("generator") * Game.GEN_FUEL, Game.noise_level * 100.0,
 		"TONIGHT" if Game.attack_pending or Game.attack_active else "in %d day(s)" % (next_attack if next_attack > 0 else Game.ATTACK_EVERY_DAYS)]
-	info.text += Game.world.outposts.status()
+	info.text += Game.world.outposts.status() + Game.world.evac.status()
 	if Game.passengers >= Game.seats and Game.passengers > 0: # full cabin: who is aboard
 		info.text += "\nABOARD " + ", ".join(Game.people.filter(func(p): return p["aboard"]).map(preload("res://scripts/people.gd").short))
 	info.visible = not Game.world.ui_open # base menu shows the same numbers
