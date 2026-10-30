@@ -136,7 +136,7 @@ func camps_near(pos: Vector2, radius: float) -> Array[Dictionary]:
 ## Do bandits hold landmark site `s` ({kind, pos, uid}) today? A fixed roll per site against a share that grows with
 ## distance and days.
 func holds(s: Dictionary) -> bool:
-	if Game.day < CAMP_DAY or not s.kind in CAMP_KINDS or s.pos.length() < CAMP_MIN_BASE:
+	if Game.day < (1 if Game.world.modifiers.on("warlords") else CAMP_DAY) or not s.kind in CAMP_KINDS or s.pos.length() < CAMP_MIN_BASE:
 		return false
 	if Game.base_founded and s.pos.distance_to(Game.world.base.global_position) < CAMP_MIN_BASE:
 		return false

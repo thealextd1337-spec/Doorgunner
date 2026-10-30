@@ -478,6 +478,9 @@ func _hangar_tab(main: VBoxContainer) -> void:
 		wear_rows[c] = [fill, val, note, b]
 	wear_msg = _label("", 12, BAD, true)
 	v.add_child(wear_msg)
+	var fleet := preload("res://scripts/fleet_ui.gd").new() # P15: wrecks, repair projects, switching helis
+	fleet.ui = self
+	v.add_child(fleet)
 	weapon_box = VBoxContainer.new()
 	v.add_child(weapon_box)
 
@@ -597,7 +600,7 @@ func _refresh_status() -> void:
 		"fuel": [Game.base_fuel, Game.base_fuel_cap, Game.crew("fuel") * rate["fuel"] * eff - gen, true],
 		"ammo": [Game.base_ammo, Game.base_ammo_cap, Game.crew("ammo") * rate["ammo"] * eff, true],
 		"food": [Game.base_food, maxf(10.0, eaters * 10.0), Game.crew("farm") * rate["farm"] * eff + Game.FIELD_FOOD * base.field_cells().size() - Game.food_eaters() * Game.FOOD_PER_PERSON, false],
-		"water": [Game.base_water, maxf(10.0, eaters * 10.0), Game.crew("water") * rate["water"] * eff + Game.built("well") * Game.WELL_WATER - eaters * Game.WATER_PER_PERSON, false],
+		"water": [Game.base_water, maxf(10.0, eaters * 10.0), Game.crew("water") * rate["water"] * eff + Game.built("well") * Game.WELL_WATER * Game.wells() - eaters * Game.WATER_PER_PERSON, false],
 		"medicine": [Game.base_medicine, 10.0, null, false],
 		"rifles": [Game.base_rifles, maxf(10.0, w["militia"]), float(Game.base_level.get("armory", 0)), false],
 		"scrap": [Game.scrap, 200.0, null, false],

@@ -27,6 +27,16 @@ var confirm: ConfirmationDialog
 var badge: Button # active profile (portrait + name), opens PROFILES
 var profile_ui: ProfileUi
 var board_ui: LeaderboardUi
+# NEW RUN setup (P15): run modifiers and the start heli, read by main.gd when the run starts
+const Modifiers := preload("res://scripts/modifiers.gd")
+const Wrecks := preload("res://scripts/wrecks.gd")
+const HeliTypes := preload("res://scripts/heli_types.gd")
+var mods: Array = []
+var start_heli := "huey"
+var setup: PanelContainer
+var setup_title: Label
+var heli_btn: Button
+var mod_btns := {} # id -> Button
 
 
 func _ready() -> void:
@@ -159,6 +169,7 @@ func _ready() -> void:
 	confirm.canceled.connect(func(): tutorial = false)
 	add_child(confirm)
 	_build_hangar()
+	_build_setup()
 	hint = _label("press ENTER", 14, SAND, mono)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hint)
@@ -184,8 +195,72 @@ func _build_hangar() -> void:
 	v.add_child(hangar_grid)
 
 
+## NEW RUN panel bottom right: start heli (cycles the unlocked types) and the run modifiers (locked ones say how to unlock).
+func _build_setup() -> void:
+	setup = PanelContainer.new()
+	setup.position = Vector2(796, 500)
+	setup.custom_minimum_size = Vector2(440, 0)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = PANEL
+	sb.border_width_top = 4
+	sb.border_color = ACCENT
+	sb.set_content_margin_all(14)
+	setup.add_theme_stylebox_override("panel", sb)
+	add_child(setup)
+	var v := VBoxContainer.new()
+	setup.add_child(v)
+	setup_title = _label("", 13, ACCENT, mono)
+	v.add_child(setup_title)
+	heli_btn = Button.new()
+	heli_btn.add_theme_font_override("font", mono)
+	heli_btn.add_theme_font_size_override("font_size", 14)
+	heli_btn.pressed.connect(func():
+		var types := Wrecks.start_types()
+		start_heli = types[(types.find(start_heli) + 1) % types.size()]
+		_refresh_setup())
+	v.add_child(heli_btn)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	v.add_child(grid)
+	for id in Modifiers.TABLE:
+		var b := Button.new()
+		b.toggle_mode = true
+		b.custom_minimum_size = Vector2(136, 40)
+		b.add_theme_font_override("font", mono)
+		b.add_theme_font_size_override("font_size", 11)
+		b.toggled.connect(func(on: bool):
+			if on and not id in mods:
+				mods.append(id)
+			elif not on:
+				mods.erase(id)
+			_refresh_setup())
+		grid.add_child(b)
+		mod_btns[id] = b
+
+
+func _refresh_setup() -> void:
+	if not start_heli in Wrecks.start_types():
+		start_heli = "huey"
+	var t: Dictionary = HeliTypes.TYPES[start_heli]
+	heli_btn.text = "START HELI  < %s >  %s, %d seats" % [t["name"], t["role"], t["seats"]]
+	heli_btn.tooltip_text = "repair a wreck of another type in a run to fly it from the start"
+	for id in mod_btns:
+		var b: Button = mod_btns[id]
+		var m: Dictionary = Modifiers.TABLE[id]
+		var ok := Modifiers.unlocked(id)
+		if not ok:
+			mods.erase(id)
+		b.disabled = not ok
+		b.set_pressed_no_signal(id in mods)
+		b.text = "%s x%.2f
+%s" % [m["name"], m["factor"], m["desc"]]
+		b.tooltip_text = m["desc"] if ok else "LOCKED  " + Modifiers.condition(id)
+	setup_title.text = "// NEW RUN  -  MODIFIERS  -  SCORE x%.2f" % Modifiers.factor(mods)
+
+
 func _toggle_hangar() -> void:
 	hangar.visible = not hangar.visible
+	setup.visible = not hangar.visible
 	deco.visible = not hangar.visible
 	deco_call.visible = deco.visible
 	for c in hangar_grid.get_children():
@@ -279,6 +354,7 @@ func open() -> void:
 	notice.visible = notice.text != ""
 	Save.notice = ""
 	_refresh_online_notice()
+	_refresh_setup()
 	visible = true
 
 

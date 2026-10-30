@@ -198,7 +198,7 @@ func scrap_item(id: String) -> int:
 	return refund
 
 const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0,
-	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "shake": 1, "tutorial_done": 0, "version": ""} # sound off by default for now; M or ESC menu turns it on
+	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "shake": 1, "tutorial_done": 0, "version": "", "start_helis": ""} # sound off by default for now; M or ESC menu turns it on
 var meta := META_DEFAULT.duplicate() # the active profile's meta.json plus the SETTINGS_KEYS of settings.json
 var profiles := {"list": [], "last": ""}
 var radio_beep_ms := 0
@@ -263,7 +263,7 @@ func _apply_meta_bonus() -> void:
 ## Derive stats/slots (Progression) and seats/max_fuel/max_ammo/armor/weight from base values + loadout + equipped weapon.
 func recompute() -> void:
 	Progression.apply_all()
-	seats = base_seats + loadout["seats"] + stats["seats"]
+	seats = maxi(1, base_seats + loadout["seats"] + stats["seats"]) # a Little Bird (2 seats) with the smallest loadout
 	max_fuel = base_max_fuel + 25.0 * loadout["fuel_tank"]
 	max_ammo = base_max_ammo + 60 * loadout["ammo_feed"] + Weapons.TABLE[weapon]["max_ammo_bonus"] + stats["max_ammo"]
 	stats["armor"] *= base_armor * (1.0 + 0.15 * loadout["armor"])
@@ -332,6 +332,12 @@ func food_eaters() -> float:
 ## 4 beds per built barracks + 2 in the hangar.
 func housing() -> int:
 	return 4 * built("barracks") + 2
+
+
+## Well output factor (run modifier Dry Season).
+func wells() -> float:
+	var m: Node = world.get("modifiers") if is_instance_valid(world) else null
+	return m.WELLS if m and m.on("dry_season") else 1.0
 
 
 func campers() -> int:
@@ -478,7 +484,7 @@ func _process(delta: float) -> void:
 	base_hp = minf(max_base_hp, base_hp + crew("repair") * WORKER_RATE["repair"] * w)
 	var eaters: int = rescued + campers() # campers eat and drink double
 	base_food = maxf(0.0, base_food + crew("farm") * WORKER_RATE["farm"] * w - food_eaters() * FOOD_PER_PERSON * d)
-	base_water = maxf(0.0, base_water + crew("water") * WORKER_RATE["water"] * w + (built("well") * WELL_WATER - eaters * WATER_PER_PERSON) * d)
+	base_water = maxf(0.0, base_water + crew("water") * WORKER_RATE["water"] * w + (built("well") * WELL_WATER * wells() - eaters * WATER_PER_PERSON) * d)
 	workshop_progress += crew("workshop") * WORKSHOP_RATE * w
 	for k in SALVAGE_SCRAP:
 		while workshop_progress >= 1.0 and salvage[k] >= 1.0:
@@ -754,7 +760,7 @@ func _setup_input() -> void:
 	var keys := {
 		"move_up": [KEY_W, KEY_UP], "move_down": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
-		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R], "missions": [KEY_J], "outpost": [KEY_O], "protect": [KEY_P],
+		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R], "missions": [KEY_J], "outpost": [KEY_O], "protect": [KEY_P], "hook": [KEY_G],
 	}
 	for action in keys:
 		if not InputMap.has_action(action):

@@ -35,6 +35,7 @@ const BASE_STATS := {
 	"damage": 1.0, "fire_rate": 1.0, "speed": 1.0, "fuel_eff": 1.0, "armor": 1.0, "pierce": 0, "shots": 1,
 	"bullet_speed": 1.0, "xp_gain": 1.0, "range": 1.0, "seats": 0, "max_ammo": 0, "scrap_gain": 1.0, "spool": 1.0, "board": 1.0,
 }
+const HeliTypes := preload("res://scripts/heli_types.gd")
 const CARD_SCRAP := 20 # value of one card; scrapping an item refunds half
 
 
@@ -81,6 +82,8 @@ static func apply_all() -> void:
 	var extra := {"hardpoint": ws >= 2 or m["best_day"] >= 10, "system": ws >= 3 or m["best_day"] >= 30, "module": ws >= 4 or m["total_rescued"] >= 600} # workshop 1 is the stock one
 	for k in SLOT_TYPES:
 		Game.slots[k] = Game.MAX_SLOTS[k] if extra[k] else Game.START_SLOTS[k]
+	var wrecks = Game.world.get("wrecks") if is_instance_valid(Game.world) else null
+	HeliTypes.apply(wrecks.type_id() if wrecks else "huey", Game.stats, Game.slots) # P15: the heli type's base values
 	if is_instance_valid(Game.heli):
 		Game.heli.refresh_systems()
 

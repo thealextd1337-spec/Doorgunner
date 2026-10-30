@@ -134,12 +134,15 @@ func _process(_delta: float) -> void:
 	slots_label.text = Progression.slot_line() + "     " + Game.world.wear.status_line()
 	slots_label.visible = not Game.world.ui_open # would show through between the base menu panels
 	if Game.heli:
-		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" + ("   [B] found the base here" if Game.heli.can_found() else "") + Game.world.outposts.hint() if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q][E] turn   [X] weapon   [ESC] sound" + ("   [F] loudspeaker" if Game.heli_items.has("loudspeaker") else "")
+		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" + ("   [B] found the base here" if Game.heli.can_found() else "") + Game.world.outposts.hint() if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q][E] turn   [X] weapon   [ESC] sound" + ("   [F] loudspeaker" if Game.heli_items.has("loudspeaker") else "") + ("   [G] hook the wreck" if Game.world.wrecks.wreck_below(Game.heli.position) != "" else "")
 	alert.text = Assault.alert_text() if fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0 else ""
 	if Game.fuel < Game.max_fuel * 0.2 and alert.text == "":
 		alert.text = "LOW FUEL"
 	if Game.heli and Game.heli.no_angle > 0.0 and alert.text == "":
 		alert.text = "no firing angle: swing the heli"
+	var sling: String = Game.world.wrecks.alert()
+	if sling != "":
+		alert.text = sling
 	var wear_alert: String = Game.world.wear.alert()
 	if wear_alert != "":
 		alert.text = wear_alert # engine trouble outranks everything else
@@ -228,7 +231,7 @@ func _draw_minimap() -> void:
 	for p in Game.world.pois:
 		if not is_instance_valid(p) or p.done:
 			continue
-		if not p.discovered and heli_pos.distance_squared_to(p.global_position) < MAP_SEEN * MAP_SEEN:
+		if not p.discovered and heli_pos.distance_squared_to(p.global_position) < MAP_SEEN * MAP_SEEN and not Game.world.modifiers.on("blackout"):
 			p.discovered = true
 		if p.discovered:
 			minimap.draw_rect(Rect2(to_map.call(p.global_position) - Vector2(2, 2), Vector2(4, 4)), POI_COLORS.get(p.kind, Color.WHITE))
