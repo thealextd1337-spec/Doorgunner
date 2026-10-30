@@ -130,7 +130,7 @@ func _process(_delta: float) -> void:
 	if Game.passengers >= Game.seats and Game.passengers > 0: # full cabin: who is aboard
 		info.text += "\nABOARD " + ", ".join(Game.people.filter(func(p): return p["aboard"]).map(preload("res://scripts/people.gd").short))
 	info.visible = not Game.world.ui_open # base menu shows the same numbers
-	slots_label.text = Progression.slot_line()
+	slots_label.text = Progression.slot_line() + "     " + Game.world.wear.status_line()
 	slots_label.visible = not Game.world.ui_open # would show through between the base menu panels
 	if Game.heli:
 		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" + ("   [B] found the base here" if Game.heli.can_found() else "") if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q][E] turn   [X] weapon   [ESC] sound" + ("   [F] loudspeaker" if Game.heli_items.has("loudspeaker") else "")
@@ -139,6 +139,9 @@ func _process(_delta: float) -> void:
 		alert.text = "LOW FUEL"
 	if Game.heli and Game.heli.no_angle > 0.0 and alert.text == "":
 		alert.text = "no firing angle: swing the heli"
+	var wear_alert: String = Game.world.wear.alert()
+	if wear_alert != "":
+		alert.text = wear_alert # engine trouble outranks everything else
 	compass.queue_redraw()
 	minimap.queue_redraw()
 
