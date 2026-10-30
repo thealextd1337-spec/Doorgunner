@@ -104,6 +104,81 @@ func _run() -> void:
 	morale._on_day(Game.day + 2)
 	assert("assault held" in str(morale.reasons) and "losses" in str(morale.reasons) and "5 rescued" in str(morale.reasons) and "1 dead" in str(morale.reasons), "reasons %s" % [morale.reasons])
 	print("morale %d -> %s" % [v0, morale.summary()])
+	# --- pins: a pinned person keeps the job, counts stay true, auto fills the rest, injured pinned are off duty
+	var ui: CanvasLayer = main.base.ui
+	var keep := Game.people.duplicate()
+	var keep_w := Game.workers.duplicate()
+	Game.people.clear()
+	for i in 5:
+		Game.people.append(_person(10 + i, ["farmer", "farmer", "builder", "medic", "soldier"][i]))
+	for j in Game.workers:
+		Game.workers[j] = 0
+	var p10: Dictionary = Game.people[0]
+	var p11: Dictionary = Game.people[1]
+	var p12: Dictionary = Game.people[2]
+	var p13: Dictionary = Game.people[3]
+	var p14: Dictionary = Game.people[4]
+	assert(ui.set_worker("farm", 2), "two farm seats")
+	assert(ui.pin_person(12, "farm") and p12["pin"] == "farm", "builder pinned to farm")
+	assert(p12["job"] == "farm" and p10["job"] == "farm" and p11["job"] == "" and Game.workers["farm"] == 2 and Game.assigned() == 2, "pin takes a seat, auto fills the other: %s" % [Game.people.map(func(p): return p["job"])])
+	assert(ui.pin_person(14, "build") and Game.workers["build"] == 1 and p14["job"] == "build" and Game.assigned() == 3, "a pin raises the count of a job with no seat")
+	assert(not ui.set_worker("build", 0) and Game.workers["build"] == 1, "lowering a count below its pinned people is refused")
+	assert(ui.set_worker("fuel", 1) and ui.pin_person(13, "repair") and Game.workers["repair"] == 1 and Game.idle_workers() == 0, "pin an idle person: one seat more")
+	assert(ui.pin_person(10, "ammo") and Game.workers["ammo"] == 1 and Game.workers["farm"] == 1 and Game.assigned() == 5, "a held seat moves with the pin: %s" % Game.workers)
+	assert(Game.assigned() <= 5 and Game.idle_workers() >= 0, "counts never exceed the healthy: %s" % Game.workers)
+	var jobs_a: Array = Game.people.map(func(p): return p["job"])
+	Game.assign_jobs()
+	assert(jobs_a == Game.people.map(func(p): return p["job"]), "assign is deterministic")
+	for j in Game.workers:
+		assert(Game.people.filter(func(p): return p["job"] == j).size() == Game.workers[j], "count and reality agree on %s: %s" % [j, Game.workers])
+	# an injured pinned person keeps the pin and is off duty until healed
+	p12["injured"] = true
+	p12["job"] = ""
+	Game._fit_workers()
+	Game.assign_jobs()
+	assert(p12["pin"] == "farm" and p12["job"] == "" and Game.pinned("farm") == 0 and Game.idle_workers() >= 0, "injured pinned: pin kept, off duty")
+	assert(Game.pinned("build") == 1 and Game.workers["build"] >= 1 and p14["job"] == "build", "the other pins keep their seats")
+	p12["injured"] = false
+	Game.assign_jobs()
+	assert(p12["job"] == "farm" and Game.workers["farm"] >= 1, "healed: back on the pinned job")
+	# sorting and filtering
+	var ids := func(l: Array) -> Array: return l.map(func(p): return p["id"])
+	assert(ids.call(People.view(Game.people, "name", "all")) == [10, 11, 12, 13, 14], "sort by name")
+	assert(ids.call(People.view(Game.people, "level", "all")) == [10, 11, 12, 13, 14], "equal levels fall back to name")
+	p14["skill_lv"] = 3
+	assert(People.view(Game.people, "level", "all")[0] == p14, "best level first")
+	assert(ids.call(People.view(Game.people, "skill", "all")) == [12, 10, 11, 13, 14], "sort by skill: builder, farmer, farmer, medic, soldier")
+	assert(ids.call(People.view(Game.people, "name", "skill:farmer")) == [10, 11] and ids.call(People.view(Game.people, "name", "job:build")) == [14], "filter by skill and job")
+	assert(ids.call(People.view(Game.people, "name", "pinned")) == [10, 12, 13, 14] and ids.call(People.view(Game.people, "name", "idle")) == [11], "filter pinned and idle")
+	p11["injured"] = true
+	p11["job"] = ""
+	assert(ids.call(People.view(Game.people, "job", "injured")) == [11] and People.view(Game.people, "job", "all")[-1] == p11 and not ids.call(People.view(Game.people, "name", "idle")).has(11), "injured last in job order, not idle")
+	p11["injured"] = false
+	ui.people_filter = "skill:farmer"
+	ui.people_sort = "name"
+	ui._refresh_people()
+	assert(ui.people_box.get_child_count() == 2, "the UI list follows the filter")
+	ui.people_filter = "all"
+	ui._refresh_people()
+	assert(ui.people_box.get_child_count() == 5, "the UI list shows everyone")
+	# the pin is saved; a save from before pins loads without the key
+	var gp: Dictionary = bytes_to_var(var_to_bytes(Game.save_state()))
+	for p in Game.people:
+		p["pin"] = "x"
+	Game.load_state(gp)
+	assert(Game.people[2]["pin"] == "farm" and Game.people[3]["pin"] == "repair" and Game.people[0]["pin"] == "ammo", "pins survive the save")
+	for p in gp["people"]:
+		p.erase("pin")
+	Game.load_state(gp)
+	assert(not Game.people[2].has("pin"), "old save: no pin key")
+	Game.assign_jobs()
+	ui.refresh()
+	assert(Game.people[2].get("pin", "") == "" and Game.assigned() <= Game.rescued, "old save loads and assigns")
+	ui.pin_person(12, "farm")
+	ui.unassign_all()
+	assert(Game.people.all(func(p): return p.get("pin", "") == "") and Game.assigned() == 0, "unassign all clears the pins")
+	Game.people.assign(keep)
+	Game.workers = keep_w
 	# --- save hooks round-trip people and morale
 	var g: Dictionary = bytes_to_var(var_to_bytes(Game.save_state()))
 	var m: Dictionary = bytes_to_var(var_to_bytes(morale.save_state()))
@@ -120,4 +195,4 @@ func _run() -> void:
 
 
 func _person(id: int, skill: String) -> Dictionary:
-	return {"id": id, "name": "Person %d" % id, "skill": skill, "skill_lv": 1, "trait": "", "injured": false, "job": "", "aboard": false, "origin_day": 1, "job_days": 0}
+	return {"id": id, "name": "Person %d" % id, "skill": skill, "skill_lv": 1, "trait": "", "injured": false, "job": "", "aboard": false, "origin_day": 1, "job_days": 0, "pin": ""}

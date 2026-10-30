@@ -1,9 +1,10 @@
 extends RefCounted
 ## Named survivors (docs/ROADMAP.md P7). A person is a Dictionary in Game.people (built-in types only, saved as is):
 ##   {id, name, skill, skill_lv 1-3, trait ("" or one of TRAITS), injured, job ("" = idle), aboard (in the heli),
-##    origin_day (joined the run), job_days (days worked in a job matching the skill)}
+##    origin_day (joined the run), job_days (days worked in a job matching the skill), pin ("" = auto, else the job the player fixed)}
 ## Game.rescued / injured / passengers / passengers_injured are counts over this list. Game.workers stays the wanted
-## number per job; assign() picks who: matching skill first (best level first), then anyone.
+## number per job (pinned people count towards it); assign() seats the pinned first, then matching skill (best level first), then anyone.
+## Saves from before pins have no "pin": read it with p.get("pin", "").
 
 const NAMES_PATH := "res://data/names.txt"
 const SKILL_WEIGHT := {"mechanic": 17, "farmer": 20, "medic": 13, "soldier": 17, "builder": 18, "driver": 10, "engineer": 5}
@@ -44,7 +45,7 @@ static func make(run_seed: int, seq: int, day: int, aboard: bool) -> Dictionary:
 	var last: PackedStringArray = _names["last"]
 	return {"id": seq, "name": "%s %s" % [first[rng.randi() % first.size()], last[rng.randi() % last.size()]], "skill": skill, "skill_lv": 1,
 		"trait": TRAITS[rng.randi() % TRAITS.size()] if rng.randf() < TRAIT_CHANCE else "", "injured": false, "job": "", "aboard": aboard,
-		"origin_day": day, "job_days": 0}
+		"origin_day": day, "job_days": 0, "pin": ""}
 
 
 static func matches(p: Dictionary, job: String) -> bool:
@@ -64,7 +65,13 @@ static func food(p: Dictionary) -> float:
 	return GLUTTON_FOOD if p["trait"] == "glutton" else 1.0
 
 
-## Fills `workers` (job -> wanted count) from the healthy `list`: matching skills first, best level first, then the rest.
+## Healthy people of `list` pinned to `job` (an injured pinned person is off duty and does not count).
+static func pinned(list: Array, job: String) -> int:
+	return list.filter(func(p): return not p["injured"] and p.get("pin", "") == job).size()
+
+
+## Fills `workers` (job -> wanted count) from the healthy `list`: the pinned take their job, then matching skills first,
+## best level first, then the rest.
 static func assign(list: Array, workers: Dictionary) -> void:
 	var left := workers.duplicate()
 	var fit := []
@@ -72,8 +79,14 @@ static func assign(list: Array, workers: Dictionary) -> void:
 		p["job"] = ""
 		if not p["injured"]:
 			fit.append(p)
+			var pin: String = p.get("pin", "")
+			if left.has(pin):
+				p["job"] = pin
+				left[pin] -= 1
 	fit.sort_custom(func(a, b): return a["skill_lv"] > b["skill_lv"] or (a["skill_lv"] == b["skill_lv"] and a["id"] < b["id"]))
 	for p in fit:
+		if p["job"] != "":
+			continue
 		for j in SKILL_JOBS[p["skill"]]:
 			if left.get(j, 0) > 0:
 				p["job"] = j
@@ -101,6 +114,28 @@ static func new_day(list: Array) -> Array:
 	return up
 
 
+## The WORKERS list: `list` filtered by "all", "idle", "injured", "pinned", "job:<job>" or "skill:<skill>", sorted by "job"
+## (working jobs, idle, injured), "name", "skill" or "level" (best first); ties by name, then id.
+static func view(list: Array, sort: String, filter: String) -> Array:
+	var out := list.filter(func(p):
+		var kind := filter.get_slice(":", 0)
+		var arg := filter.get_slice(":", 1)
+		return kind == "all" or (kind == "idle" and not p["injured"] and p["job"] == "") or (kind == "injured" and p["injured"]) 			or (kind == "pinned" and p.get("pin", "") != "") or (kind == "job" and p["job"] == arg) or (kind == "skill" and p["skill"] == arg))
+	out.sort_custom(func(a, b):
+		var ka := [_sort_key(a, sort), a["name"], a["id"]]
+		var kb := [_sort_key(b, sort), b["name"], b["id"]]
+		return ka < kb)
+	return out
+
+
+static func _sort_key(p: Dictionary, sort: String) -> Variant:
+	match sort:
+		"job": return "~~" if p["injured"] else (p["job"] if p["job"] != "" else "~")
+		"skill": return p["skill"]
+		"level": return -p["skill_lv"]
+	return p["name"]
+
+
 ## "MED2 Marta K." for short lists (HUD, worker rows).
 static func short(p: Dictionary) -> String:
 	var parts: PackedStringArray = p["name"].split(" ", false, 1)
@@ -110,5 +145,5 @@ static func short(p: Dictionary) -> String:
 ## Detail line for the WORKERS tab.
 static func describe(p: Dictionary, morale: int, day: int) -> String:
 	return "%s  -  %s Lv %d (%d days practice)%s\n%s  -  mood %d  -  %d days with you%s" % [p["name"], p["skill"].capitalize(), p["skill_lv"], p["job_days"],
-		"  -  " + p["trait"].capitalize() if p["trait"] != "" else "", "injured" if p["injured"] else ("job: " + p["job"] if p["job"] != "" else "idle"),
+		"  -  " + p["trait"].capitalize() if p["trait"] != "" else "", "injured" if p["injured"] else ("job: " + p["job"] if p["job"] != "" else "idle") + ("  (pinned to %s)" % p["pin"] if p.get("pin", "") != "" else ""),
 		morale, day - p["origin_day"], "  (good at %s)" % ", ".join(SKILL_JOBS[p["skill"]])]

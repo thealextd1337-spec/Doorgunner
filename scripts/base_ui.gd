@@ -37,6 +37,7 @@ const JOBS := {"fuel": ["Fuel", "+20 fuel/day"], "ammo": ["Ammo", "+40 ammo/day"
 	"militia": ["Militia", "-3 % base damage, mans posts in assaults"], "farm": ["Farm", "+6 food/day"], "build": ["Build", "builds blueprints (sandbag 20 s)"],
 	"medic": ["Medic", "20 free hull per landing, faster clinic"], "water": ["Water", "+15 water/day (river or lake in 40 m)"],
 	"workshop": ["Workshop", "breaks down 12 salvage/day"]}
+const PERSON_COLS := [14, 122, 82, 68, 78, 44, 100] # WORKERS list: pin mark, name, skill, trait, job, rate, pin selector
 # status column stock rows: id -> [label, bar colour]
 const STOCKS := {"fuel": ["fuel", Color(0.9, 0.75, 0.2)], "ammo": ["ammo", Color(0.7, 0.7, 0.7)], "food": ["food", Color(0.5, 0.75, 0.3)],
 	"water": ["water", Color(0.35, 0.6, 0.9)], "medicine": ["medicine", Color(0.9, 0.35, 0.35)], "rifles": ["rifles", Color(0.6, 0.65, 0.35)],
@@ -71,6 +72,9 @@ var job_rows := {} # job -> [count Label, - Button, + Button, note Label]
 var worker_msg: Label # why the last + was refused, cleared after 3 s
 var people_box: VBoxContainer # WORKERS tab: one row of people per job, idle, injured
 var person_info: Label
+var people_sort := "job" # People.view
+var people_filter := "all"
+var people_count: Label
 var person_sel := -1 # id of the person shown in person_info
 
 
@@ -204,6 +208,14 @@ func _theme() -> Theme:
 	th.set_stylebox("disabled", "Button", _box(Color(0.1, 0.11, 0.07), 4))
 	var focus := StyleBoxEmpty.new()
 	th.set_stylebox("focus", "Button", focus)
+	for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+		th.set_stylebox(st, "OptionButton", th.get_stylebox(st, "Button"))
+	th.set_stylebox("panel", "PopupMenu", _box(PANEL, 4, ACCENT))
+	th.set_stylebox("hover", "PopupMenu", _box(ACCENT, 2))
+	for c in ["font_color", "font_hover_color", "font_focus_color", "font_pressed_color"]:
+		th.set_color(c, "OptionButton", SAND)
+	th.set_color("font_color", "PopupMenu", SAND)
+	th.set_color("font_hover_color", "PopupMenu", DARK_TEXT)
 	for c in ["font_color", "font_hover_color", "font_focus_color"]:
 		th.set_color(c, "Button", SAND)
 	th.set_color("font_pressed_color", "Button", DARK_TEXT)
@@ -321,50 +333,86 @@ func _workers_tab(main: VBoxContainer) -> void:
 	tabs["WORKERS"] = v
 	worker_info = _label("", 13, SAND, true)
 	v.add_child(worker_info)
+	# two jobs per table row: label - n + note, twice (hover a job name for its effect)
 	var grid := GridContainer.new()
-	grid.columns = 6
-	grid.add_theme_constant_override("h_separation", 8)
+	grid.columns = 10
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 2)
 	v.add_child(grid)
-	for h in ["JOB", "EFFECT", "", "N", "", "NOTE"]:
-		grid.add_child(_label(h, 12, ACCENT, true))
 	for j in JOBS:
-		grid.add_child(_label(JOBS[j][0], 14))
-		var eff := _label(JOBS[j][1], 12, DIM)
-		eff.custom_minimum_size.x = 250
-		grid.add_child(eff)
+		var name := _label(JOBS[j][0], 14)
+		name.custom_minimum_size.x = 58
+		name.tooltip_text = JOBS[j][1]
+		name.mouse_filter = Control.MOUSE_FILTER_STOP
+		grid.add_child(name)
 		var r := []
 		var n := _label("", 14, SAND, true)
-		n.custom_minimum_size.x = 26
+		n.custom_minimum_size.x = 22
 		n.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		for d in [-1, 1]:
 			var b := Button.new()
 			b.text = "-" if d < 0 else "+"
-			b.custom_minimum_size = Vector2(28, 26)
+			b.custom_minimum_size = Vector2(26, 24)
 			b.pressed.connect(_adjust_worker.bind(j, d))
 			grid.add_child(b)
 			r.append(b)
 			if d < 0:
 				grid.add_child(n)
 		var note := _label("", 12, DIM, true)
+		note.custom_minimum_size.x = 108
 		grid.add_child(note)
 		job_rows[j] = [n, r[0], r[1], note]
-	worker_msg = _label("", 13, BAD)
-	v.add_child(worker_msg)
+	var bar := HBoxContainer.new()
+	v.add_child(bar)
 	var unassign := Button.new()
 	unassign.text = "Unassign all"
-	unassign.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	unassign.pressed.connect(unassign_all)
-	v.add_child(unassign)
+	bar.add_child(unassign)
+	worker_msg = _label("", 13, BAD)
+	bar.add_child(worker_msg)
 	v.add_child(_rule())
+	# people list: show / sort, then one row per person
+	var ctl := HBoxContainer.new()
+	ctl.add_theme_constant_override("separation", 6)
+	v.add_child(ctl)
+	ctl.add_child(_label("SHOW", 12, ACCENT, true))
+	var filters := [["All", "all"], ["Idle", "idle"], ["Injured", "injured"], ["Pinned", "pinned"]]
+	filters += JOBS.keys().map(func(j): return ["Job: " + JOBS[j][0], "job:" + j])
+	filters += People.SKILL_JOBS.keys().map(func(k): return ["Skill: " + k.capitalize(), "skill:" + k])
+	ctl.add_child(_picker(filters, func(val: String): people_filter = val; _refresh_people()))
+	ctl.add_child(_label("SORT", 12, ACCENT, true))
+	ctl.add_child(_picker([["Job", "job"], ["Name", "name"], ["Skill", "skill"], ["Level", "level"]], func(val: String): people_sort = val; _refresh_people()))
+	people_count = _label("", 12, DIM, true)
+	ctl.add_child(people_count)
 	person_info = _label("", 12, SAND, true)
 	v.add_child(person_info)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 4)
+	v.add_child(head)
+	for i in PERSON_COLS.size():
+		var h := _label(["", "NAME", "SKILL", "TRAIT", "WORKS AS", "RATE", "PIN TO"][i], 11, ACCENT, true)
+		h.custom_minimum_size.x = PERSON_COLS[i]
+		head.add_child(h)
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size.y = 130
+	scroll.custom_minimum_size.y = 300
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	v.add_child(scroll)
 	people_box = VBoxContainer.new()
 	people_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	people_box.add_theme_constant_override("separation", 2)
 	scroll.add_child(people_box)
+
+
+## OptionButton over [text, value] pairs; `on_pick` gets the value.
+func _picker(items: Array, on_pick: Callable) -> OptionButton:
+	var o := OptionButton.new()
+	o.focus_mode = Control.FOCUS_NONE # SPACE takes off
+	o.add_theme_font_size_override("font_size", 12)
+	for i in items.size():
+		o.add_item(items[i][0])
+		o.set_item_metadata(i, items[i][1])
+	o.item_selected.connect(func(i: int): on_pick.call(o.get_item_metadata(i)))
+	return o
 
 
 func _hangar_tab(main: VBoxContainer) -> void:
@@ -578,7 +626,8 @@ func refresh() -> void:
 	for j in JOBS:
 		var r: Array = job_rows[j]
 		r[0].text = str(Game.workers[j])
-		r[1].disabled = Game.workers[j] <= 0
+		r[1].disabled = Game.workers[j] <= Game.pinned(j)
+		r[1].tooltip_text = "%d pinned here: unpin them first" % Game.pinned(j) if r[1].disabled and Game.pinned(j) > 0 else ""
 		var why := worker_refusal(j, Game.workers[j] + 1)
 		r[2].modulate = Color(1, 1, 1, 0.35) if why != "" else Color.WHITE # greyed but clickable: a click shows why
 		r[2].tooltip_text = why
@@ -603,41 +652,68 @@ func refresh() -> void:
 	_refresh_people()
 
 
-## People per job (green: good at it), then idle and injured; a click shows the person.
+## One row per person (filtered and sorted): name, skill, trait, job (green: good at it), work rate, and the pin selector. A click on the name shows the person.
 func _refresh_people() -> void:
 	Game.assign_jobs()
 	for c in people_box.get_children():
 		people_box.remove_child(c) # a person button may be mid-signal, so no free()
 		c.queue_free()
-	var groups := {}
-	for p in Game.people:
-		if not p["aboard"]:
-			groups.get_or_add("injured" if p["injured"] else (p["job"] if p["job"] != "" else "idle"), []).append(p)
-	for g in JOBS.keys() + ["idle", "injured"]:
-		if not groups.has(g):
-			continue
-		var row := HFlowContainer.new()
-		people_box.add_child(row)
-		var l := _label((JOBS[g][0] if JOBS.has(g) else g).to_upper(), 12, ACCENT, true)
-		l.custom_minimum_size.x = 76
-		row.add_child(l)
-		for p in groups[g]:
-			var b := Button.new()
-			b.text = People.short(p)
-			b.focus_mode = Control.FOCUS_NONE # SPACE takes off
-			b.add_theme_font_override("font", mono)
-			b.add_theme_font_size_override("font_size", 11)
-			if JOBS.has(g) and People.matches(p, g):
-				b.add_theme_color_override("font_color", GOOD)
-			b.pressed.connect(func(): person_sel = p["id"]; _show_person())
-			row.add_child(b)
+	var here: Array = Game.people.filter(func(p): return not p["aboard"])
+	var shown := People.view(here, people_sort, people_filter)
+	people_count.text = "%d of %d" % [shown.size(), here.size()]
+	for p in shown:
+		people_box.add_child(_person_row(p))
 	_show_person()
+
+
+func _person_row(p: Dictionary) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	var pin: String = p.get("pin", "")
+	var job: String = p["job"]
+	var fit := job != "" and People.matches(p, job)
+	var cells := [
+		["*" if pin != "" else "", ACCENT],
+		[p["name"], SAND],
+		["%s %s" % [p["skill"].capitalize(), "★".repeat(p["skill_lv"])], GOOD if fit else SAND],
+		[p["trait"].capitalize() if p["trait"] != "" else "-", DIM],
+		["injured" if p["injured"] else (JOBS[job][0] if job != "" else "idle"), BAD if p["injured"] else (GOOD if fit else (SAND if job != "" else DIM))],
+		["x%.2f" % People.rate(p, Game.is_night()) if job != "" else "-", GOOD if fit else DIM]]
+	for i in cells.size():
+		var l: Control
+		if i == 1:
+			l = Button.new() # flat name button: click for details
+			l.text = cells[i][0]
+			l.flat = true
+			l.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			l.clip_text = true
+			l.focus_mode = Control.FOCUS_NONE
+			l.pressed.connect(func(): person_sel = p["id"]; _show_person())
+		else:
+			l = Label.new()
+			l.text = cells[i][0]
+			l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			l.custom_minimum_size.y = 24
+		l.add_theme_font_override("font", mono)
+		l.add_theme_font_size_override("font_size", 12)
+		l.add_theme_color_override("font_color", cells[i][1])
+		l.custom_minimum_size.x = PERSON_COLS[i]
+		row.add_child(l)
+	if pin != "":
+		row.get_child(0).tooltip_text = "pinned: stays on this job (injured: off duty until healed)"
+		row.get_child(0).mouse_filter = Control.MOUSE_FILTER_STOP
+	var sel := _picker([["Auto", ""]] + JOBS.keys().map(func(j): return [JOBS[j][0], j]), func(val: String): pin_person(p["id"], val))
+	sel.selected = 0 if pin == "" else 1 + JOBS.keys().find(pin)
+	sel.custom_minimum_size = Vector2(PERSON_COLS[6], 22)
+	sel.tooltip_text = "Pin to a job (Auto: assigned by skill)"
+	row.add_child(sel)
+	return row
 
 
 func _show_person() -> void:
 	var sel: Array = Game.people.filter(func(p): return p["id"] == person_sel)
 	person_info.text = People.describe(sel[0], int(Game.world.morale.value), Game.day) if not sel.is_empty() \
-		else "PEOPLE  click a name for details (green: good at the job)\n"
+		else "click a name for details; green = the job fits the skill\n"
 
 
 func _refresh_weapons() -> void:
@@ -744,12 +820,14 @@ func mount(id: String) -> void:
 	refresh()
 
 
-## Why `job` cannot have `n` workers, "" if it can.
-func worker_refusal(job: String, n: int) -> String:
+## Why `job` cannot have `n` workers, "" if it can. `freed`: seats the change frees elsewhere (a pin moves a worker over).
+func worker_refusal(job: String, n: int, freed := 0) -> String:
 	var cur: int = Game.workers[job]
 	if n < 0:
 		return "nobody on that job"
-	if n - cur > Game.idle_workers():
+	if n < Game.pinned(job):
+		return "%d pinned here: unpin them first" % Game.pinned(job)
+	if n - cur > Game.idle_workers() + freed:
 		return "no idle people"
 	if n > cur and job == "water" and not get_parent().water_near():
 		return "no water within 40 m"
@@ -758,13 +836,42 @@ func worker_refusal(job: String, n: int) -> String:
 	return ""
 
 
+func _say(why: String) -> void:
+	worker_msg.text = why
+	get_tree().create_timer(3.0).timeout.connect(func(): if worker_msg.text == why: worker_msg.text = "")
+
+
 func set_worker(job: String, n: int) -> bool:
 	var why := worker_refusal(job, n)
 	if why != "":
-		worker_msg.text = why
-		get_tree().create_timer(3.0).timeout.connect(func(): if worker_msg.text == why: worker_msg.text = "")
+		_say(why)
 		return false
 	Game.workers[job] = n
+	refresh()
+	return true
+
+
+## Pins person `id` to `job` ("" = auto again). The job's count rises to cover them (the seat they held on another job moves
+## over); refused like a + when that job cannot take one more. An injured pinned person keeps the pin but is off duty.
+func pin_person(id: int, job: String) -> bool:
+	var found: Array = Game.people.filter(func(q): return q["id"] == id)
+	if found.is_empty():
+		return false
+	var p: Dictionary = found[0]
+	var old: String = p.get("pin", "")
+	Game.assign_jobs()
+	var held: String = p["job"]
+	p["pin"] = job
+	if job != "" and not p["injured"] and Game.workers[job] < Game.pinned(job):
+		var why := worker_refusal(job, Game.workers[job] + 1, 1 if held != "" else 0)
+		if why != "":
+			p["pin"] = old
+			_say(why)
+			refresh()
+			return false
+		Game.workers[job] += 1
+		if held != "" and held != job:
+			Game.workers[held] -= 1
 	refresh()
 	return true
 
@@ -772,6 +879,8 @@ func set_worker(job: String, n: int) -> bool:
 func unassign_all() -> void:
 	for k in Game.workers:
 		Game.workers[k] = 0
+	for p in Game.people:
+		p["pin"] = ""
 	refresh()
 
 
