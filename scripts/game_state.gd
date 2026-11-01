@@ -15,8 +15,6 @@ const ATTACK_EVERY_DAYS := 3
 const META_PATH := "user://meta.json" # before profiles: migrated into the first profile, kept as a backup
 const PROFILES_DIR := "user://profiles/"
 const SMOKE_NS := "_smoke" # headless tests (env SMOKE) get their own profiles.json and profile folders in PROFILES_DIR/_smoke/
-const SETTINGS_PATH := "user://settings.json" # global, not per profile
-const SETTINGS_KEYS := ["vol_master", "vol_sfx", "vol_music", "muted", "shake"]
 const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
 const People := preload("res://scripts/people.gd")
@@ -200,8 +198,8 @@ func scrap_item(id: String) -> int:
 	return refund
 
 const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0, "victories": 0,
-	"vol_master": 100, "vol_sfx": 100, "vol_music": 70, "muted": 1, "shake": 1, "tutorial_done": 0, "version": "", "start_helis": ""} # sound off by default for now; M or ESC menu turns it on
-var meta := META_DEFAULT.duplicate() # the active profile's meta.json plus the SETTINGS_KEYS of settings.json
+	"tutorial_done": 0, "version": "", "start_helis": ""}
+var meta := META_DEFAULT.duplicate() # the active profile's meta.json; global options live in Settings (settings_registry.gd)
 var profiles := {"list": [], "last": ""}
 var radio_beep_ms := 0
 # run variables Save stores (stats, slots, seats, max_fuel/max_ammo and weight come from recompute)
@@ -651,19 +649,18 @@ func load_state(d: Dictionary) -> void:
 	running = true
 
 
-## Active profile's meta (profiles.json "last", the test profile under SMOKE), then the global settings.
+## Active profile's meta (profiles.json "last", the test profile under SMOKE).
 func _load_meta() -> void:
 	_load_profiles()
 	meta = META_DEFAULT.duplicate()
-	for p in [profile_dir() + "meta.json", SETTINGS_PATH]:
-		var data = _read_json(p)
-		if data is Dictionary:
-			for k in meta.keys():
-				if data.has(k) and (p != SETTINGS_PATH or k in SETTINGS_KEYS):
-					meta[k] = str(data[k]) if meta[k] is String else int(data[k])
+	var data = _read_json(profile_dir() + "meta.json")
+	if data is Dictionary:
+		for k in meta.keys():
+			if data.has(k):
+				meta[k] = str(data[k]) if meta[k] is String else int(data[k])
 	if not meta["art"] in ART_VARIANTS:
 		meta["art"] = "b"
-	meta["muted"] = 1 # always start silent for now, whatever was saved; M / ESC menu turns sound on for the session
+	Settings.set_value("muted", 1) # always start silent for now, whatever was saved; M / ESC menu turns sound on for the session
 
 
 func _read_json(path: String) -> Variant:
@@ -750,16 +747,12 @@ func version_text() -> String:
 
 
 ## meta["version"] holds the version that wrote the save until the next save (hook for migrating old saves).
+## Also writes the global settings.json.
 func _save_meta() -> void:
 	meta["version"] = ProjectSettings.get_setting("application/config/version", "0.0.0")
-	var own := meta.duplicate()
-	var settings := {}
-	for k in SETTINGS_KEYS:
-		settings[k] = own[k]
-		own.erase(k)
 	DirAccess.make_dir_recursive_absolute(profile_dir())
-	FileAccess.open(profile_dir() + "meta.json", FileAccess.WRITE).store_string(JSON.stringify(own))
-	FileAccess.open(SETTINGS_PATH, FileAccess.WRITE).store_string(JSON.stringify(settings))
+	FileAccess.open(profile_dir() + "meta.json", FileAccess.WRITE).store_string(JSON.stringify(meta))
+	Settings.save()
 
 
 func _setup_input() -> void:

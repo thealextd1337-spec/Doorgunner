@@ -60,17 +60,17 @@ func _process(delta: float) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_M:
-		Game.meta["muted"] = 0 if Game.meta["muted"] == 1 else 1
+		Settings.set_value("muted", 0 if Settings.is_on("muted") else 1)
 		apply_volumes()
 		Game._save_meta()
 
 
-## Bus volumes and mute from Game.meta (0..100 per bus); the settings menu and M call this.
+## Bus volumes and mute from Settings (0..100 per bus); the settings menu and M call this.
 func apply_volumes() -> void:
 	for pair in [["Master", "vol_master"], ["SFX", "vol_sfx"], ["Music", "vol_music"]]:
 		var idx := AudioServer.get_bus_index(pair[0])
-		AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(Game.meta[pair[1]] / 100.0, 0.0001)))
-	muted = Game.meta["muted"] == 1
+		AudioServer.set_bus_volume_db(idx, linear_to_db(maxf(Settings.get_value(pair[1]) / 100.0, 0.0001)))
+	muted = Settings.is_on("muted")
 	AudioServer.set_bus_mute(0, muted or OS.get_environment("SMOKE") != "") # test runs stay silent
 
 

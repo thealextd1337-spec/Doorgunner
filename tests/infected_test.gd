@@ -273,10 +273,10 @@ func _armor_and_feedback() -> void:
 	var shaker: Node = get_tree().get_first_node_in_group("shaker")
 	assert(shaker != null, "the camera has a shaker")
 	shaker.amp = 0.0
-	Game.meta["shake"] = 0
+	Settings.set_value("shake", 0)
 	HitFx.shake(3.0)
 	assert(shaker.amp == 0.0, "shake off")
-	Game.meta["shake"] = 1
+	Settings.set_value("shake", 1)
 	HitFx.shake(3.0)
 	assert(shaker.amp == 3.0, "shake on")
 	shaker.amp = 0.0

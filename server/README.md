@@ -15,6 +15,23 @@ All writes go through `security definer` RPCs, all tables have RLS on.
 | `supabase/007_balance.sql` | balance pass 1.0.0-beta (P18): `run_points` (victory 5000) and the `upsert_run` bounds for the 900 s day, idempotent |
 | `test.sql` | test cases, runs in one transaction that is rolled back |
 
+### Migrations
+
+| Migration | Package | Status |
+|---|---|---|
+| `001_schema.sql` - `005_leaderboards.sql` | P6 | applied on the project |
+| `zz_wordlists.sql` | P3 | applied |
+| `006_modifiers.sql` | P15 | **user must still run it** |
+| `007_balance.sql` | P18 | **user must still run it** |
+| `008_errors.sql` | Q2 error reporting | planned |
+| `009_cloud_save.sql` | Q3 cloud save | planned |
+| `010_daily_season.sql` | Q14 daily + season | planned |
+
+Rules (ROADMAP2): every SQL change is a new idempotent `supabase/0NN_<name>.sql` (numbers above are fixed), the user
+applies it, the client tolerates it missing. Each package keeps its SQL tests in its own `test_0NN.sql` (same style as
+`test.sql`: one transaction, rolled back, ends with `ALL TESTS PASSED`) instead of editing the shared `test.sql`, and
+adds its RPC to `tools/fake_supabase.py` as one function plus one line in `RPCS`.
+
 ## Setup (once)
 
 The project `yucfmsvivvoufvodeyvc` (eu-central-1) already exists, has migrations 001-005 applied (006 and 007 still to run) and anonymous sign-ins on.
