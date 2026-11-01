@@ -38,67 +38,97 @@ class Err(Exception):
         self.code, self.status = code, status
 
 
+def player(uid):
+    p = S["players"].get(uid)
+    if p is None:
+        raise Err("no_player")
+    return p
+
+
+def register_player(uid, b):
+    if uid in S["players"]:
+        raise Err("already_registered")
+    n = str(b.get("p_name", ""))
+    if not re.fullmatch(r"[A-Za-z0-9_-]( ?[A-Za-z0-9_-]){2,15}", n) or len(n) > 16:
+        raise Err("name_invalid")
+    if "badword" in n.lower():
+        raise Err("name_banned")
+    if any(q["name"].lower() == n.lower() for q in S["players"].values()):
+        raise Err("name_taken")
+    if not 0 <= b.get("p_avatar", -1) <= 11:
+        raise Err("avatar_invalid")
+    S["players"][uid] = {"id": uid, "name": n, "avatar": b["p_avatar"]}
+    return S["players"][uid]
+
+
+def rename_player(uid, b):
+    p = player(uid)
+    n = str(b.get("p_name", ""))
+    if not re.fullmatch(r"[A-Za-z0-9_-]( ?[A-Za-z0-9_-]){2,15}", n):
+        raise Err("name_invalid")
+    if any(q["name"].lower() == n.lower() and q["id"] != uid for q in S["players"].values()):
+        raise Err("name_taken")
+    p["name"] = n
+    return p
+
+
+def set_avatar(uid, b):
+    p = player(uid)
+    if not 0 <= b.get("p_avatar", -1) <= 11:
+        raise Err("avatar_invalid")
+    p["avatar"] = b["p_avatar"]
+    return p
+
+
+def delete_me(uid, b):
+    S["players"].pop(player(uid)["id"])
+    for k in [k for k, r in S["runs"].items() if r["player_id"] == uid]:
+        S["runs"].pop(k)
+    S["access"] = {k: v for k, v in S["access"].items() if v != uid}
+    S["refresh"] = {k: v for k, v in S["refresh"].items() if v != uid}
+    return None
+
+
+def upsert_run(uid, b):
+    player(uid)
+    rid = b.get("p_run_id")
+    if not rid or b.get("p_day", 0) < 1:
+        raise Err("run_invalid")
+    r = S["runs"].get(rid)
+    if r and r["player_id"] != uid:
+        raise Err("not_your_run")
+    if r and r["ended"]:
+        raise Err("run_ended")
+    if b["p_day"] > S["max_day"]:
+        raise Err("implausible")
+    if not r:
+        r = S["runs"][rid] = {"id": rid, "player_id": uid, "day": 1, "rescued": 0, "kills": 0, "victory": False,
+                              "modifiers": sorted(set(b.get("p_modifiers") or []))}
+    r["day"], r["rescued"], r["kills"] = max(r["day"], b["p_day"]), max(r["rescued"], b["p_rescued"]), max(r["kills"], b["p_kills"])
+    r["victory"] = r["victory"] or b["p_victory"]
+    r["ended"] = b["p_ended"]
+    r["version"] = b.get("p_version")
+    r["points"] = points(r)
+    return r["points"]
+
+
+# One function per RPC: fn(uid, body) -> JSON result, raise Err(code) like the SQL. Packages append their own
+# function above and ONE line here (call player(uid) first if the RPC needs a registered player).
+RPCS = {
+    "register_player": register_player,
+    "rename_player": rename_player,
+    "set_avatar": set_avatar,
+    "delete_me": delete_me,
+    "upsert_run": upsert_run,
+}
+
+
 def rpc(name, uid, b):
     if uid is None:
         raise Err("permission denied", 401)
-    p = S["players"].get(uid)
-    if name == "register_player":
-        if p:
-            raise Err("already_registered")
-        n = str(b.get("p_name", ""))
-        if not re.fullmatch(r"[A-Za-z0-9_-]( ?[A-Za-z0-9_-]){2,15}", n) or len(n) > 16:
-            raise Err("name_invalid")
-        if "badword" in n.lower():
-            raise Err("name_banned")
-        if any(q["name"].lower() == n.lower() for q in S["players"].values()):
-            raise Err("name_taken")
-        if not 0 <= b.get("p_avatar", -1) <= 11:
-            raise Err("avatar_invalid")
-        S["players"][uid] = {"id": uid, "name": n, "avatar": b["p_avatar"]}
-        return S["players"][uid]
-    if p is None:
-        raise Err("no_player")
-    if name == "rename_player":
-        n = str(b.get("p_name", ""))
-        if not re.fullmatch(r"[A-Za-z0-9_-]( ?[A-Za-z0-9_-]){2,15}", n):
-            raise Err("name_invalid")
-        if any(q["name"].lower() == n.lower() and q["id"] != uid for q in S["players"].values()):
-            raise Err("name_taken")
-        p["name"] = n
-        return p
-    if name == "set_avatar":
-        if not 0 <= b.get("p_avatar", -1) <= 11:
-            raise Err("avatar_invalid")
-        p["avatar"] = b["p_avatar"]
-        return p
-    if name == "delete_me":
-        S["players"].pop(uid)
-        for k in [k for k, r in S["runs"].items() if r["player_id"] == uid]:
-            S["runs"].pop(k)
-        S["access"] = {k: v for k, v in S["access"].items() if v != uid}
-        S["refresh"] = {k: v for k, v in S["refresh"].items() if v != uid}
-        return None
-    if name == "upsert_run":
-        rid = b.get("p_run_id")
-        if not rid or b.get("p_day", 0) < 1:
-            raise Err("run_invalid")
-        r = S["runs"].get(rid)
-        if r and r["player_id"] != uid:
-            raise Err("not_your_run")
-        if r and r["ended"]:
-            raise Err("run_ended")
-        if b["p_day"] > S["max_day"]:
-            raise Err("implausible")
-        if not r:
-            r = S["runs"][rid] = {"id": rid, "player_id": uid, "day": 1, "rescued": 0, "kills": 0, "victory": False,
-                                  "modifiers": sorted(set(b.get("p_modifiers") or []))}
-        r["day"], r["rescued"], r["kills"] = max(r["day"], b["p_day"]), max(r["rescued"], b["p_rescued"]), max(r["kills"], b["p_kills"])
-        r["victory"] = r["victory"] or b["p_victory"]
-        r["ended"] = b["p_ended"]
-        r["version"] = b.get("p_version")
-        r["points"] = points(r)
-        return r["points"]
-    raise Err("unknown rpc", 404)
+    if name not in RPCS:
+        raise Err("unknown rpc", 404)
+    return RPCS[name](uid, b)
 
 
 def view(name, q):

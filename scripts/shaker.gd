@@ -13,7 +13,7 @@ func _ready() -> void:
 
 
 func kick(amount: float) -> void:
-	if Game.meta.get("shake", 1) == 1:
+	if Settings.is_on("shake"):
 		amp = maxf(amp, amount)
 
 

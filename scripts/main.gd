@@ -84,14 +84,7 @@ func _ready() -> void:
 	add_child(preload("res://scripts/radio.gd").new())
 	missions = preload("res://scripts/missions.gd").new() # registers its own save hook
 	add_child(missions)
-	hud = preload("res://scripts/hud.gd").new()
-	add_child(hud)
-	add_child(preload("res://scripts/missions_ui.gd").new())
-	choice_ui = preload("res://scripts/choice_ui.gd").new()
-	add_child(choice_ui)
-	add_child(preload("res://scripts/game_over_ui.gd").new())
-	add_child(preload("res://scripts/victory_ui.gd").new())
-	add_child(preload("res://scripts/settings_ui.gd").new())
+	_add_ui_layers()
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
 	Game.day_changed.connect(_settlements_decline)
 	var smoke := OS.get_environment("SMOKE")
@@ -110,6 +103,19 @@ func _ready() -> void:
 		return
 	Game.radio("Command: pick a site with open ground near towns and water, land and found the FOB (B).")
 	Game.radio("Controls: WASD fly, mouse aim/fire, SPACE land or take off.")
+
+
+## The CanvasLayer UIs, once from _ready (add order = draw order on equal layers). Packages append ONE line each, planned:
+## Q1 perf overlay, Q5 touch controls, Q6a HUD zones, Q11 onboarding. Settings rows come from Settings.register_*.
+func _add_ui_layers() -> void:
+	hud = preload("res://scripts/hud.gd").new()
+	add_child(hud)
+	add_child(preload("res://scripts/missions_ui.gd").new())
+	choice_ui = preload("res://scripts/choice_ui.gd").new()
+	add_child(choice_ui)
+	add_child(preload("res://scripts/game_over_ui.gd").new())
+	add_child(preload("res://scripts/victory_ui.gd").new())
+	add_child(preload("res://scripts/settings_ui.gd").new())
 
 
 func _show_title() -> void:

@@ -1,12 +1,8 @@
 extends CanvasLayer
-## ESC: sound settings (master / effects / music+ambience / mute). Pauses the game while open.
-
-const ROWS := {"vol_master": "Master", "vol_sfx": "Effects", "vol_music": "Music & ambience"}
+## ESC: one row per option registered in Settings (sliders: label + slider, toggles: check button). Pauses the game while open.
 
 var panel: PanelContainer
-var sliders := {}
-var mute_btn: CheckButton
-var shake_btn: CheckButton
+var rows := {} # key -> HSlider or CheckButton
 var skip_btn: Button
 var prev_ui_open := false
 
@@ -30,27 +26,27 @@ func _ready() -> void:
 	title.text = "SOUND"
 	title.add_theme_font_size_override("font_size", 24)
 	box.add_child(title)
-	for key in ROWS:
+	for key in Settings.defs:
+		var def: Dictionary = Settings.defs[key]
+		if def["kind"] == "toggle":
+			var b := CheckButton.new()
+			b.text = def["label"]
+			b.toggled.connect(func(on: bool): set_volume(key, 1 if on else 0))
+			box.add_child(b)
+			rows[key] = b
+			continue
 		var l := Label.new()
-		l.text = ROWS[key]
+		l.text = def["label"]
 		box.add_child(l)
 		var s := HSlider.new()
-		s.max_value = 100
-		s.value = Game.meta[key]
+		s.min_value = def["min"]
+		s.max_value = def["max"]
+		s.step = def["step"]
 		s.custom_minimum_size.x = 360
-		s.value_changed.connect(func(v: float): set_volume(key, int(v)))
+		s.value_changed.connect(func(v: float): set_volume(key, v))
 		box.add_child(s)
-		sliders[key] = s
-	mute_btn = CheckButton.new()
-	mute_btn.text = "Mute all  (M)"
-	mute_btn.button_pressed = Game.meta["muted"] == 1
-	mute_btn.toggled.connect(func(on: bool): set_volume("muted", 1 if on else 0))
-	box.add_child(mute_btn)
-	shake_btn = CheckButton.new()
-	shake_btn.text = "Screen shake (heavy guns)"
-	shake_btn.button_pressed = Game.meta["shake"] == 1
-	shake_btn.toggled.connect(func(on: bool): set_volume("shake", 1 if on else 0))
-	box.add_child(shake_btn)
+		rows[key] = s
+	_sync()
 	skip_btn = Button.new()
 	skip_btn.text = "Skip tutorial"
 	skip_btn.pressed.connect(func():
@@ -75,10 +71,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func open() -> void:
-	for key in sliders:
-		sliders[key].set_value_no_signal(Game.meta[key])
-	mute_btn.set_pressed_no_signal(Game.meta["muted"] == 1)
-	shake_btn.set_pressed_no_signal(Game.meta["shake"] == 1)
+	_sync()
 	skip_btn.visible = is_instance_valid(Game.world.tutorial)
 	prev_ui_open = Game.world.ui_open
 	Game.world.ui_open = true
@@ -94,6 +87,15 @@ func close() -> void:
 	Sfx.play("ui")
 
 
-func set_volume(key: String, value: int) -> void:
-	Game.meta[key] = value
+func _sync() -> void:
+	for key in rows:
+		if rows[key] is CheckButton:
+			rows[key].set_pressed_no_signal(Settings.is_on(key))
+		else:
+			rows[key].set_value_no_signal(Settings.get_value(key))
+
+
+## Row callback (any registered key; name kept from the sound-only menu).
+func set_volume(key: String, value: Variant) -> void:
+	Settings.set_value(key, value)
 	Sfx.apply_volumes()

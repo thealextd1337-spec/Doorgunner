@@ -75,7 +75,7 @@ static func burst(pos: Vector2, dir: Vector2, color: Color, n: int, speed: float
 	Game.world.add_child(p)
 
 
-## Camera shake of `amount` px (decays by itself). Off when Game.meta["shake"] is 0.
+## Camera shake of `amount` px (decays by itself). Off when the "shake" setting is off.
 static func shake(amount: float) -> void:
 	for s in Game.world.get_tree().get_nodes_in_group("shaker"):
 		s.kick(minf(amount, SHAKE_MAX))
