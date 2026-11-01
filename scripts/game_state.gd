@@ -201,7 +201,6 @@ const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kill
 	"tutorial_done": 0, "version": "", "start_helis": ""}
 var meta := META_DEFAULT.duplicate() # the active profile's meta.json; global options live in Settings (settings_registry.gd)
 var profiles := {"list": [], "last": ""}
-var radio_beep_ms := 0
 # run variables Save stores (stats, slots, seats, max_fuel/max_ammo and weight come from recompute)
 const SAVED := ["seed", "fuel", "ammo", "hp", "max_hp", "person_seq", "scrap", "xp", "level", "day", "time", "kills",
 	"base_hp", "max_base_hp", "attack_pending", "attack_active", "base_founded", "first_assault_day", "base_level", "weapon",
@@ -608,7 +607,7 @@ func xp_needed() -> int:
 
 
 func radio(msg: String) -> void:
-	if Time.get_ticks_msec() >= radio_beep_ms: radio_beep_ms = Time.get_ticks_msec() + 500; Sfx.play("radio", null, -8.0)
+	Sfx.radio_beep(msg) # beep per sender + music ducking
 	radio_message.emit(msg)
 
 

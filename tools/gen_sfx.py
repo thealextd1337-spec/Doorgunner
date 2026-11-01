@@ -296,4 +296,49 @@ for i in range(int(sec / 0.25) + 1):
 tense = mix(gain(tense_pad, 0.5), gain(clip(lp(ost, 450), 2), 0.6), gain(pulse, 0.5))
 write("music_tense", loop(hp(tense, 35), L), True)
 
+# ---- Q7: radio per sender, warnings, building, UI, event gong (appended: everything above stays byte-identical) -----
+def radio_set(*parts):
+	"""PTT click + short static + the sender's tones + release click, band-limited like a handset."""
+	end = max(len(p) for p in parts) / SR
+	body = mix(click, *parts, at(end + 0.02, click))
+	return fade(clip(lp(hp(body, 400), 3500), 2))
+
+
+# radio_base: warm steady two-tone (base command, 800 -> 1000 Hz)
+write("radio_base", radio_set(at(0.01, static), at(0.07, gain(mix(decay(osc(800, 0.07), 14), at(0.07, decay(osc(1000, 0.09), 12))), 0.7))))
+# radio_pilot: headset, two quick high beeps
+write("radio_pilot", radio_set(at(0.01, gain(static, 0.6)), at(0.06, gain(mix(decay(osc(1800, 0.05), 20), at(0.09, decay(osc(1800, 0.05), 20))), 0.7))))
+# radio_tower: long range, longer static and three rising blips
+write("radio_tower", radio_set(at(0.01, gain(decay(norm(lp(hp(noise(0.16), 900), 3500)), 12), 0.9)), at(0.1, gain(mix(*(at(0.07 * i, decay(osc(f, 0.06), 25)) for i, f in enumerate((700, 900, 1150)))), 0.7))))
+# radio_bandit: crackly, driven, with a falling raw saw chirp
+crackle2 = [random.uniform(-1, 1) if random.random() < 0.02 else 0.0 for _ in times(0.2)]
+write("radio_bandit", radio_set(at(0.01, gain(decay(norm(lp(crackle2, 3000)), 10), 0.9)), at(0.06, gain(clip(decay(osc(sweep(900, 350, 12), 0.14, "saw"), 14), 3), 0.5))))
+# radio_convoy: dit-dit-dah pips with a low truck-radio squelch
+pip = lambda d: decay(osc(1200, d), 8)
+write("radio_convoy", radio_set(at(0.01, gain(static, 0.5)), at(0.07, gain(mix(pip(0.05), at(0.08, pip(0.05)), at(0.16, pip(0.14))), 0.7))))
+
+# rpg_warn: rising lock-on warble, 8 pulses per second, square-ish
+sec = 0.9
+warble = osc(lambda t: 900 + 900 * t / sec, sec, "tri")
+write("rpg_warn", fade(clip(lp(env(warble, lambda t: 0.5 + 0.5 * math.copysign(1, math.sin(TAU * 8 * t))), 3500), 2.5), 10))
+
+# autorot: three falling whoops of a harsh saw (engine out), low-passed and driven
+whoop = lambda: env(osc(sweep(760, 300, 4), 0.6, "saw"), adsr(0.6, 0.02, 0.1, 0.8, 0.15))
+write("autorot", fade(clip(lp(mix(whoop(), at(0.6, whoop()), at(1.2, whoop())), 2600), 2.0), 15))
+
+# build: two wood knocks (hammer on plank)
+knock = lambda f: mix(decay(osc(f, 0.1), 45), gain(decay(osc(f * 2.3, 0.1), 70), 0.4), gain(decay(norm(lp(noise(0.1), 2500)), 150), 0.5))
+write("build", fade(mix(knock(520), at(0.16, gain(knock(470), 0.8)))))
+# build_done: knock + rising two-note chime
+write("build_done", fade(mix(knock(500), at(0.12, pluck(784, 0.5, 8)), at(0.24, pluck(1175, 0.7, 6)))))
+
+# ui_click: crisp noise tick + short 1.8 kHz blip
+write("ui_click", fade(mix(decay(norm(lp(hp(noise(0.02), 1500), 6000)), 250), gain(decay(osc(1800, 0.04), 110), 0.5))))
+
+# event: low gong, inharmonic FM with slowly decaying index, 2.6 s
+sec = 2.6
+gong = mix(fm(196, 1.41, lambda t: 3.0 * math.exp(-t * 0.9), sec), gain(fm(392, 2.76, lambda t: 2.0 * math.exp(-t * 1.5), sec), 0.4), gain(osc(98, sec), 0.5))
+write("event", fade(lp(decay(gong, 1.4), 2500), 10))
+
+
 print("wrote %d wavs to %s" % (len([f for f in os.listdir(OUT) if f.endswith(".wav")]), os.path.normpath(OUT)))
