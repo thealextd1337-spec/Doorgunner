@@ -266,10 +266,10 @@ func _apply_meta_bonus() -> void:
 func recompute() -> void:
 	Progression.apply_all()
 	seats = maxi(1, base_seats + loadout["seats"] + stats["seats"]) # a Little Bird (2 seats) with the smallest loadout
-	max_fuel = base_max_fuel + 25.0 * loadout["fuel_tank"]
+	max_fuel = base_max_fuel + 25.0 * loadout["fuel_tank"] + stats["tank"]
 	max_ammo = base_max_ammo + 60 * loadout["ammo_feed"] + Weapons.TABLE[weapon]["max_ammo_bonus"] + stats["max_ammo"]
 	stats["armor"] *= base_armor * (1.0 + 0.15 * loadout["armor"])
-	weight_factor = 1.0 - 0.04 * maxi(0, loadout_points() - 8)
+	weight_factor = 1.0 - 0.04 * (maxi(0, loadout_points() - 8) + stats["weight"])
 	fuel = minf(fuel, max_fuel)
 	ammo = mini(ammo, max_ammo)
 

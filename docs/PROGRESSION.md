@@ -9,7 +9,7 @@ dauerhafte Freischaltungen über Runs hinweg.
 
 | Slot-Typ | Anzahl (Start) | Was hinein passt | Thema |
 |---|---|---|---|
-| Hardpoint | 1 (max 2) | Waffen (Door MG, Minigun, Autocannon, Flak, Raketen, Railgun) | Türbewaffnung links/rechts |
+| Hardpoint | 1 (max 2) | Waffen (Door MG, Minigun, Autocannon, Flak, Raketen, Railgun, Q8: Scatter Gun, Flammenwerfer, Granatwerfer, Präzisionsgewehr, Schallkanone, Netzwerfer) | Türbewaffnung links/rechts |
 | System | 2 (max 3) | aktive Bordsysteme, feuern/wirken automatisch | Avionik und Crew |
 | Modul | 2 (max 3) | passive Boni | Zelle, Triebwerk, Munition |
 
@@ -32,6 +32,28 @@ Reichweiten (umgesetzt): Door MG 42 m, Minigun 32 m, Autocannon 62 m, Flak 20 m,
 | Flak | +1 Projektil | Doppelter Kegel |
 | Raketen | +15 % Flächenradius | Salve: 3 Raketen pro Auslösung |
 | Railgun | +20 % Schaden | Kettenblitz: Treffer springt auf 2 weitere Ziele |
+
+### Q8 Arsenal (Stand 2026-11-02)
+
+Alle Werte stehen in `scripts/weapons.gd` (Tabelle, `level_mods`, `tune`), `scripts/progression.gd` (Items, `apply`) und als Konstanten oben in `scripts/burn.gd`, `scripts/systems/thermal.gd`, `smoke.gd`. Eigenschaften wie Brand, Betäubung, Bogenflug, Durchschlag und Schadensabfall sind Eigenschaften der Kugel (`bullet.gd`), nicht von `enemy.gd`. Sounds sind Platzhalter (vorhandene Dateien), Q16 tauscht gegen Q7.
+
+| Waffe (Hardpoint) | Werte (Lv 1) | pro Level | Level 5 | Freischaltung |
+|---|---|---|---|---|
+| Scatter Gun | 10 Schrot à 6, Kegel 30°, 14 m, Schaden fällt bis auf 35 %, 3 Munition | +1 Schrot | Drachenatem: Schrot zündet | 8 Runs |
+| Flammenwerfer | 4 Schaden alle 0,08 s, 11 m, durchschlägt alles, Brand 8/s für 3 s | +15 % Brandschaden | Lauffeuer: Brennende zünden Nachbarn (28 px) | 150 gerettet |
+| Granatwerfer | 70 Schaden, Flächenradius 5,5 m, fliegt im Bogen zum Mauszeiger (6–42 m), trifft nur am Ziel, 4 Munition | +15 % Radius | Cluster: 3 Granaten | 15 Basis-Angriffe |
+| Präzisionsgewehr | 80 Schaden, 100 m, Durchschlag 2, +20 % Kopftreffer, 2 Munition, 0,9 s | +15 % Schaden | Dead-eye: +2 Durchschlag, 50 % Kopftreffer | Tag 12 |
+| Schallkanone | Welle (Radius 24 px), 4 Schaden, betäubt 0,8 s, schiebt, 16 m, 3 Munition; Banditen unbetroffen | +25 % Schaden, +0,2 s | Resonanz: Schaden ×4 | 15 Bosse |
+| Netzwerfer | Granate, Radius 4,5 m, 3 Schaden, Zombies stehen 2 s (danach 4 s immun), Bosse immun | +0,5 s | Weites Netz: Radius ×2 | 12 Runs |
+
+| Item | Slot | Wirkung | pro Level | Level 5 | Freischaltung |
+|---|---|---|---|---|---|
+| Thermal Sight | System | Gegner nachts als Wärmebild, 20 m | +4 m | 45 m, sieht auch Zombies im Wald | Tag 25 |
+| Smoke Launcher | System | Nebelwand (r 4,8 m) bei Beschuss oder anfliegender Rakete: Raketen verlieren das Ziel, Zombies darin −50 % Tempo; 6 s, alle 24 s | länger (+1 s), schneller (−3 s) | Zombies im Nebel 2 s betäubt | 10 Basis-Angriffe |
+| Extra Tank | Modul | +10 Treibstoff | +10 | +60, 10 % weniger Verbrauch | 5 Runs |
+| Heavy Plates | Modul | +20 % Rüstung, −4 % Tempo (Gewicht) | +20 % / −4 % | +150 % Rüstung, −20 % Tempo | 5 Boss-Kills |
+
+Brand wird nicht gespeichert (dauert 3 s). Neue Gegenstände sind alte Spielstände-kompatibel: `SAVE_FORMAT` bleibt, `Game.stats` bekommt `tank` und `weight` (`BASE_STATS`).
 
 ### Systeme (System-Slot), Level 1-5
 | System | Wirkung | pro Level | Level 5 |

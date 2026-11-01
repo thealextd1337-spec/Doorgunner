@@ -15,6 +15,7 @@ const SPOOL := 1.5 # seconds to land or take off
 const ARC_DEG := 70.0 # door gun arcs: within this of the body's left or right side
 const Weapons := preload("res://scripts/weapons.gd")
 const DMG_PER_LEVEL := {"mg": 0.12, "autocannon": 0.15, "railgun": 0.2}
+const LOB_MIN := 60.0 # a lobbed shell never bursts closer than this
 
 var vel := Vector2.ZERO
 var landed := false
@@ -169,6 +170,12 @@ func weapon_range() -> float:
 	return Weapons.TABLE[Game.weapon]["range"] * Game.stats["range"]
 
 
+## How far a lobbed shell flies: to the mouse, clamped to LOB_MIN..weapon range (tests: 70 % of the range).
+func aim_dist() -> float:
+	var d := weapon_range() * 0.7 if aim_override != Vector2.ZERO else (get_global_mouse_position() - global_position).length()
+	return clampf(d, LOB_MIN, weapon_range())
+
+
 func _interval(id: String = Game.weapon) -> float:
 	var rate: float = 1.0 + 0.1 * (maxi(1, Progression.level("minigun")) - 1) if id == "minigun" else 1.0
 	return Weapons.TABLE[id]["interval"] / Game.stats["fire_rate"] / rate
@@ -215,7 +222,8 @@ func _fire(id: String = Game.weapon) -> void:
 		no_angle = 0.6
 		return
 	var lv := maxi(1, Progression.level(id))
-	var dmg: float = w["damage"] * Game.stats["damage"] * (1.0 + DMG_PER_LEVEL.get(id, 0.0) * (lv - 1))
+	var mods := Weapons.level_mods(id, lv) # Q8 guns: damage, pellets, blast radius per level
+	var dmg: float = w["damage"] * Game.stats["damage"] * (1.0 + DMG_PER_LEVEL.get(id, 0.0) * (lv - 1)) * mods["dmg"]
 	if fire_cd < -1.0 and Progression.level("training") >= 5 and not second:
 		dmg *= 2.0 # Gunnery Lv5: first shot after a pause crits
 	if second:
@@ -229,15 +237,15 @@ func _fire(id: String = Game.weapon) -> void:
 	if dmg >= HitFx.SHAKE_MIN_DAMAGE:
 		HitFx.shake(dmg * HitFx.SHAKE_PER_DAMAGE)
 	muzzle.position = aim * 18
-	var shots: int = w["shots"] + Game.stats["shots"] - 1 + (lv - 1 if id == "shotgun" else 0)
-	var splash: float = w.get("splash", 0.0) * (1.0 + 0.15 * (lv - 1) if id == "rockets" else 1.0)
+	var shots: int = w["shots"] + Game.stats["shots"] - 1 + (lv - 1 if id == "shotgun" else 0) + mods["pellets"]
+	var splash: float = w.get("splash", 0.0) * (1.0 + 0.15 * (lv - 1) if id == "rockets" else 1.0) * mods["splash"]
 	var tracers := [0.0] # sideways offsets, Twin MG fires two parallel tracers
 	if lv >= 5:
 		match id:
 			"mg": tracers = [-3.0, 3.0]
 			"shotgun": shots *= 2
 			"autocannon": splash = 40.0
-			"rockets": shots = 3
+			"rockets", "grenade": shots = 3
 	if id == "minigun" and lv < 5:
 		heat = minf(1.0, heat + 0.1)
 	var jitter: float = w["spread_deg"] / 2.0 * (1.0 + heat) * Game.world.wear.spread_factor()
@@ -249,6 +257,7 @@ func _fire(id: String = Game.weapon) -> void:
 				w["bullet_speed"], w["range"] * Game.stats["range"] / (w["bullet_speed"] * Game.stats["bullet_speed"]), splash)
 			b.chain = 2 if id == "railgun" and lv >= 5 else 0
 			b.bounce = 1 if Progression.level("hardcore") >= 5 else 0
+			Weapons.tune(b, id, lv, aim_dist())
 			Game.world.add_child(b)
 
 
