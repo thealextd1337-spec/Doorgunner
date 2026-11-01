@@ -32,7 +32,7 @@ func _hint() -> void:
 	var heli_pos: Vector2 = Game.heli.position
 	var found: Array = Game.world.pois.filter(func(p):
 		var d: float = heli_pos.distance_to(p.position)
-		return not p.done and not p.discovered and p.kind != "nest" and d >= 600.0 and d <= 3000.0)
+		return not p.done and not p.discovered and p.kind != "nest" and d >= 600.0 and d <= 3000.0 * Buildings2.reach())
 	if found.is_empty():
 		return
 	var p: Node2D = found.pick_random()

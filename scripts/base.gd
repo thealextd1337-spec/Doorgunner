@@ -175,6 +175,8 @@ func _draw_ghost() -> void:
 	var r := Rect2(_cell_rect(cell).position, (Vector2(Evac.strip_size(place_rot)) if place_kind == "airstrip" else Vector2(n, n)) * CELL)
 	var label := "%d scrap" % building_cost(place_kind) if Game.BUILDINGS.has(place_kind) else ""
 	var why: String = Game.world.evac.refusal(place_kind, cell, place_rot)
+	if why == "":
+		why = Buildings2.refusal(place_kind)
 	if why != "":
 		label = why # the evacuation buildings say what is missing
 	if place_kind in ["sandbag", "wire"]:
@@ -252,7 +254,7 @@ func can_place(kind: String, cell: Vector2i) -> bool:
 		return not demolish_target(cell).is_empty()
 	if kind in ["sandbag", "wire"]:
 		return Game.sandbags.size() < Game.SANDBAG_MAX and Game.scrap >= piece_cost(kind) and free_cell(cell)
-	if Game.scrap < building_cost(kind) or Game.world.evac.refusal(kind, cell, place_rot) != "":
+	if Game.scrap < building_cost(kind) or Game.world.evac.refusal(kind, cell, place_rot) != "" or Buildings2.refusal(kind) != "":
 		return false
 	var n := footprint(kind)
 	for x in n:
@@ -469,6 +471,8 @@ func _site_node(b: Dictionary) -> void:
 		pad.scale = Vector2.ONE * CELL / 192.0
 		node.add_child(pad)
 		node.add_child(Art.sprite("turret"))
+	elif b["kind"] in Buildings2.KINDS:
+		node.add_child(Art.sprite(b["kind"]))
 	else:
 		var s := Art.sprite("hangar")
 		s.scale = Vector2.ONE * n * CELL / 128.0
@@ -753,6 +757,8 @@ func take_damage(amount: float) -> void:
 	modulate = Color(1, 0.5, 0.5)
 	get_tree().create_timer(0.1).timeout.connect(func(): modulate = Color.WHITE)
 	if Game.base_hp <= 0.0:
+		if Buildings2.shelter():
+			return
 		Game.base_hp = 0.0
 		Game.end_run("The base has fallen.")
 

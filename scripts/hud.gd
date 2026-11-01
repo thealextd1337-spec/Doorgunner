@@ -232,7 +232,7 @@ func _draw_minimap() -> void:
 	for p in Game.world.pois:
 		if not is_instance_valid(p) or p.done:
 			continue
-		if not p.discovered and heli_pos.distance_squared_to(p.global_position) < MAP_SEEN * MAP_SEEN and not Game.world.modifiers.on("blackout"):
+		if not p.discovered and heli_pos.distance_squared_to(p.global_position) < pow(MAP_SEEN * Buildings2.reach(), 2) and not Game.world.modifiers.on("blackout"):
 			p.discovered = true
 		if p.discovered:
 			minimap.draw_rect(Rect2(to_map.call(p.global_position) - Vector2(2, 2), Vector2(4, 4)), POI_COLORS.get(p.kind, Color.WHITE))

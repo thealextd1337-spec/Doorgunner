@@ -385,6 +385,15 @@ func _scatter() -> void:
 	_end()
 
 
+## The base was breached and the bunker took the survivors (buildings2.gd): the wave breaks off without counting as held.
+func abort() -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e.get("target_base") and not e.is_queued_for_deletion():
+			e.target_base = false
+	clear_wave()
+	_reset()
+
+
 func _end() -> void:
 	Game.attack_active = false
 	Game.meta["assaults_held"] += 1
@@ -393,6 +402,11 @@ func _end() -> void:
 		Game.world.morale.add(BLOOD_MORALE, "blood moon held")
 	else:
 		Game.radio("Base secured. Good work, gunner.")
+	_reset()
+
+
+func _reset() -> void:
+	Game.attack_active = false
 	blood = false
 	final = false
 	theme = ""

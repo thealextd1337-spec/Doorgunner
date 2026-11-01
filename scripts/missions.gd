@@ -186,7 +186,7 @@ func _origin() -> Vector2:
 ## A random unused site of `kinds` MIN_DIST..MAX_DIST px from the base, {} if none.
 func _site(kinds: Array) -> Dictionary:
 	var from := _origin()
-	var list: Array = Game.world.chunks.sites_near(from, MAX_DIST).filter(func(s): return s.kind in kinds and s.pos.distance_to(from) >= MIN_DIST and not s.uid in used)
+	var list: Array = Game.world.chunks.sites_near(from, MAX_DIST * Buildings2.reach()).filter(func(s): return s.kind in kinds and s.pos.distance_to(from) >= MIN_DIST and not s.uid in used)
 	return list.pick_random() if not list.is_empty() else {}
 
 
@@ -375,7 +375,7 @@ func _make_camp(_args: Dictionary) -> Dictionary:
 	var node := _provider("camp")
 	if node == null:
 		return {}
-	var list: Array = node.camps_near(_origin(), MAX_DIST).filter(func(c): return not c["uid"] in used)
+	var list: Array = node.camps_near(_origin(), MAX_DIST * Buildings2.reach()).filter(func(c): return not c["uid"] in used)
 	if list.is_empty():
 		return {}
 	var c: Dictionary = list.pick_random()

@@ -96,7 +96,7 @@ var base_fuel := 400.0
 var base_ammo := 800.0
 var base_fuel_cap := 600.0
 var base_ammo_cap := 1200.0
-var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0, "workshop": 0}
+var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0, "workshop": 0, "forge": 0}
 var sandbags := {} # Vector2i cell -> {"kind": "sandbag" or "wire", "hp": float, "built": bool, "rot": 0 along x / 1 along y}; nodes live in base.gd
 var base_food := 60.0
 var salvage := {"metal": 0.0, "parts": 0.0, "electronics": 0.0} # crates, wrecks, scrap yards, kills; the workshop job turns it into scrap
@@ -105,7 +105,9 @@ var workshop_progress := 0.0 # salvage units owed to the workshop, carried betwe
 # kind -> [name, scrap, build seconds, footprint cells]; "perimeter" costs scrap x next level and has no footprint
 const BUILDINGS := {"barracks": ["Barracks", 40, 90.0, 2], "clinic": ["Field Clinic", 50, 90.0, 2], "generator": ["Generator", 60, 60.0, 1],
 	"well": ["Well", 30, 60.0, 1], "watchtower": ["Watchtower", 35, 45.0, 1], "motor_pool": ["Motor Pool", 80, 90.0, 2], "perimeter": ["Perimeter", 60, 60.0, 0],
-	"radio": ["Radio Station", 90, 90.0, 2], "airstrip": ["Airstrip", 150, 120.0, 0]} # radio / airstrip: evac.gd (airstrip: 4x24 cells, stored with "rot")
+	"radio": ["Radio Station", 90, 90.0, 2], "airstrip": ["Airstrip", 150, 120.0, 0], # radio / airstrip: evac.gd (airstrip: 4x24 cells, stored with "rot")
+	"hospital": ["Field Hospital", 110, 120.0, 2], "greenhouse": ["Greenhouse", 70, 75.0, 2], "forge": ["Forge", 100, 100.0, 2],
+	"bunker": ["Bunker", 130, 120.0, 2], "relay": ["Radio Relay", 100, 90.0, 1]} # the last five: buildings2.gd (mouse / touch only in the build bar)
 const BASE_RADIUS := 160.0
 const PERIMETER_STEP := 60.0
 const PERIMETER_MAX := 5
@@ -239,7 +241,7 @@ func new_run() -> void:
 	base_seats = 0; base_max_fuel = 75.0; base_max_ammo = 140; base_armor = 1.0
 	loadout = {"seats": 4, "fuel_tank": 1, "ammo_feed": 1, "armor": 0}; loadout_budget = 10
 	base_fuel = 400.0; base_ammo = 800.0; base_fuel_cap = 600.0; base_ammo_cap = 1200.0
-	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0, "workshop": 0}
+	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0, "workshop": 0, "forge": 0}
 	sandbags = {}
 	base_food = 60.0; noise_level = 0.0
 	salvage = {"metal": 0.0, "parts": 0.0, "electronics": 0.0}; workshop_progress = 0.0
@@ -555,14 +557,19 @@ func days_to_assault() -> int:
 	return first_assault_day - day if day < first_assault_day else posmod(first_assault_day - day, ATTACK_EVERY_DAYS)
 
 
+## Patient beds: 2 per clinic, more in a Field Hospital (buildings2.gd).
+func clinic_beds() -> int:
+	return 2 * built("clinic") + Buildings2.HOSPITAL_BEDS * built("hospital")
+
+
 ## Field clinic: 2 beds per clinic, a patient takes a bed for 1 medicine, then heals in HEAL_DAYS
 ## (x2 speed with a medic for that bed pair, x2 again with power). `d` is the fraction of a day.
 func _treat(d: float) -> void:
-	while treating.size() < mini(2 * built("clinic"), injured) and base_medicine >= 1.0:
+	while treating.size() < mini(clinic_beds(), injured) and base_medicine >= 1.0:
 		base_medicine -= 1.0
 		treating.append(HEAL_DAYS)
 	for i in range(treating.size() - 1, -1, -1):
-		treating[i] -= d * (2.0 if i < 2 * crew("medic") else 1.0) * (2.0 if power else 1.0)
+		treating[i] -= d * (2.0 if i < 2 * crew("medic") else 1.0) * (2.0 if power else 1.0) * Buildings2.heal_speed()
 		if treating[i] <= 0.0:
 			treating.remove_at(i)
 			injured -= 1
@@ -647,6 +654,9 @@ func load_state(d: Dictionary) -> void:
 	heli_weapons.assign(d["heli_weapons"]) # typed arrays come back untyped from bytes_to_var
 	treating.assign(d["treating"])
 	people.assign(d["people"])
+	for j in ["forge"]: # job added after 1.0.0-beta: older saves lack it
+		if not workers.has(j):
+			workers[j] = 0
 	recompute()
 	running = true
 
