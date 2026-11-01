@@ -78,7 +78,7 @@ func _process(delta: float) -> void:
 	_move(delta)
 	_fuel(delta)
 	Game.make_noise(global_position, (0.05 if landed else 0.25 + vel.length() / MAX_SPEED * 0.2) * Game.world.wrecks.htype()["noise"])
-	if Input.is_action_pressed("fire") and not Game.world.ui_open:
+	if Controls.fire() and not Game.world.ui_open:
 		_fire()
 		if Game.world.wrecks.htype()["twin"] and Game.heli_weapons.size() > 1:
 			_fire(Game.heli_weapons[(Game.heli_weapons.find(Game.weapon) + 1) % Game.heli_weapons.size()])
@@ -91,7 +91,7 @@ func _process(delta: float) -> void:
 
 
 func _move(delta: float) -> void:
-	var dir := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	var dir := Controls.move()
 	if landed or pending == 1:
 		vel = vel.lerp(Vector2.ZERO, minf(1.0, 4.0 * delta)) # minf: a long frame must not overshoot
 		position += vel * delta
@@ -104,7 +104,7 @@ func _move(delta: float) -> void:
 		vel = vel.normalized() * max_speed
 	position += vel * delta
 	# Q/E swing the heli so the door guns bear; without input the nose drifts back toward the flight path
-	var yaw := Input.get_axis("yaw_left", "yaw_right")
+	var yaw := Controls.yaw()
 	if yaw != 0.0:
 		body.rotation += yaw * YAW_SPEED * delta
 		manual_yaw = 0.0
@@ -154,9 +154,9 @@ func can_found() -> bool:
 	return true
 
 
-## Unit aim direction: the mouse, or aim_override in tests.
+## Unit aim direction: Controls.aim() (mouse or aim stick), or aim_override in tests.
 func aim_dir() -> Vector2:
-	return aim_override.normalized() if aim_override != Vector2.ZERO else (get_global_mouse_position() - global_position).normalized()
+	return aim_override.normalized() if aim_override != Vector2.ZERO else (Controls.aim() - global_position).normalized()
 
 
 ## The door gunner fires out of the side doors: not within 90 - ARC_DEG degrees of the nose or tail.

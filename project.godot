@@ -11,6 +11,7 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 [autoload]
 
 Settings="*res://scripts/settings_registry.gd"
+Controls="*res://scripts/controls.gd"
 Game="*res://scripts/game_state.gd"
 Sfx="*res://scripts/sfx.gd"
 Save="*res://scripts/save.gd"
@@ -22,6 +23,7 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep"
+window/handheld/orientation=4
 
 [rendering]
 

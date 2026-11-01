@@ -116,6 +116,7 @@ func _add_ui_layers() -> void:
 	add_child(preload("res://scripts/game_over_ui.gd").new())
 	add_child(preload("res://scripts/victory_ui.gd").new())
 	add_child(preload("res://scripts/settings_ui.gd").new())
+	add_child(preload("res://scripts/touch_ui.gd").new()) # Q5: sticks and buttons while Controls.touch is on
 
 
 func _show_title() -> void:
