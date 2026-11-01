@@ -42,6 +42,8 @@ const CONVOY_TRIPS := 3 # trips to one site before the bot looks elsewhere (DEPL
 const CONVOY_REACH := 5000.0
 const VILLAGES_MAX := 3
 const VILLAGE_KEEP := 3 # survivors left behind that make a settlement worth protecting
+const T := preload("res://scripts/chunk_manager.gd").T
+const STRIP_AT := Vector2i(-12, 3) # evac mode: top-left of the airstrip lane, cells from the pad
 const HOOK_WAIT := 30.0 # game s of hovering for the hook before giving up
 const MOD_ALIAS := {"dense": "dense_horde", "warlords": "warlords", "scarcity": "scarcity", "dry": "dry_season", "glass": "glass_cockpit", "blackout": "blackout"}
 
@@ -623,7 +625,8 @@ func _manage() -> void:
 	var i := 0
 	while Game.sandbags.size() < bags and Game.scrap >= Game.SANDBAG_COST + keep and i < 192: # rings 20, 36 and 52 px inside the fence
 		var at: Vector2 = base.global_position + Vector2(Game.base_radius - 20.0 - 16.0 * (i / 64), 0).rotated((i % 64) * TAU / 64.0)
-		base.place_sandbag(Vector2i((at / 16.0).floor()))
+		if not _on_lane(Vector2i((at / 16.0).floor())):
+			base.place_sandbag(Vector2i((at / 16.0).floor()))
 		i += 1
 
 
@@ -639,9 +642,19 @@ func _place(kind: String) -> bool:
 		for x in range(-d, d + 1):
 			for y in [-d, d]:
 				for cell in [c0 + Vector2i(x, y), c0 + Vector2i(y, x)]:
-					if base.cell_pos(cell).distance_to(base.global_position) < Game.base_radius - 40.0 and base.place_building(kind, cell):
+					if base.cell_pos(cell).distance_to(base.global_position) < Game.base_radius - 40.0 and not _on_lane(cell, Game.BUILDINGS[kind][3]) \
+							and base.place_building(kind, cell):
 						return true
 	return false
+
+
+## Evac mode: the lane south of the pad kept free for the airstrip from day 1 (fits perimeter level 1, misses pad and hangar).
+func _lane() -> Rect2i:
+	return Rect2i(Vector2i((main.base.global_position / 16.0).floor()) + STRIP_AT, main.evac.STRIP_CELLS)
+
+
+func _on_lane(cell: Vector2i, size := 1) -> bool:
+	return evac_mode and _lane().intersects(Rect2i(cell, Vector2i(size, size)))
 
 
 ## Jobs from what the stocks need: water and food first, builders while there is work, militia, workshop, the rest on fuel/ammo/repair.
@@ -769,6 +782,16 @@ func _evac() -> void:
 			base.expand_perimeter()
 		return
 	if strip_day != Game.day and Game.scrap >= Game.BUILDINGS["airstrip"][1] + KEEP:
+		var why: String = e.strip_problem(_lane().position, 0)
+		if why == "":
+			base.place_building("airstrip", _lane().position)
+			return
+		if "house" in why: # houses on the lane: the builders tear them down first
+			for x in _lane().size.x:
+				for y in _lane().size.y:
+					if main.chunks.get_cell_atlas_coords(_lane().position + Vector2i(x, y)).x in [T.BUILDING, T.RUIN]:
+						base.mark_demolition(_lane().position + Vector2i(x, y))
+			return
 		for rot in [0, 1]:
 			var cell: Vector2i = e.find_spot(rot)
 			if cell.x != -99999:
