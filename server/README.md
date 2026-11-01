@@ -13,6 +13,8 @@ All writes go through `security definer` RPCs, all tables have RLS on.
 | `supabase/005_leaderboards.sql` | views `leaderboard_points/_days/_rescued/_kills`, `best_run` |
 | `supabase/006_modifiers.sql` | the six run-modifier score factors (P15), idempotent upsert into `modifiers` |
 | `supabase/007_balance.sql` | balance pass 1.0.0-beta (P18): `run_points` (victory 5000) and the `upsert_run` bounds for the 900 s day, idempotent |
+| `supabase/009_cloud_save.sql` | cloud backup of the saved run (Q3): table `cloud_saves` (PK `player_id, slot`, `data` bytea <= 2 MB, FK cascade from `players`, so `delete_me` removes it without being edited), RPCs `put_save`, `get_save`, `delete_save` |
+| `test_009.sql` | tests for 009 (own transaction, rolled back), also shows that `upsert_run` ignores lower values |
 | `test.sql` | test cases, runs in one transaction that is rolled back |
 
 ### Migrations
@@ -24,7 +26,7 @@ All writes go through `security definer` RPCs, all tables have RLS on.
 | `006_modifiers.sql` | P15 | **user must still run it** |
 | `007_balance.sql` | P18 | **user must still run it** |
 | `008_errors.sql` | Q2 error reporting | planned |
-| `009_cloud_save.sql` | Q3 cloud save | planned |
+| `009_cloud_save.sql` | Q3 cloud save | **written, not run on any project yet (no token); user must run it, then `test_009.sql`** |
 | `010_daily_season.sql` | Q14 daily + season | planned |
 
 Rules (ROADMAP2): every SQL change is a new idempotent `supabase/0NN_<name>.sql` (numbers above are fixed), the user
@@ -61,6 +63,9 @@ Auth: `POST <URL>/auth/v1/signup` with body `{}` creates an anonymous user (retu
 | `POST /rpc/upsert_run {p_run_id, p_day, p_rescued, p_kills, p_ended, p_victory, p_modifiers, p_version}` | returns the server-side points. `p_run_id` is a client generated uuid |
 | `GET /leaderboard_points?order=rank&limit=100` | also `leaderboard_days`, `_rescued`, `_kills`, `best_run`; columns `rank, player_id, name, avatar, value` (`best_run`: + `day, victory, modifiers`). Own rank: `&player_id=eq.<uid>`. Readable without login. |
 | `GET /modifiers` | `id, factor` |
+| `POST /rpc/put_save {p_slot, p_data, p_version, p_format}` | 009. `p_slot` `run` or `daily`, `p_data` base64 of the client's compressed save (<= 2 MB decoded), one put per slot per 30 s. Errors `slot_invalid`, `save_invalid`, `save_too_large`, `rate_limit`, `no_player` |
+| `POST /rpc/get_save {p_slot, p_meta_only}` | 009. `{updated_at, version, format, data}` (`data` left out with `p_meta_only`) or `null` |
+| `POST /rpc/delete_save {p_slot}` | 009. Own save only |
 
 RPC errors are HTTP 400 with `message` = code: `not_authenticated`, `no_player`, `already_registered`, `name_invalid`, `name_banned`, `name_taken`, `avatar_invalid`, `run_invalid`, `not_your_run`, `run_ended`, `rate_limit`, `rate_limit_new_runs`, `implausible`. Calling an RPC without being signed in gives HTTP 401 (`permission denied`).
 

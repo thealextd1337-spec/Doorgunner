@@ -8,6 +8,7 @@ leaderboard views, with the same error codes. Test controls: POST /_test {"expir
 {"down": true} answers every request with 503, {"max_day": n} makes upsert_run answer `implausible` above day n;
 GET /_test returns {"players": ..., "runs": ...}. Not a security reference: it checks only what the client needs.
 """
+import base64
 import json
 import re
 import sys
@@ -112,6 +113,41 @@ def upsert_run(uid, b):
     return r["points"]
 
 
+SAVES = {}  # (player id, slot) -> {updated_at, version, format, data (base64 text)}; unreachable once delete_me removed the player (FK cascade in 009)
+
+
+def put_save(uid, b):  # server/supabase/009_cloud_save.sql
+    player(uid)
+    if b.get("p_slot") not in ("run", "daily"):
+        raise Err("slot_invalid")
+    d = b.get("p_data")
+    if not isinstance(d, str) or not d or not isinstance(b.get("p_format"), int) or b["p_format"] < 0:
+        raise Err("save_invalid")
+    if len(d) > 2097152 * 4 // 3 + 16:
+        raise Err("save_too_large")
+    try:
+        raw = base64.b64decode(d, validate=True)
+    except Exception:
+        raise Err("save_invalid")
+    if len(raw) > 2097152:
+        raise Err("save_too_large")
+    SAVES[(uid, b["p_slot"])] = {"updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "version": str(b.get("p_version", ""))[:32],
+                                 "format": b["p_format"], "data": d}
+    return SAVES[(uid, b["p_slot"])]["updated_at"]
+
+
+def get_save(uid, b):
+    s = SAVES.get((uid, b.get("p_slot"))) if uid in S["players"] else None
+    if s is None:
+        return None
+    return {k: v for k, v in s.items() if k != "data" or not b.get("p_meta_only")}
+
+
+def delete_save(uid, b):
+    SAVES.pop((uid, b.get("p_slot")), None)
+    return None
+
+
 # One function per RPC: fn(uid, body) -> JSON result, raise Err(code) like the SQL. Packages append their own
 # function above and ONE line here (call player(uid) first if the RPC needs a registered player).
 RPCS = {
@@ -120,6 +156,9 @@ RPCS = {
     "set_avatar": set_avatar,
     "delete_me": delete_me,
     "upsert_run": upsert_run,
+    "put_save": put_save,
+    "get_save": get_save,
+    "delete_save": delete_save,
 }
 
 

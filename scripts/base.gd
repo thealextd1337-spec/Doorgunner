@@ -804,4 +804,4 @@ func _on_landed(landed: bool) -> void:
 		Game.add_xp(6 * n)
 		Progression.on_delivery()
 	ui.open()
-	Save.autosave()
+	Save.autosave(true) # landing at the base: also the cloud backup
