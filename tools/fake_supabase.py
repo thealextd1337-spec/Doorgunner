@@ -16,7 +16,8 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-S = {"access": {}, "refresh": {}, "players": {}, "runs": {}, "n": 0, "down": False, "max_day": 100000}
+S = {"access": {}, "refresh": {}, "players": {}, "runs": {}, "n": 0, "down": False, "max_day": 100000,
+     "errors": {}, "err_rate": {}, "err_limit": 20}
 VIEWS = {"leaderboard_points": "points", "leaderboard_days": "day", "leaderboard_rescued": "rescued", "leaderboard_kills": "kills"}
 
 
@@ -86,6 +87,9 @@ def delete_me(uid, b):
         S["runs"].pop(k)
     S["access"] = {k: v for k, v in S["access"].items() if v != uid}
     S["refresh"] = {k: v for k, v in S["refresh"].items() if v != uid}
+    for e in S["errors"].values():
+        if e["player_id"] == uid:
+            e["player_id"] = None
     return None
 
 
@@ -112,6 +116,24 @@ def upsert_run(uid, b):
     return r["points"]
 
 
+def report_error(uid, b):  # callable without a sign-in (uid None), like 008_errors.sql; err_limit = per-player calls, anon 200
+    msg = str(b.get("p_message") or "")[:500]
+    if not msg.strip():
+        raise Err("error_invalid")
+    bucket = uid or "anon"
+    if S["err_rate"].get(bucket, 0) >= (S["err_limit"] if uid else 200):
+        raise Err("rate_limit")
+    S["err_rate"][bucket] = S["err_rate"].get(bucket, 0) + 1
+    ver = str(b.get("p_version") or "")[:32]
+    e = S["errors"].get((ver, msg))
+    if e:
+        e["count"] += 1
+    else:
+        S["errors"][(ver, msg)] = {"player_id": uid, "version": ver, "platform": str(b.get("p_platform") or "")[:32],
+                                   "message": msg, "stack": str(b.get("p_stack") or "")[:4000], "count": 1}
+    return None
+
+
 # One function per RPC: fn(uid, body) -> JSON result, raise Err(code) like the SQL. Packages append their own
 # function above and ONE line here (call player(uid) first if the RPC needs a registered player).
 RPCS = {
@@ -120,11 +142,12 @@ RPCS = {
     "set_avatar": set_avatar,
     "delete_me": delete_me,
     "upsert_run": upsert_run,
+    "report_error": report_error,
 }
 
 
 def rpc(name, uid, b):
-    if uid is None:
+    if uid is None and name != "report_error":
         raise Err("permission denied", 401)
     if name not in RPCS:
         raise Err("unknown rpc", 404)
@@ -180,7 +203,8 @@ class H(BaseHTTPRequestHandler):
                         S["access"].clear()
                     S["down"] = b.get("down", S["down"])
                     S["max_day"] = b.get("max_day", S["max_day"])
-                return self.reply(200, {"players": S["players"], "runs": S["runs"]})
+                    S["err_limit"] = b.get("err_limit", S["err_limit"])
+                return self.reply(200, {"players": S["players"], "runs": S["runs"], "errors": list(S["errors"].values())})
             if S["down"]:
                 return self.reply(503, {"message": "down"})
             if not self.headers.get("apikey"):

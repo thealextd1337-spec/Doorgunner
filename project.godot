@@ -15,6 +15,7 @@ Game="*res://scripts/game_state.gd"
 Sfx="*res://scripts/sfx.gd"
 Save="*res://scripts/save.gd"
 Online="*res://scripts/online.gd"
+ErrorReport="*res://scripts/error_report.gd"
 
 [display]
 
