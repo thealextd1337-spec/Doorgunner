@@ -326,6 +326,10 @@ Höchstens 6 Agenten gleichzeitig.
 - Test `SMOKE=nemesis`: Rivale entsteht, merkt sich Verhalten, flieht und kehrt zurück, Eskalation, Tod beendet ihn.
 
 ### Q16 Integration, Balance, Release 1.1.0 · Opus 5.5 (Zahlen: Haiku 5.5)
+- **Befunde aus Q4 (2026-11-02, 3 Seeds je Modus):** Elektronik fehlt fast immer (keine Funkstation → keine
+  Evakuierung in 2 von 3 Läufen, nie eine Wrack-Reparatur); Dense Horde + Warlords: Basis fällt an Tag 9; ab Tag 31
+  ~5000 Schrott ungenutzt; Aufträge selten (wenige Orte 900–2600 px von der Basis); Außenposten fallen oft, Dörfer
+  selten; Spielstand ~8–10 KB pro Tag (418 KB an Tag 40).
 - Bot aus Q4 über 40 Tage mit allen neuen Inhalten (Waffen, Gebäude, Biome, Bosse, Ereignisse, Rivalen) auf 5 Seeds
   je Modus; Kurve wie in P18 (Tag 1–10 eng, 10–30 stabil mit Rückschlägen, danach steigender Druck ohne Zusammenbruch).
 - Touch-Feinschliff auf einem echten Gerät (User testet, Parent misst im Web mit `?perf=1`).
