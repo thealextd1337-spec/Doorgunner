@@ -23,6 +23,7 @@ const SITE_JITTER := 24 # cells a site centre may sit off the middle of its macr
 const SETTLE := 12 # and then off that for drier ground
 const SITE_REACH := 52 # cells: the farthest a site paints from its centre (jitter + reach stay inside the macro cell)
 const START := Vector2i(16, 16) # the start site (centre of chunk (0,0)), kept clear of all paint
+const HASH_SEED := 20261102 # world_hash test seed (tests/daily_test.gd, web console with ?perf=1)
 const START_TOWN := Vector2i(40, 50) # the start macro's town sits this many cells (x and y) south-east of START
 const ROAD_NODE := 4 # cells per coarse A* node
 const ROAD_MARGIN := 6 # nodes of slack around an edge's A* box
@@ -251,6 +252,22 @@ func _load_around(c: Vector2i, all: bool, t0: int) -> void:
 						_plan(cc) # loads in a later frame
 				else:
 					_ensure(cc)
+
+
+## Q14 "same world" check: hash of the composed tiles within `r` cells of START for seed `s`, from a throwaway generator
+## (Game.seed is restored). tests/daily_test.gd pins it for HASH_SEED; the web build prints it with ?perf=1 (perf.gd).
+static func world_hash(s: int, r := 48) -> int:
+	var keep := Game.seed
+	Game.seed = s
+	var ch: TileMapLayer = load("res://scripts/chunk_manager.gd").new()
+	ch._ready() # noise seeds; never enters the tree, so nothing spawns
+	var ids := PackedInt32Array()
+	for y in range(-r, r):
+		for x in range(-r, r):
+			ids.append(ch._tile(START + Vector2i(x, y)))
+	Game.seed = keep
+	ch.free()
+	return hash(ids)
 
 
 func tile_at(world_pos: Vector2) -> int:

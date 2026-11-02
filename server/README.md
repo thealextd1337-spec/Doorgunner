@@ -15,6 +15,8 @@ All writes go through `security definer` RPCs, all tables have RLS on.
 | `supabase/007_balance.sql` | balance pass 1.0.0-beta (P18): `run_points` (victory 5000) and the `upsert_run` bounds for the 900 s day, idempotent |
 | `supabase/008_errors.sql` | error reporting (Q2): tables `errors`, `error_rate`, RPC `report_error`, `delete_me` also clears the player's error rows |
 | `supabase/009_cloud_save.sql` | cloud backup of the saved run (Q3): table `cloud_saves` (PK `player_id, slot`, `data` bytea <= 2 MB, FK cascade from `players`, so `delete_me` removes it without being edited), RPCs `put_save`, `get_save`, `delete_save`; trigger `runs_ended_drop_cloud_save` deletes the `run` slot when `upsert_run` ends a run |
+| `supabase/010_daily_season.sql` | daily seed + weekly season (Q14): private `daily_secret`, tables `daily` (date, seed, modifiers, heli; made on demand from date + secret by `daily_for`) and `daily_attempts` (one ranked attempt per player and day), `runs.mode` / `runs.daily_date`, RPCs `get_daily`, `start_daily`, trigger `runs_bind_daily` (upsert_run itself unchanged), views `leaderboard_daily`, `leaderboard_season`; replaces 009's `cloud_saves_drop_ended_run` so an ended daily drops the `daily` slot |
+| `test_010.sql` | tests for 010 (own transaction, rolled back) |
 | `test_009.sql` | tests for 009 (own transaction, rolled back), also shows that `upsert_run` ignores lower values |
 | `test.sql` | test cases, runs in one transaction that is rolled back |
 
@@ -28,7 +30,9 @@ All writes go through `security definer` RPCs, all tables have RLS on.
 | `007_balance.sql` | P18 | **user must still run it** |
 | `008_errors.sql` | Q2 error reporting (test: `test_008.sql`) | **user must still run it** |
 | `009_cloud_save.sql` | Q3 cloud save | **written, not run on any project yet (no token); user must run it, then `test_009.sql`** |
-| `010_daily_season.sql` | Q14 daily + season | planned |
+| `010_daily_season.sql` | Q14 daily + season (test: `test_010.sql`) | **written, not run on any project yet (no token); user must run it after 009, then `test_010.sql`** |
+
+Re-running `009_cloud_save.sql` after 010 puts back 009's `cloud_saves_drop_ended_run` (drops only the `run` slot) and so downgrades the trigger: always re-run `010_daily_season.sql` after any re-run of 009.
 
 Rules (ROADMAP2): every SQL change is a new idempotent `supabase/0NN_<name>.sql` (numbers above are fixed), the user
 applies it, the client tolerates it missing. Each package keeps its SQL tests in its own `test_0NN.sql` (same style as
@@ -68,6 +72,10 @@ Auth: `POST <URL>/auth/v1/signup` with body `{}` creates an anonymous user (retu
 | `POST /rpc/put_save {p_slot, p_data, p_version, p_format}` | 009. `p_slot` `run` or `daily`, `p_data` base64 of the client's compressed save (<= 2 MB decoded), one put per slot per 30 s. Errors `slot_invalid`, `save_invalid`, `save_too_large`, `rate_limit`, `no_player` |
 | `POST /rpc/get_save {p_slot, p_meta_only}` | 009. `{updated_at, version, format, data}` (`data` left out with `p_meta_only`) or `null` |
 | `POST /rpc/delete_save {p_slot}` | 009. Own save only |
+| `POST /rpc/get_daily {}` | 010. Today's (UTC) daily without the seed: `{date, season_week, modifiers, heli, played, resets_in}` |
+| `POST /rpc/start_daily {p_run_id}` | 010. `{date, seed, modifiers, heli, ranked}`. The first call of the day binds `p_run_id` as the ranked attempt (a retry with the same id stays ranked, any other id gets `ranked: false`, same seed). The client then plays and sends `upsert_run` with that id as usual; the server makes it the daily run with the daily's modifiers, whatever the client sends. Errors `no_player`, `run_invalid` (id missing or already a run) |
+| `GET /leaderboard_daily?daily_date=eq.2026-11-02&order=rank` | 010. One row per ranked daily run: `daily_date, rank, player_id, name, avatar, value, day, victory, ended` |
+| `GET /leaderboard_season?season_week=eq.2026-W45&order=rank` | 010. Points of all runs started in that ISO week (UTC): `season_week, rank, player_id, name, avatar, value` |
 
 RPC errors are HTTP 400 with `message` = code: `not_authenticated`, `no_player`, `already_registered`, `name_invalid`, `name_banned`, `name_taken`, `avatar_invalid`, `run_invalid`, `not_your_run`, `run_ended`, `rate_limit`, `rate_limit_new_runs`, `implausible`, `error_invalid`. Calling an RPC without being signed in gives HTTP 401 (`permission denied`).
 

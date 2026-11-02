@@ -5,10 +5,13 @@
 
 Auth (signup, refresh), the RPCs register_player / rename_player / set_avatar / delete_me / upsert_run and the
 leaderboard views, with the same error codes. Test controls: POST /_test {"expire": true} invalidates all access tokens,
-{"down": true} answers every request with 503, {"max_day": n} makes upsert_run answer `implausible` above day n;
+{"down": true} answers every request with 503, {"max_day": n} makes upsert_run answer `implausible` above day n,
+{"today": "YYYY-MM-DD"} moves the daily's date (get_daily / start_daily), {"age_attempts": s} makes the daily claims s older;
 GET /_test returns {"players": ..., "runs": ...}. Not a security reference: it checks only what the client needs.
 """
 import base64
+import datetime
+import hashlib
 import json
 import re
 import sys
@@ -108,12 +111,16 @@ def upsert_run(uid, b):
         raise Err("implausible")
     if not r:
         r = S["runs"][rid] = {"id": rid, "player_id": uid, "day": 1, "rescued": 0, "kills": 0, "victory": False,
-                              "modifiers": sorted(set(b.get("p_modifiers") or []))}
+                              "modifiers": sorted(set(b.get("p_modifiers") or [])), "mode": "normal", "daily_date": None,
+                              "week": datetime.datetime.now(datetime.timezone.utc).strftime("%G-W%V")}
+        a = ATTEMPTS.get(rid)  # 010 trigger runs_bind_daily: a claimed id becomes the daily run with the daily's modifiers
+        if a and a[0] == uid and fresh(a):
+            r.update(mode="daily", daily_date=a[1], modifiers=daily_for(a[1])["modifiers"])
     r["day"], r["rescued"], r["kills"] = max(r["day"], b["p_day"]), max(r["rescued"], b["p_rescued"]), max(r["kills"], b["p_kills"])
     r["victory"] = r["victory"] or b["p_victory"]
     r["ended"] = b["p_ended"]
     if r["ended"]:  # 009 trigger runs_ended_drop_cloud_save: an ended run's cloud copy goes too
-        SAVES.pop((uid, "run"), None)
+        SAVES.pop((uid, "daily" if r["mode"] == "daily" else "run"), None)
     r["version"] = b.get("p_version")
     r["points"] = points(r)
     return r["points"]
@@ -171,6 +178,49 @@ def delete_save(uid, b):
     return None
 
 
+DAILY_HELIS = ["huey", "little_bird", "black_hawk", "chinook", "hind"]
+ATTEMPTS = {}  # run id -> (player id, date, started): the ranked daily attempt (010 daily_attempts)
+ATTEMPT_TTL = 3600  # s: an older claim without a run row is practice (010 runs_bind_daily / start_daily)
+
+
+def fresh(a):
+    return time.time() - a[2] < ATTEMPT_TTL
+
+
+def today():
+    return S.get("today") or datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+
+
+def daily_for(date):  # server/supabase/010_daily_season.sql; the stub's "secret" is fixed
+    h = hashlib.sha256(("daily:" + date).encode()).digest()
+    mods = sorted(["dense_horde", "warlords", "scarcity", "dry_season", "glass_cockpit", "blackout"],
+                  key=lambda m: hashlib.sha256((date + ":" + m).encode()).digest())[: 1 + h[4] % 2]
+    return {"date": date, "seed": int.from_bytes(h[:4], "big") & 0x7FFFFFFF, "modifiers": sorted(mods), "heli": DAILY_HELIS[h[5] % len(DAILY_HELIS)]}
+
+
+def get_daily(uid, b):
+    d = dict(daily_for(today()))
+    d.pop("seed")
+    d["played"] = any(a[:2] == (uid, d["date"]) for a in ATTEMPTS.values())
+    d["season_week"] = datetime.date.fromisoformat(d["date"]).strftime("%G-W%V")
+    now = datetime.datetime.now(datetime.timezone.utc)
+    d["resets_in"] = int((datetime.datetime.combine(now.date() + datetime.timedelta(days=1), datetime.time(), datetime.timezone.utc) - now).total_seconds())
+    return d
+
+
+def start_daily(uid, b):
+    player(uid)
+    rid = b.get("p_run_id")
+    if not rid or rid in S["runs"]:
+        raise Err("run_invalid")
+    d = daily_for(today())
+    mine = [k for k, a in ATTEMPTS.items() if a[:2] == (uid, d["date"])]
+    if not mine:
+        ATTEMPTS[rid] = (uid, d["date"], time.time())
+        mine = [rid]
+    return dict(d, ranked=mine[0] == rid and fresh(ATTEMPTS[rid]))
+
+
 # One function per RPC: fn(uid, body) -> JSON result, raise Err(code) like the SQL. Packages append their own
 # function above and ONE line here (call player(uid) first if the RPC needs a registered player).
 RPCS = {
@@ -183,6 +233,8 @@ RPCS = {
     "put_save": put_save,
     "get_save": get_save,
     "delete_save": delete_save,
+    "get_daily": get_daily,
+    "start_daily": start_daily,
 }
 
 
@@ -218,6 +270,29 @@ def view(name, q):
     return rows[: int(q.get("limit", ["1000"])[0])]
 
 
+def view_q14(name, q):  # leaderboard_daily (one row per ranked daily run) / leaderboard_season (points summed per ISO week)
+    col = "daily_date" if name == "leaderboard_daily" else "season_week"
+    want = q.get(col, ["eq."])[0].removeprefix("eq.")
+    rows, by = [], {}
+    for r in S["runs"].values():
+        p = S["players"].get(r["player_id"])
+        if not p:
+            continue
+        if name == "leaderboard_daily" and r["mode"] == "daily" and r["daily_date"] == want:
+            rows.append({col: want, "player_id": p["id"], "name": p["name"], "avatar": p["avatar"], "value": r["points"],
+                         "day": r["day"], "victory": r["victory"], "ended": r["ended"]})
+        elif name == "leaderboard_season" and r["week"] == want:
+            row = by.setdefault(p["id"], {col: want, "player_id": p["id"], "name": p["name"], "avatar": p["avatar"], "value": 0})
+            row["value"] += r["points"]
+    rows += by.values()
+    rows.sort(key=lambda r: -r["value"])
+    for r in rows:
+        r["rank"] = 1 + sum(1 for o in rows if o["value"] > r["value"])
+    if "player_id" in q:
+        rows = [r for r in rows if r["player_id"] == q["player_id"][0].removeprefix("eq.")]
+    return rows[: int(q.get("limit", ["1000"])[0])]
+
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
@@ -244,6 +319,9 @@ class H(BaseHTTPRequestHandler):
                     S["down"] = b.get("down", S["down"])
                     S["max_day"] = b.get("max_day", S["max_day"])
                     S["err_limit"] = b.get("err_limit", S["err_limit"])
+                    S["today"] = b.get("today", S.get("today"))
+                    for k, a in ATTEMPTS.items():
+                        ATTEMPTS[k] = (a[0], a[1], a[2] - b.get("age_attempts", 0))
                 return self.reply(200, {"players": S["players"], "runs": S["runs"], "errors": list(S["errors"].values())})
             if S["down"]:
                 return self.reply(503, {"message": "down"})
@@ -265,6 +343,8 @@ class H(BaseHTTPRequestHandler):
             name = u.path.rsplit("/", 1)[1]
             if name in VIEWS or name == "best_run":
                 return self.reply(200, view(name, q))
+            if name in ("leaderboard_daily", "leaderboard_season"):
+                return self.reply(200, view_q14(name, q))
             if name == "modifiers":
                 return self.reply(200, [])
             if name == "runs":

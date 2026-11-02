@@ -168,10 +168,7 @@ func _finish(m: Dictionary, ok: bool, expired := false) -> void:
 
 ## A person with a given skill joins the base (named like any other from the run seed).
 func _recruit(skill: String) -> void:
-	var p: Dictionary = Game.People.make(Game.seed, Game.person_seq, Game.day, false)
-	Game.person_seq += 1
-	p["skill"] = skill
-	Game.people.append(p)
+	var p: Dictionary = Game.join(skill)
 	Game.radio("Base: %s, a trained %s, joins us." % [p["name"], skill])
 
 

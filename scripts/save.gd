@@ -69,8 +69,9 @@ func path() -> String:
 	return Game.profile_dir() + slot + ".sav"
 
 
-func has_run() -> bool:
-	return FileAccess.file_exists(path()) or FileAccess.file_exists(path() + ".bak")
+func has_run(s := "") -> bool: # s: another slot than the active one
+	var p := path() if s == "" else Game.profile_dir() + s + ".sav"
+	return FileAccess.file_exists(p) or FileAccess.file_exists(p + ".bak")
 
 
 ## Writes run.sav. False when nothing was written: no run or the tutorial running. `cloud`: also offer it to the cloud
@@ -130,6 +131,15 @@ func read() -> Dictionary:
 ## Saved run's {day, time, rescued, kills} for the title, {} if none.
 func head() -> Dictionary:
 	return read().get("head", {})
+
+
+## read() of another slot (the title shows the normal and the daily run side by side).
+func read_slot(s: String) -> Dictionary:
+	var keep := slot
+	slot = s
+	var d := read()
+	slot = keep
+	return d
 
 
 ## Starts loading the saved run (main._ready, before Game.new_run). False: none or outdated.

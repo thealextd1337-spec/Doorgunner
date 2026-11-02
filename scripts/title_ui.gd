@@ -27,13 +27,21 @@ var t := 0.0
 var tutorial := false # TUTORIAL button: main.gd starts the tutorial with the run
 var start_btn: Button
 var cont_btn: Button # CONTINUE: only with a saved run (scripts/save.gd)
+var cont_daily_btn: Button # CONTINUE DAILY: the saved run of the slot "daily" (Q14), next to the normal one
+var daily_panel: PanelContainer
+var daily_btn: Button
+var daily_lbl: Label # today's daily: modifiers, heli, countdown, played (Online.fetch_daily)
+var daily_info := {} # get_daily's answer, {} offline
+var daily_until := 0 # ticks_msec of the daily's reset
+var _on_confirm := Callable() # what ABANDON in `confirm` does
 var notice: Label
 var online_notice: Label # Online.title_notice(): "Offline - this run is not ranked"
 var confirm: ConfirmationDialog
 var badge: Button # active profile (portrait + name), opens PROFILES
 var profile_ui: ProfileUi
 var data_ui: SaveDataUi # BACKUP: export / import (Q3)
-var restore_btn: Button # RESTORE FROM CLOUD: no local run, but a cloud copy (Q3)
+var restore_btn: Button # RESTORE FROM CLOUD: no local run, but a cloud copy (Q3), of the normal or the daily slot
+var restore_slot := "run"
 var board_ui: LeaderboardUi
 # NEW RUN setup (P15): run modifiers and the start heli, read by main.gd when the run starts
 const Modifiers := preload("res://scripts/modifiers.gd")
@@ -192,13 +200,12 @@ func _ready() -> void:
 	confirm = ConfirmationDialog.new()
 	confirm.dialog_text = "Abandon the current run? It counts as lost."
 	confirm.ok_button_text = "ABANDON"
-	confirm.confirmed.connect(func():
-		Save.abandon()
-		_start())
+	confirm.confirmed.connect(func(): _on_confirm.call())
 	confirm.canceled.connect(func(): tutorial = false)
 	add_child(confirm)
 	_build_hangar()
 	_build_setup()
+	_build_daily()
 	hint = _label("press ENTER", 14, SAND, mono)
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hint)
@@ -280,6 +287,44 @@ func _build_setup() -> void:
 		mod_btns[id] = b
 
 
+## DAILY panel top right (Q14): today's modifiers and heli, countdown, played; PLAY DAILY and CONTINUE DAILY (the saved
+## daily run, kept apart from the normal one).
+func _build_daily() -> void:
+	daily_panel = PanelContainer.new()
+	daily_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	daily_panel.offset_left = -RIGHT_X
+	daily_panel.offset_right = -RIGHT_X + RIGHT_W
+	daily_panel.offset_top = 96
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = PANEL
+	sb.border_width_top = 4
+	sb.border_color = ACCENT
+	sb.set_content_margin_all(UiTheme.PAD)
+	daily_panel.add_theme_stylebox_override("panel", sb)
+	root.add_child(daily_panel)
+	var v := VBoxContainer.new()
+	daily_panel.add_child(v)
+	daily_lbl = _label("", 13, SAND, mono)
+	v.add_child(daily_lbl)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	v.add_child(row)
+	daily_btn = Button.new()
+	daily_btn.text = "PLAY DAILY"
+	daily_btn.tooltip_text = Tooltips.tip("title_daily")
+	daily_btn.pressed.connect(_daily)
+	cont_daily_btn = Button.new()
+	cont_daily_btn.tooltip_text = Tooltips.tip("title_continue_daily")
+	cont_daily_btn.visible = false
+	cont_daily_btn.pressed.connect(_continue_daily)
+	for b: Button in [daily_btn, cont_daily_btn]:
+		b.custom_minimum_size = Vector2(0, UiTheme.TOUCH_MIN)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_override("font", mono)
+		b.add_theme_font_size_override("font_size", 14)
+		row.add_child(b)
+
+
 func _refresh_setup() -> void:
 	if not start_heli in Wrecks.start_types():
 		start_heli = "huey"
@@ -303,6 +348,7 @@ func _refresh_setup() -> void:
 func _toggle_hangar() -> void:
 	hangar.visible = not hangar.visible
 	setup.visible = not hangar.visible
+	daily_panel.visible = not hangar.visible
 	deco.visible = not hangar.visible
 	deco_call.visible = deco.visible
 	for c in hangar_grid.get_children():
@@ -366,18 +412,21 @@ func _overlay_open() -> bool:
 ## No local run but a cloud copy: offer RESTORE. Answers later (network), so it re-checks that the title is still as it was.
 func _refresh_cloud() -> void:
 	restore_btn.visible = false
-	if Save.has_run():
+	for s in ["run", "daily"]:
+		if Save.has_run(s):
+			continue
+		var meta := await CloudSave.peek(s)
+		if meta.is_empty() or Save.has_run(s) or not visible:
+			continue
+		restore_slot = s
+		restore_btn.text = "RESTORE %sFROM CLOUD  -  SAVED %s" % ["DAILY " if s == "daily" else "", str(meta.get("updated_at", "")).substr(0, 16).replace("T", " ")]
+		restore_btn.visible = true
 		return
-	var meta := await CloudSave.peek()
-	if meta.is_empty() or Save.has_run() or not visible:
-		return
-	restore_btn.text = "RESTORE FROM CLOUD  -  SAVED %s" % str(meta.get("updated_at", "")).substr(0, 16).replace("T", " ")
-	restore_btn.visible = true
 
 
 func _restore() -> void:
 	restore_btn.disabled = true
-	var err := await CloudSave.restore()
+	var err := await CloudSave.restore(restore_slot)
 	restore_btn.disabled = false
 	if err != "":
 		notice.text = err
@@ -422,6 +471,11 @@ func open() -> void:
 	if cont_btn.visible:
 		var mins := int(h["time"] * 24 * 60)
 		cont_btn.text = "CONTINUE  -  DAY %d  %02d:%02d  -  %d RESCUED" % [h["day"], mins / 60, mins % 60, h["rescued"]]
+	var daily := Save.read_slot("daily")
+	cont_daily_btn.visible = not daily.is_empty()
+	if cont_daily_btn.visible:
+		var practice: bool = not daily["systems"].get("online", {}).get("ranked", false)
+		cont_daily_btn.text = "CONTINUE  DAY %d%s" % [daily["head"]["day"], "  (practice)" if practice else ""]
 	start_btn.text = "NEW RUN" if cont_btn.visible else "CLEARED FOR TAKEOFF"
 	notice.text = Save.notice
 	notice.visible = notice.text != ""
@@ -431,11 +485,85 @@ func open() -> void:
 	visible = true
 	CloudSave.flush_pending()
 	_refresh_cloud()
+	_refresh_daily()
+
+
+## Today's daily from the server (no seed before the start). Answers later, so it re-checks that the title is still open.
+func _refresh_daily() -> void:
+	daily_info = {}
+	daily_lbl.text = "// DAILY  -  calling command..."
+	var r: Dictionary = await Online.fetch_daily()
+	if not visible:
+		return
+	if not r["ok"] or not r["data"] is Dictionary:
+		daily_lbl.text = "// DAILY  -  needs the server: " + Online.error_text(r["error"])
+		return
+	daily_info = r["data"]
+	daily_until = Time.get_ticks_msec() + int(daily_info.get("resets_in", 0)) * 1000
+	_daily_text()
+
+
+func _daily_text() -> void:
+	var d := daily_info
+	var names: Array = d["modifiers"].map(func(id): return Modifiers.TABLE.get(id, {"name": id})["name"])
+	var left := maxi(0, (daily_until - Time.get_ticks_msec()) / 1000)
+	var state := "played today: practice only" if d["played"] else "first start today is ranked" if Online.is_registered() else "register online to play it"
+	daily_lbl.text = "// DAILY %s  -  SAME WORLD, SAME MODIFIERS
+%s  +  %s  (x%.2f)
+resets in %02d:%02d:%02d  -  %s" % [d["date"],
+		HeliTypes.get_type(d["heli"])["name"], ", ".join(names) if not names.is_empty() else "no modifiers", Modifiers.factor(d["modifiers"]),
+		left / 3600, left / 60 % 60, left % 60, state]
+
+
+## DAILY: claim today's attempt on the server and reload into it (main.gd reads Online.daily_run). A saved daily is
+## abandoned first (asks). Never offline: the seed comes from the server.
+func _daily() -> void:
+	if not visible or confirm.visible or _overlay_open() or daily_btn.disabled:
+		return
+	if not Save.read_slot("daily").is_empty():
+		_ask("Abandon the saved daily run? It counts as lost.", func():
+			_abandon_daily()
+			_daily())
+		return
+	daily_btn.disabled = true
+	var err := await Online.start_daily()
+	daily_btn.disabled = false
+	if err != "":
+		notice.text = "DAILY: " + Online.error_text(err)
+		notice.visible = true
+		return
+	visible = false
+	get_tree().reload_current_scene()
+
+
+func _abandon_daily() -> void:
+	Save.slot = "daily"
+	Save.abandon()
+	Save.slot = "run"
+
+
+func _continue_daily() -> void:
+	if not visible or confirm.visible or _overlay_open():
+		return
+	Save.slot = "daily"
+	Save.pending = true
+	get_tree().reload_current_scene()
+
+
+func _ask(text: String, on_ok: Callable) -> void:
+	confirm.dialog_text = text
+	_on_confirm = on_ok
+	confirm.popup_centered()
 
 
 func _process(delta: float) -> void:
 	if not visible:
 		return
+	if not daily_info.is_empty() and int(t + delta) != int(t): # once a second
+		if Time.get_ticks_msec() >= daily_until:
+			_refresh_daily() # a new day
+		else:
+			_daily_text()
 	t += delta
 	rotor.rotation += 9.0 * delta
 	hint.modulate.a = 1.0 if fmod(t, 1.2) < 0.8 else 0.15
@@ -465,7 +593,9 @@ func _start() -> void:
 	if not visible or confirm.visible or _overlay_open():
 		return
 	if Save.has_run(): # NEW RUN over a saved one asks first
-		confirm.popup_centered()
+		_ask("Abandon the current run? It counts as lost.", func():
+			Save.abandon()
+			_start())
 		return
 	visible = false
 	# delayed a few frames so this SPACE press is not also read as "take off" by the heli

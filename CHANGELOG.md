@@ -4,6 +4,28 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## 1.0.0-beta.4 - 2026-11-02
+- Onboarding: short radio-guided chapters (first assault, base & workers, missions, outposts & villages, bandits,
+  convoys, wrecks, evacuation) start the first time you meet each system and wait for you to do each step. Skip one
+  from its card, or turn them all off with "Tutorial hints & chapters" in the ESC menu. One-time hints pop up for an
+  injured passenger, a jammed gun, an RPG, a spitter, the first night, low fuel and more. A chapter card steps aside
+  while a radio event card is open.
+- The F1 codex is filled: every enemy, building, item, heli and system has a page that unlocks when you first meet it
+  (a run you continue logs everything it already has in one radio line).
+- Four new bosses, each telegraphed with a red ring, lane or circle and a sound, with an HP bar and a second phase at
+  half HP: the **Matriarch** (spawns broods, flees to heal), the **Juggernaut** (armoured except the fuel pack on its
+  back, charges along a red lane; it only goes for the base while you are there), the **Hive** (in some power plants
+  and stadiums away from your base, calls waves until destroyed) and the **Warlord** (holds a far bandit camp with
+  bodyguards; his mortar shells a landed heli). Boss kills pay scrap, parts, electronics, rifles and morale.
+- Radio events: from day 2 the radio brings a choice every few minutes (34 cards: traders, refugees, sickness,
+  ultimatums, wounded soldiers ...). Answer with 1-3 or a click; the game does not pause, after 60 s the radio takes
+  the default (never an option you cannot afford). Some answers start a chain days later; bandits who like you stop
+  raiding the base. ESC menu: "Radio events" switch.
+- Daily seed and weekly season: the DAILY panel on the title shows today's start heli and modifiers, the same for
+  everyone. The first start of the day is ranked, later ones are practice. The daily has its own save slot next to
+  your normal run (both can be restored from the cloud) and has no random radio events. The leaderboard has DAILY
+  and SEASON (this week, all runs) tabs.
+
 ## 1.0.0-beta.3 - 2026-11-02
 - New regions: the coast (sea, beaches, cliffs, dunes, fishing villages with boats) and the winter highland (snow,
   frosted woods, huts, frozen lakes you can land on; roads cross frozen rivers on bridges). New landmarks: hospital

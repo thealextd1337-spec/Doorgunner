@@ -415,7 +415,7 @@ func _zombie_night(day: int) -> bool:
 
 ## Maybe plan tonight's raid on the FOB (from BASE_RAID_DAY, BASE_RAID_GAP days apart, never on an assault night).
 func plan_base_raid(day: int, force := false) -> bool:
-	if not Game.base_founded or day < BASE_RAID_DAY or day - last_base_raid < BASE_RAID_GAP or _zombie_night(day) or base_raid_day >= Game.day:
+	if not Game.base_founded or day < BASE_RAID_DAY or day - last_base_raid < BASE_RAID_GAP or _zombie_night(day) or base_raid_day >= Game.day or (not force and Events.truce()): # Events.truce(): Q13 bandits are friendly
 		return false
 	if camps.values().all(func(c): return c["cleared"]) or not (force or randf() < BASE_RAID_CHANCE):
 		return false

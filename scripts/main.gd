@@ -17,6 +17,7 @@ var assault: Node # assault.gd
 var bandits: Node # bandits.gd
 var wear: Node # wear.gd
 var missions: Node # missions.gd (radio missions, J)
+var events: Node # events.gd: radio events with choices (Q13)
 var outposts: Node2D # outposts.gd: outposts and allied villages
 var wrecks: Node2D # wrecks.gd: heli wrecks, sling hook, repairs, fleet (P15)
 var modifiers: Node # modifiers.gd: run modifiers (P15)
@@ -24,6 +25,7 @@ var convoys: Node2D # convoys.gd: trucks on the road network (CONVOY tab)
 var evac: Node # evac.gd: radio contact, airstrip, final siege, optional victory
 var buildings2: Node # buildings2.gd: Field Hospital, Greenhouse, Forge, Bunker, Radio Relay
 var landmarks: Node # landmarks.gd: what the Q10 hospital, stadium and power plant do
+var bosses: Node # bosses.gd: Q12 matriarch, juggernaut, hive, warlord
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec it expires]
 var _path_cache := {} # [from cell, to cell, max_cells] -> [nav_path result, ticks_msec it expires (its grid's)]
@@ -38,9 +40,11 @@ const PATH_CACHE_MAX := 1024 # cached paths (a horde from the same cells to the 
 
 func _ready() -> void:
 	Game.world = self
-	var loaded := Save.pending and Save.load_run() # CONTINUE; each hook below loads as it registers
+	var daily: Dictionary = Online.daily_run # DAILY on the title (Q14): this reload starts it, in the save slot "daily"
+	var loaded := Save.pending and Save.load_run() # CONTINUE (the title set Save.slot); each hook below loads as it registers
 	if not loaded:
-		Game.new_run()
+		Save.slot = "run" if daily.is_empty() else "daily" # the title and NEW RUN use the normal slot
+		Game.new_run(daily.get("seed", -1), daily.get("modifiers", []), "normal" if daily.is_empty() else "daily")
 	Save.register("game", Game.save_state, Game.load_state) # before chunks: the replay needs Game.seed
 	chunks = preload("res://scripts/chunk_manager.gd").new()
 	add_child(chunks)
@@ -88,6 +92,8 @@ func _ready() -> void:
 	add_child(buildings2)
 	landmarks = preload("res://scripts/landmarks.gd").new() # registers its own save hook
 	add_child(landmarks)
+	bosses = preload("res://scripts/bosses.gd").new() # registers its own save hook
+	add_child(bosses)
 	night = CanvasModulate.new()
 	add_child(night)
 	spawner = preload("res://scripts/spawner.gd").new()
@@ -95,6 +101,8 @@ func _ready() -> void:
 	add_child(preload("res://scripts/radio.gd").new())
 	missions = preload("res://scripts/missions.gd").new() # registers its own save hook
 	add_child(missions)
+	events = preload("res://scripts/events.gd").new() # registers its own save hook
+	add_child(events)
 	_add_ui_layers()
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
 	Game.day_changed.connect(_settlements_decline)
@@ -108,6 +116,8 @@ func _ready() -> void:
 		base.ui.close()
 	if test != "":
 		add_child(load("res://tests/%s.gd" % test).new())
+	elif not loaded and Game.mode == "daily":
+		start_run(Game.start_mods, daily.get("heli", "huey"), "daily")
 	elif not loaded:
 		_show_title()
 	if loaded:
@@ -126,6 +136,7 @@ func _add_ui_layers() -> void:
 	add_child(choice_ui)
 	add_child(preload("res://scripts/game_over_ui.gd").new())
 	add_child(preload("res://scripts/victory_ui.gd").new())
+	add_child(preload("res://scripts/onboarding.gd").new()) # Q11: chapters, hints, codex unlocks (before settings_ui: it registers a toggle)
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	add_child(preload("res://scripts/perf.gd").new()) # Q1: F3 performance overlay, ?perf=1 console log
 	add_child(preload("res://scripts/touch_ui.gd").new()) # Q5: sticks and buttons while Controls.touch is on
@@ -140,16 +151,22 @@ func _show_title() -> void:
 	ui_open = true
 	hud.visible = false
 	title.start_pressed.connect(func():
-		Game.running = true
-		ui_open = false
-		hud.visible = true
-		modifiers.start(title.mods)
-		wrecks.set_start_type(title.start_heli)
-		Online.begin_run(modifiers.active)
-		if title.tutorial or Game.meta["tutorial_done"] == 0:
-			start_tutorial()
+		start_run(title.mods, title.start_heli, "normal", title.tutorial)
 		Sfx.play("ui"))
 	title.open()
+
+
+## Run start: after the title (NEW RUN) or straight after the reload of a DAILY, whose server modifiers and heli need
+## no unlock and which never starts the tutorial.
+func start_run(mods: Array, heli_type: String, mode := "normal", tutorial := false) -> void:
+	Game.running = true
+	ui_open = false
+	hud.visible = true
+	modifiers.start(mods, mode == "daily")
+	wrecks.set_start_type(heli_type, mode == "daily")
+	Online.begin_run(modifiers.active, mode)
+	if mode == "normal" and (tutorial or Game.meta["tutorial_done"] == 0):
+		start_tutorial()
 
 
 ## B on open ground (heli.gd): the FOB goes up at `pos` (snapped to the 16 px grid). Pad and field workshop, the founding
