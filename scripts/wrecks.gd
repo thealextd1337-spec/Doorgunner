@@ -256,10 +256,19 @@ func fuel_factor() -> float:
 
 # --- key parts --------------------------------------------------------------------------------------------
 
-## A key part for the repairs: `id`, or a random one. Returns its id.
+## A key part for the repairs: `id`, else the first one a wreck inside the fence still lacks, else a random one. Returns its id.
 func add_key(id := "") -> String:
 	if not keys.has(id):
 		id = keys.keys().pick_random()
+		for w: Dictionary in wrecks.values():
+			if w["state"] == "base":
+				var have := keys.duplicate()
+				for k: String in w["keys"]:
+					have[k] -= 1
+					if have[k] < 0:
+						id = k
+						break
+				break
 	keys[id] += 1
 	return id
 

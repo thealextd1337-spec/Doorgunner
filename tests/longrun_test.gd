@@ -452,7 +452,12 @@ func _tasks() -> Array:
 		for uid in w.wrecks:
 			var x: Dictionary = w.wrecks[uid]
 			if x["state"] == "site" and x.get("spotted", false) and not visited.has("w" + uid):
-				out.append([1.0, {"pos": x["pos"], "poi": null, "site": "", "land": false, "hook": uid}])
+				var have: Dictionary = w.keys.duplicate()
+				var missing := 0
+				for k in x["keys"]: # a player hauls home the wreck whose key parts are on the shelf
+					have[k] -= 1
+					missing += int(have[k] < 0)
+				out.append([1.0 + 1.5 * missing, {"pos": x["pos"], "poi": null, "site": "", "land": false, "hook": uid}])
 	for kind in ["checkpoint", "airfield"]:
 		for s in main.chunks.sites_near(main.base.global_position, 6000.0, kind):
 			if not w.looted.has(s.uid) and not visited.has("k" + s.uid):
