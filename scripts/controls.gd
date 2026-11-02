@@ -32,7 +32,7 @@ func _input(ev: InputEvent) -> void:
 		return
 	if not touch and (ev is InputEventScreenTouch or ev is InputEventScreenDrag):
 		Settings.set_value("touch", 1)
-	elif touch and (ev is InputEventMouseMotion or (ev is InputEventMouseButton or ev is InputEventKey) and ev.pressed):
+	elif touch and (ev is InputEventMouseMotion or (ev is InputEventMouseButton or ev is InputEventKey) and ev.is_pressed()):
 		Settings.set_value("touch", 0)
 
 
