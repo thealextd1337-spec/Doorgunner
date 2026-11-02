@@ -84,9 +84,9 @@ def table(title, summ):
     cols = ["days"] + MEAN + ["+" + c for c in DELTA] + ["save_kb_max"]
     cols = [c for c in cols if any(c in s for s in summ.values())]
     print(title)
-    print("  %-13s" % "column" + "".join("%11s" % p for p, _, _ in PHASES if p in summ))
+    print("  %-17s" % "column" + "".join("%11s" % p for p, _, _ in PHASES if p in summ))
     for c in cols:
-        print("  %-13s" % c + "".join("%11s" % ("%.1f" % summ[p][c] if c in summ[p] else "-") for p, _, _ in PHASES if p in summ))
+        print("  %-17s" % c + "".join("%11s" % ("%.1f" % summ[p][c] if c in summ[p] else "-") for p, _, _ in PHASES if p in summ))
 
 
 def selftest():
