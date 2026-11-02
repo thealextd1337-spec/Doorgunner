@@ -32,7 +32,7 @@ func _run() -> void:
 	assert(Game.rescued == 3, "passengers delivered")
 	assert(Game.passengers == 0, "cabin emptied")
 	assert(is_equal_approx(Game.fuel, 20.0) and Game.base_fuel == 0.0, "partial refuel from stock")
-	assert(Game.ammo == Game.max_ammo and Game.base_ammo == 800.0 - Game.max_ammo, "rearmed from stock")
+	assert(Game.ammo == Game.max_ammo and Game.base_ammo == 800.0 - Game.max_ammo, "rearmed from stock: ammo %d/%d base %s" % [Game.ammo, Game.max_ammo, Game.base_ammo])
 	assert(main.ui_open, "base menu open")
 	# base pawns: one per delivered person, they change into uniform in the barracks (the hangar for now), militia carry rifles
 	var pawns: Node2D = main.base.pawns

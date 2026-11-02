@@ -217,6 +217,8 @@ func _ready() -> void:
 	KeyMap.capture_defaults()
 	KeyMap.apply_saved()
 	_load_meta()
+	if OS.get_environment("SMOKE") != "": # each test process starts from fresh lifetime stats: earlier runs (the longrun bot) must not leak bonuses into it
+		meta.merge(META_DEFAULT.duplicate(true), true)
 	var art_env := OS.get_environment("ART") # dev override for screenshots, not saved
 	Art.variant = art_env if art_env in ART_VARIANTS else meta["art"]
 
