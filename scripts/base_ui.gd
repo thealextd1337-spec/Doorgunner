@@ -27,7 +27,9 @@ const UPGRADE_INFO := {"turrets": "+1 auto turret on the ring", "fuel": "+25 hel
 # placing tools in build bar order (hotkeys 1..9)
 const BUILD_INFO := {"sandbag": "militia posts", "wire": "slows and cuts zombies", "barracks": "+4 beds", "clinic": "2 patient beds",
 	"generator": "power, 10 fuel/day", "well": "+8 water/day", "watchtower": "post, +50 % reach", "motor_pool": "trucks for convoys (CONVOY tab)", "demolish": "houses, hedges, fences for scrap",
-	"radio": "military contact: needs an Engineer + electronics", "airstrip": "evacuation strip, 4x24 cells, R turns it"} # radio / airstrip: evac.gd, shown when available
+	"radio": "military contact: needs an Engineer + electronics", "airstrip": "evacuation strip, 4x24 cells, R turns it", # radio / airstrip: evac.gd, shown when available
+	"hospital": "clinic add-on: +4 beds, heals 1.5x faster", "greenhouse": "+5 food/day, drinks 4 water", "forge": "scrap to metal to parts (Forge job)",
+	"bunker": "survive one base breach, calms assaults", "relay": "1.5x reveal and mission radius, early raid warning"} # the last five: buildings2.gd
 # loadout key -> [label, min, max]
 const LOADOUT := {
 	"seats": ["Seats (1 pt each)", 2, 8],
@@ -38,7 +40,7 @@ const LOADOUT := {
 const JOBS := {"fuel": ["Fuel", "+20 fuel/day"], "ammo": ["Ammo", "+60 ammo/day"], "repair": ["Repair", "+40 base hull/day"],
 	"militia": ["Militia", "-3 % base damage, mans posts in assaults"], "farm": ["Farm", "+6 food/day"], "build": ["Build", "builds blueprints (sandbag 20 s)"],
 	"medic": ["Medic", "20 free hull per landing, faster clinic"], "water": ["Water", "+15 water/day (river or lake in 40 m)"],
-	"workshop": ["Workshop", "breaks down 12 salvage/day"]}
+	"workshop": ["Workshop", "breaks down 12 salvage/day"], "forge": ["Forge", "6 units/day: 3 scrap to metal, 2 metal to a part"]}
 const PERSON_COLS := [14, 122, 82, 68, 78, 44, 100] # WORKERS list: pin mark, name, skill, trait, job, rate, pin selector
 # status column stock rows: id -> [label, bar colour]
 const STOCKS := {"fuel": ["fuel", Color(0.9, 0.75, 0.2)], "ammo": ["ammo", Color(0.7, 0.7, 0.7)], "food": ["food", Color(0.5, 0.75, 0.3)],
@@ -191,7 +193,7 @@ func _ready() -> void:
 		b.custom_minimum_size = Vector2(96, 40)
 		b.add_theme_font_override("font", mono)
 		b.text = "%s%s\n%s" % ["%d " % (i + 1) if i < 9 else "", t[0].to_upper(), "+scrap" if kind == "demolish" else "%d scrap" % t[1]]
-		b.tooltip_text = BUILD_INFO[kind]
+		b.tooltip_text = Buildings2.TIPS.get(kind, BUILD_INFO[kind])
 		b.toggled.connect(func(_on: bool):
 			get_parent().place_kind = kind
 			refresh())
@@ -320,9 +322,14 @@ func _build_tab(main: VBoxContainer) -> void:
 		b.pressed.connect(buy.bind(id))
 		h.add_child(b)
 		rows[id] = [name, pips, b]
+	var scroll := ScrollContainer.new() # 14 building buttons no longer fit under the tabs: this column scrolls (mouse wheel, touch drag)
+	scroll.custom_minimum_size = Vector2(0, 540)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	cols.add_child(scroll)
 	var site := VBoxContainer.new()
 	site.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cols.add_child(site)
+	scroll.add_child(site)
 	site.add_child(_label("BUILD ON THE MAP", 12, ACCENT, true))
 	for kind in BUILD_INFO:
 		var b := Button.new()
@@ -608,8 +615,8 @@ func _refresh_status() -> void:
 	var s := {
 		"fuel": [Game.base_fuel, Game.base_fuel_cap, Game.crew("fuel") * rate["fuel"] * eff - gen, true],
 		"ammo": [Game.base_ammo, Game.base_ammo_cap, Game.crew("ammo") * rate["ammo"] * eff, true],
-		"food": [Game.base_food, maxf(10.0, eaters * 10.0), Game.crew("farm") * rate["farm"] * eff + Game.FIELD_FOOD * base.field_cells().size() - Game.food_eaters() * Game.FOOD_PER_PERSON, false],
-		"water": [Game.base_water, maxf(10.0, eaters * 10.0), Game.crew("water") * rate["water"] * eff + Game.built("well") * Game.WELL_WATER * Game.wells() - eaters * Game.WATER_PER_PERSON, false],
+		"food": [Game.base_food, maxf(10.0, eaters * 10.0), Game.crew("farm") * rate["farm"] * eff + Game.FIELD_FOOD * base.field_cells().size() + Buildings2.greenhouse_food() - Game.food_eaters() * Game.FOOD_PER_PERSON, false],
+		"water": [Game.base_water, maxf(10.0, eaters * 10.0), Game.crew("water") * rate["water"] * eff + Game.built("well") * Game.WELL_WATER * Game.wells() - Buildings2.greenhouse_water() - eaters * Game.WATER_PER_PERSON, false],
 		"medicine": [Game.base_medicine, 10.0, null, false],
 		"rifles": [Game.base_rifles, maxf(10.0, w["militia"]), float(Game.base_level.get("armory", 0)), false],
 		"scrap": [Game.scrap, 200.0, null, false],
@@ -672,8 +679,10 @@ func refresh() -> void:
 		if kind == "demolish":
 			b.text = "%sDEMOLISH  -  %s\n%d orders" % ["> " if on else "", BUILD_INFO[kind], base.demolitions.size()]
 		b.disabled = Game.scrap < t[1] and not on
-		b.tooltip_text = "needs %d scrap, you have %d" % [t[1], Game.scrap] if b.disabled else "click, then click inside the fence to place"
+		b.tooltip_text = "needs %d scrap, you have %d" % [t[1], Game.scrap] if b.disabled else Buildings2.TIPS.get(kind, "click, then click inside the fence to place")
 		var note: String = Game.world.evac.tool_note(kind)
+		if note == "":
+			note = Buildings2.refusal(kind)
 		if note != "":
 			b.tooltip_text = note
 		b.visible = Game.world.evac.tool_visible(kind) or (base.placing and base.place_kind == kind)
@@ -723,7 +732,10 @@ func refresh() -> void:
 			"build":
 				note = "%d blueprints" % (Game.sandbags.values().filter(func(s): return not s["built"]).size() + Game.buildings.filter(func(b): return not b["built"]).size() + base.demolitions.size())
 			"medic":
-				note = "clinic beds %d" % (2 * Game.built("clinic"))
+				note = "clinic beds %d" % Game.clinic_beds()
+			"forge":
+				bad = Game.built("forge") == 0
+				note = "needs Forge" if bad else "metal %d  parts %d" % [Game.salvage["metal"], Game.salvage["parts"]]
 		r[3].text = note
 		r[3].add_theme_color_override("font_color", BAD if bad else DIM)
 	_refresh_people()
@@ -910,6 +922,8 @@ func worker_refusal(job: String, n: int, freed := 0) -> String:
 		return "no water within 40 m"
 	if n > cur and job == "workshop" and Game.base_level.get("workshop", 0) < 1:
 		return "needs the Workshop upgrade (BUILD tab)"
+	if n > cur and job == "forge" and n > Buildings2.FORGE_SLOTS * Game.built("forge"):
+		return "needs a Forge (%d workers each)" % Buildings2.FORGE_SLOTS
 	return ""
 
 

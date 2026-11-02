@@ -41,7 +41,7 @@ func _run() -> void:
 	Game.people.append(_person(2, "medic"))
 	Game.people.append(_person(3, "farmer"))
 	Game.people[3]["skill_lv"] = 3
-	Game.workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 1, "build": 1, "medic": 0, "water": 0, "workshop": 0}
+	Game.workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 1, "build": 1, "medic": 0, "water": 0, "workshop": 0, "forge": 0}
 	Game.assign_jobs()
 	assert(Game.people[3]["job"] == "farm" and Game.people[1]["job"] == "build", "skill first, best level first: %s" % [Game.people.map(func(p): return p["job"])])
 	assert(Game.people[0]["job"] == "" and Game.people[2]["job"] == "", "the rest idle")

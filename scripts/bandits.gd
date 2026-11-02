@@ -348,7 +348,7 @@ func _on_day(day: int) -> void:
 			c["garrison"][k] = maxi(c["garrison"].get(k, 0), mini(want[k], c["garrison"].get(k, 0) + 1))
 	plan_town_raid(day)
 	plan_outpost_raid(day)
-	plan_base_raid(day)
+	plan_base_raid(day + Buildings2.lead()) # a Radio Relay hears it a day early
 
 
 ## Maybe plan today's dusk raid on a settlement near a camp, announced over intercepted radio. True if planned.
@@ -415,12 +415,12 @@ func _zombie_night(day: int) -> bool:
 
 ## Maybe plan tonight's raid on the FOB (from BASE_RAID_DAY, BASE_RAID_GAP days apart, never on an assault night).
 func plan_base_raid(day: int, force := false) -> bool:
-	if not Game.base_founded or day < BASE_RAID_DAY or day - last_base_raid < BASE_RAID_GAP or _zombie_night(day):
+	if not Game.base_founded or day < BASE_RAID_DAY or day - last_base_raid < BASE_RAID_GAP or _zombie_night(day) or base_raid_day >= Game.day:
 		return false
 	if camps.values().all(func(c): return c["cleared"]) or not (force or randf() < BASE_RAID_CHANCE):
 		return false
 	base_raid_day = day
-	Game.radio("Intercepted bandit radio: \"Tonight we take the soldiers' base. Bring the rockets.\"")
+	Game.radio("Intercepted bandit radio: \"%s we take the soldiers' base. Bring the rockets.\"" % ("Tonight" if day == Game.day else "Tomorrow night"))
 	intercepted.emit("base", Game.world.base.global_position)
 	return true
 

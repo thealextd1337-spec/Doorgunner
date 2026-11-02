@@ -14,6 +14,7 @@ const PER_DEATH := -8.0
 const ASSAULT_LOSSES := -5.0 # halved for the share of Brave people
 const POWER := 3.0
 const BEDS := 3.0
+const BREACH := -6.0 # the bunker took the survivors (buildings2.gd)
 const SETTLE := 0.25 # share of the gap to START closed each day (balance 1.0.0-beta: no runaway to 0 or 100)
 const ASSAULT_HELD := 3.0
 const BIG_RESCUE := 4.0 # per delivered group of BIG_GROUP or more
@@ -38,6 +39,12 @@ func _ready() -> void:
 	Game.person_lost.connect(_on_lost)
 	Game.people_delivered.connect(func(n: int): if n >= BIG_GROUP: add(BIG_RESCUE, "%d rescued at once" % n))
 	Save.register("morale", save_state, load_state)
+
+
+## The base was breached and the bunker held the survivors: the assault is over but not held.
+func breached() -> void:
+	_in_attack = false
+	add(BREACH, "base breached")
 
 
 ## Work rate factor for Game.work_eff.
@@ -65,10 +72,10 @@ func _process(_delta: float) -> void:
 	if Game.attack_active and not _in_attack:
 		_attack_deaths = 0
 	elif _in_attack and not Game.attack_active:
-		add(ASSAULT_HELD, "assault held")
+		add(ASSAULT_HELD + (Buildings2.BUNKER_HELD if Game.built("bunker") > 0 else 0.0), "assault held")
 		if _attack_deaths > 0:
 			var brave := Game.people.filter(func(p): return p["trait"] == "brave").size() / maxf(1.0, Game.people.size())
-			add(ASSAULT_LOSSES * (1.0 - 0.5 * brave), "losses in the assault")
+			add(ASSAULT_LOSSES * (1.0 - 0.5 * brave) * Buildings2.loss_factor(), "losses in the assault")
 	_in_attack = Game.attack_active
 
 

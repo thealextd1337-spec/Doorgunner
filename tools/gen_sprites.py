@@ -1211,6 +1211,7 @@ def main():
         images.update(bandits())
         images.update(convoy_sprites())
         images.update(arsenal_sprites())
+        images.update(buildings2_sprites())
         for name, im in images.items():
             w, h = SIZES[name]
             assert im.size == (w * OUT, h * OUT), (name, im.size)
@@ -1644,6 +1645,105 @@ def arsenal_sprites():
 
 SIZES.update({"flame": (8, 8), "shell": (6, 6), "wave": (8, 8)})
 SIZES.update({"icon_" + k: (16, 16) for k in ARSENAL_ICONS})
+
+
+# ---------------------------------------------------------------- base buildings 2 (Q9)
+
+def hospital():
+    """Field Hospital, 32x32 (2x2 cells): pale roof with a red cross, two skylights, a door with a ramp."""
+    s = Spr(32, 32)
+    s.paint(s.m().rect(1.5, 1.5, 30.5, 29.5, 0.8), P["bwall"], sh=1.0)
+    s.paint(s.m().rect(3, 3, 29, 28, 0.5), mix(P["hroof"], P["white"], 0.5), sh=0)
+    s.paint(s.m().rect(13, 7, 19, 21, 0.4).rect(8, 12, 24, 16, 0.4), P["red"], sh=0.4)  # cross
+    s.paint(s.m().rect(4.5, 4.5, 9, 8, 0.3).rect(23, 4.5, 27.5, 8, 0.3), P["skylight"], sh=0.4, light=0.5)
+    s.paint(s.m().rect(4.5, 22, 9, 26, 0.3).rect(23, 22, 27.5, 26, 0.3), P["vent"], sh=0.5)
+    s.paint(s.m().rect(11, 27, 21, 31, 0.2), (30, 30, 30), sh=0)  # door
+    s.paint(s.m().rect(11, 27, 21, 27.8), P["white"], sh=0)
+    return s.drop()
+
+
+def greenhouse():
+    """Greenhouse, 32x32: wooden frame, glass roof over rows of green plants."""
+    s = Spr(32, 32)
+    s.paint(s.m().rect(1.5, 2.5, 30.5, 29.5, 0.6), P["wood"], sh=1.0)
+    s.paint(s.m().rect(3, 4, 29, 28, 0.3), mix(P["glass"], P["skylight"], 0.55), sh=0)
+    plants = s.m()
+    for x in (6, 11, 16, 21, 26):
+        plants.rect(x - 1.4, 5.5, x + 1.4, 26.5, 0.8)
+    s.paint(plants, P["crop"], sh=0.6)
+    leaf = s.m()
+    for x in (6, 11, 16, 21, 26):
+        for y in (9, 15, 21):
+            leaf.ell(x, y, 1.0)
+    s.paint(leaf, P["grass2"], sh=0.3, edge=False)
+    ribs = s.m()
+    for x in (8.5, 13.5, 18.5, 23.5):
+        ribs.rect(x, 4, x + 0.5, 28)
+    ribs.rect(3, 15.7, 29, 16.3)
+    fill(s.img, ribs.im, P["white"] + (170,))
+    s.paint(s.m().rect(12, 28, 20, 31, 0.2), dk(P["wood"], 0.6), sh=0)  # door
+    return s.drop()
+
+
+def forge():
+    """Forge, 32x32: dark roof, a brick chimney with a glowing mouth, an anvil by the open front."""
+    s = Spr(32, 32)
+    s.paint(s.m().rect(1.5, 1.5, 30.5, 29.5, 0.8), dk(P["bwall"], 0.8), sh=1.0)
+    s.paint(s.m().rect(3, 3, 29, 28, 0.5), dk(P["roof"], 0.78), sh=0)
+    s.paint(s.m().rect(16, 3, 29, 28, 0), dk(P["roof"], 0.62), sh=0)
+    s.paint(s.m().rect(5, 5, 12, 12, 0.6), P["barn"], sh=0.8)  # chimney stack
+    s.paint(s.m().ell(8.5, 8.5, 2.3), P["char"], sh=0)
+    s.glow(P["fire"], 0.9, 0.55)
+    s.paint(s.m().ell(8.5, 8.5, 1.3), P["fire"], sh=0)
+    s.paint(s.m().rect(18, 16, 26, 19, 0.4), P["metal"], sh=0.4)  # anvil
+    s.paint(s.m().rect(20, 19, 24, 22, 0.3), dk(P["metal"], 0.7), sh=0)
+    s.paint(s.m().rect(6, 17, 13, 24, 0.5), P["char"], sh=0.4)  # coal pile
+    s.paint(s.m().ell(9.5, 20, 1.6, 1.1), P["fire"], sh=0, edge=False)
+    s.paint(s.m().rect(9, 27, 23, 31, 0.2), (30, 30, 30), sh=0)
+    return s.drop()
+
+
+def bunker():
+    """Bunker, 32x32: low concrete slab with a bevelled top, a steel hatch, a firing slit, sandbags at the front."""
+    s = Spr(32, 32)
+    conc = mix(P["pave"][0], P["metal"], 0.35)
+    s.paint(s.m().rect(1.5, 3, 30.5, 28.5, 3.0), conc, sh=1.4)
+    s.paint(s.m().rect(4, 5.5, 28, 20, 2.0), mix(conc, P["white"], 0.18), sh=0.8)  # top face
+    s.paint(s.m().rect(6, 21.5, 26, 24, 0.5), (36, 38, 34), sh=0)  # firing slit
+    s.paint(s.m().rect(12, 8, 20, 17, 0.8), P["metal"], sh=0.6, light=0.4)  # hatch
+    s.paint(s.m().ell(16, 12.5, 2.0), dk(P["metal"], 0.7), sh=0)
+    chev = s.m()
+    for x in (6, 8.4, 23.6, 26):
+        chev.poly([(x - 1, 7), (x + 1, 7), (x + 3, 11), (x + 1, 11)])
+    fill(s.img, chev.im, P["fire"] + (210,))
+    bags = s.m()
+    for x in (2, 6.5, 11, 16.5, 21, 25.5):
+        bags.rect(x, 26.5, x + 4.2, 30, 1.4)
+    s.paint(bags, P["tan"], sh=0.5)
+    return s.drop()
+
+
+def relay():
+    """Radio Relay, 16x16 (1 cell): a bracing mast with two dishes on a small concrete pad."""
+    s = Spr(16, 16)
+    s.paint(s.m().rect(1.5, 9, 14.5, 15, 1.0), P["pad"], sh=0.6)
+    s.paint(s.m().rect(2.5, 11, 6, 14, 0.4), P["crate"], sh=0.4)  # equipment box
+    m = s.m()
+    m.line([(7.2, 1.5), (5.2, 11)], 0.5).line([(8.8, 1.5), (10.8, 11)], 0.5)
+    m.line([(6.8, 5), (9.2, 5)], 0.35).line([(6.2, 8), (9.8, 8)], 0.35)
+    s.paint(m, P["metal"], sh=0)
+    s.paint(s.m().ell(11.2, 5.4, 2.3, 1.7), P["white"], sh=0.5)  # dish
+    s.paint(s.m().ell(11.2, 5.4, 0.8), P["metal"], sh=0, edge=False)
+    s.paint(s.m().ell(8, 1.4, 1.0), P["red"], sh=0)
+    return s.drop(0.6)
+
+
+def buildings2_sprites():
+    return {n: f().out() for n, f in (("hospital", hospital), ("greenhouse", greenhouse), ("forge", forge),
+                                      ("bunker", bunker), ("relay", relay))}
+
+
+SIZES.update({"hospital": (32, 32), "greenhouse": (32, 32), "forge": (32, 32), "bunker": (32, 32), "relay": (16, 16)})
 
 
 if __name__ == "__main__":
