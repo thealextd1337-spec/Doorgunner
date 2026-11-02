@@ -847,7 +847,7 @@ func _on_radio(m: String) -> void:
 	if m.begins_with("Base: villages sent "):
 		var w := m.split(" ")
 		n["village_supply"] += int(w[3]) + int(w[6])
-	elif m.begins_with("ALERT: Convoy"):
+	elif m.begins_with("ALERT: Convoy") and " was destroyed " in m:
 		n["convoys_lost"] += 1
 	elif m.begins_with("Convoy ") and " is back:" in m:
 		n["convoys_back"] += 1
