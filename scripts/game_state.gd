@@ -39,6 +39,8 @@ var heli: Node2D
 var world: Node2D
 var seed := 0
 var running := false
+var mode := "normal" # "daily" (Q14): seed, modifiers and start heli from the server (Online.start_daily), save slot "daily"
+var start_mods: Array = [] # modifiers new_run was given (the daily's); main.gd hands them to modifiers.start
 
 # run resources
 var fuel := 100.0
@@ -223,8 +225,11 @@ func _ready() -> void:
 	Art.variant = art_env if art_env in ART_VARIANTS else meta["art"]
 
 
-func new_run() -> void:
-	seed = int(OS.get_environment("RUN_SEED")) if OS.is_debug_build() and OS.get_environment("RUN_SEED") != "" else randi() # RUN_SEED: fixed world (tests/longrun_test.gd); debug only, so ranked release runs can't replay a known world
+## `run_seed` >= 0 (the daily's server seed) fixes the world; `mods` / `run_mode` see start_mods / mode.
+func new_run(run_seed := -1, mods := [], run_mode := "normal") -> void:
+	seed = run_seed if run_seed >= 0 else int(OS.get_environment("RUN_SEED")) if OS.is_debug_build() and OS.get_environment("RUN_SEED") != "" else randi() # RUN_SEED: fixed world (tests/longrun_test.gd); debug only, so ranked release runs can't replay a known world
+	start_mods = mods.duplicate()
+	mode = run_mode
 	hp = 100.0; max_hp = 100.0
 	day = 1; time = 0.25 # before the crew below: people record the day they joined
 	people = []; person_seq = 0
@@ -644,7 +649,7 @@ func record_run(run_day: int, run_rescued: int, run_kills: int, victory := false
 ## Save hook "game" (main.gd registers it first).
 func save_state() -> Dictionary:
 	var d := {}
-	for k in SAVED + ["heli_weapons", "treating", "people"]:
+	for k in SAVED + ["heli_weapons", "treating", "people", "mode"]:
 		d[k] = get(k)
 	return d
 
@@ -652,6 +657,7 @@ func save_state() -> Dictionary:
 func load_state(d: Dictionary) -> void:
 	for k in SAVED:
 		set(k, d[k])
+	mode = d.get("mode", "normal") # saves before Q14 have none
 	heli_weapons.assign(d["heli_weapons"]) # typed arrays come back untyped from bytes_to_var
 	treating.assign(d["treating"])
 	people.assign(d["people"])

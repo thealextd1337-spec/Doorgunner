@@ -38,9 +38,11 @@ const PATH_CACHE_MAX := 1024 # cached paths (a horde from the same cells to the 
 
 func _ready() -> void:
 	Game.world = self
-	var loaded := Save.pending and Save.load_run() # CONTINUE; each hook below loads as it registers
+	var daily: Dictionary = Online.daily_run # DAILY on the title (Q14): this reload starts it, in the save slot "daily"
+	var loaded := Save.pending and Save.load_run() # CONTINUE (the title set Save.slot); each hook below loads as it registers
 	if not loaded:
-		Game.new_run()
+		Save.slot = "run" if daily.is_empty() else "daily" # the title and NEW RUN use the normal slot
+		Game.new_run(daily.get("seed", -1), daily.get("modifiers", []), "normal" if daily.is_empty() else "daily")
 	Save.register("game", Game.save_state, Game.load_state) # before chunks: the replay needs Game.seed
 	chunks = preload("res://scripts/chunk_manager.gd").new()
 	add_child(chunks)
@@ -108,6 +110,8 @@ func _ready() -> void:
 		base.ui.close()
 	if test != "":
 		add_child(load("res://tests/%s.gd" % test).new())
+	elif not loaded and Game.mode == "daily":
+		start_run(Game.start_mods, daily.get("heli", "huey"), "daily")
 	elif not loaded:
 		_show_title()
 	if loaded:
@@ -140,16 +144,22 @@ func _show_title() -> void:
 	ui_open = true
 	hud.visible = false
 	title.start_pressed.connect(func():
-		Game.running = true
-		ui_open = false
-		hud.visible = true
-		modifiers.start(title.mods)
-		wrecks.set_start_type(title.start_heli)
-		Online.begin_run(modifiers.active)
-		if title.tutorial or Game.meta["tutorial_done"] == 0:
-			start_tutorial()
+		start_run(title.mods, title.start_heli, "normal", title.tutorial)
 		Sfx.play("ui"))
 	title.open()
+
+
+## Run start: after the title (NEW RUN) or straight after the reload of a DAILY, whose server modifiers and heli need
+## no unlock and which never starts the tutorial.
+func start_run(mods: Array, heli_type: String, mode := "normal", tutorial := false) -> void:
+	Game.running = true
+	ui_open = false
+	hud.visible = true
+	modifiers.start(mods, mode == "daily")
+	wrecks.set_start_type(heli_type, mode == "daily")
+	Online.begin_run(modifiers.active, mode)
+	if mode == "normal" and (tutorial or Game.meta["tutorial_done"] == 0):
+		start_tutorial()
 
 
 ## B on open ground (heli.gd): the FOB goes up at `pos` (snapped to the 16 px grid). Pad and field workshop, the founding

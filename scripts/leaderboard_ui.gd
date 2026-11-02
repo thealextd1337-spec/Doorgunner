@@ -1,17 +1,21 @@
 class_name LeaderboardUi
 extends Overlay
-## Title leaderboard (L): tabs POINTS / DAYS / RESCUED / KILLS / BEST RUN, top 50, own row always visible, click a row for
+## Title leaderboard (L): DAILY (today's ranked daily runs) / SEASON (points of this ISO week) / ALL-TIME with the tabs
+## POINTS / DAYS / RESCUED / KILLS / BEST RUN, top 50, own row always visible, click a row for
 ## the player's breakdown. Online data comes from the Online autoload (P6a): fetch_board(kind, limit) -> board(rows, own_row) /
 ## board_failed(error), fetch_player(id) -> player(stats) / player_failed(error); Online drops answers of superseded requests.
 ## Rows: {rank, player_id, name, avatar, value, day?, victory?}. Offline: the local record.
 
-const TABS := {"points": "POINTS", "days": "DAYS", "rescued": "RESCUED", "kills": "KILLS", "best_run": "BEST RUN"}
+const TABS := {"points": "POINTS", "days": "DAYS", "rescued": "RESCUED", "kills": "KILLS", "best_run": "BEST RUN"} # all-time
+const SCOPES := {"daily": "DAILY", "season": "SEASON", "points": "ALL-TIME"} # kind each top tab opens
 const LIMIT := 50
 
 var kind := "points"
 var own_id := ""
 var failed := false # the board shown is an error / offline view: reload when the connection comes back
 var tab_btns := {}
+var scope_btns := {}
+var tabs: HBoxContainer # the all-time tabs, hidden on DAILY / SEASON
 var list: VBoxContainer
 var own_slot: VBoxContainer # the own row, pinned below the scroll area
 var status: Label
@@ -22,7 +26,17 @@ var player_id := "" # whose breakdown was asked for
 func _ready() -> void:
 	_build(720)
 	box.add_child(label("// LEADERBOARD", 13, ACCENT))
-	var tabs := HBoxContainer.new()
+	var scopes := HBoxContainer.new()
+	scopes.add_theme_constant_override("separation", 6)
+	box.add_child(scopes)
+	for k in SCOPES:
+		var b := button(SCOPES[k], 0)
+		b.toggle_mode = true
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(func(): show_kind(k))
+		scopes.add_child(b)
+		scope_btns[k] = b
+	tabs = HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 6)
 	box.add_child(tabs)
 	for k in TABS:
@@ -70,8 +84,7 @@ func _input(event: InputEvent) -> void:
 
 func show_kind(k: String) -> void:
 	kind = k
-	for t in tab_btns:
-		tab_btns[t].button_pressed = t == k
+	_mark_tabs()
 	detail.text = ""
 	player_id = ""
 	failed = false
@@ -84,7 +97,9 @@ func _on_board(rows: Array, own_row: Dictionary) -> void:
 	if not visible:
 		return
 	failed = false
-	status.text = "" if not rows.is_empty() else "No entries yet."
+	var now := Time.get_unix_time_from_system()
+	var when: String = {"daily": "Daily %s (UTC)" % Online.utc_date(now), "season": "Season %s" % Online.season_week(now)}.get(kind, "")
+	status.text = when if not rows.is_empty() else (when + "  -  " if when != "" else "") + "No entries yet."
 	_fill(rows, own_row)
 
 
@@ -107,10 +122,17 @@ func _on_online(on: bool) -> void:
 ## Shows rows without Online (tests, and _on_board).
 func show_rows(k: String, rows: Array, own_row: Dictionary) -> void:
 	kind = k
-	for t in tab_btns:
-		tab_btns[t].button_pressed = t == k
+	_mark_tabs()
 	visible = true
 	_on_board(rows, own_row)
+
+
+func _mark_tabs() -> void:
+	for t in tab_btns:
+		tab_btns[t].button_pressed = t == kind
+	for s in scope_btns:
+		scope_btns[s].button_pressed = s == kind or s == "points" and kind in TABS
+	tabs.visible = kind in TABS
 
 
 func _fill(rows: Array, own_row: Dictionary) -> void:
@@ -164,7 +186,7 @@ func _pass(c: Control) -> Control:
 
 func _value(r: Dictionary) -> String:
 	var v := str(int(r.get("value", 0)))
-	if kind == "best_run" and r.has("day"):
+	if kind in ["best_run", "daily"] and r.has("day"):
 		v += "  (day %d%s)" % [int(r["day"]), " WIN" if r.get("victory", false) else ""]
 	return v
 

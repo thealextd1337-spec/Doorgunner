@@ -78,8 +78,8 @@ func htype() -> Dictionary:
 
 
 ## New run (main.gd, title): the start heli's type, if this profile has unlocked it.
-func set_start_type(id: String) -> void:
-	if id in start_types():
+func set_start_type(id: String, forced := false) -> void: # forced: the daily's heli, unlocked or not
+	if id in start_types() or forced and HeliTypes.TYPES.has(id):
 		wrecks["start"]["type"] = id
 		Game.recompute()
 		Game.fuel = Game.max_fuel

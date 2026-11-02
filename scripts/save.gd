@@ -132,6 +132,15 @@ func head() -> Dictionary:
 	return read().get("head", {})
 
 
+## read() of another slot (the title shows the normal and the daily run side by side).
+func read_slot(s: String) -> Dictionary:
+	var keep := slot
+	slot = s
+	var d := read()
+	slot = keep
+	return d
+
+
 ## Starts loading the saved run (main._ready, before Game.new_run). False: none or outdated.
 func load_run() -> bool:
 	pending = false

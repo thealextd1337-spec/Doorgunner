@@ -25,10 +25,12 @@ const ERRORS := {
 	"auth_lost": "The online identity of this profile is gone (cleared browser data?).",
 	"rate_limit": "Too many requests, try again in a minute.",
 	"rate_limit_new_runs": "Too many new runs today.",
+	"run_invalid": "The server refused this run.",
 }
 const NOTICE := "Offline - this run is not ranked"
 const IMPORTED_NOTICE := "Imported - not ranked"
-const BOARDS := ["points", "days", "rescued", "kills", "best_run"]
+const BOARDS := ["points", "days", "rescued", "kills", "best_run", "daily", "season"] # daily / season: today's date and this ISO week (010)
+const PRACTICE := "practice, not ranked" # a daily after the first attempt of the day
 const RETRY_SECONDS := 60.0 # outbox retry / reachability probe; the server allows one update per run per 30 s
 const TOKEN_MARGIN := 60 # renew the access token this many seconds before it expires
 const TIMEOUT := 15.0
@@ -38,7 +40,8 @@ var enabled := false ## false in headless tests (SMOKE): nothing is sent
 var url := OnlineConfig.URL ## env ONLINE_URL overrides it
 var ranked := false ## the running run counts for the leaderboard (false: offline at run start, never sent)
 var imported := false ## the running run was imported from a file (CloudSave.import_bytes): never ranked, saved with the run
-var _run := {} # {id, ranked, started, modifiers, ended}: the run this session plays; the first three are saved with it
+var daily_run := {} ## DAILY pressed (start_daily): {date, seed, modifiers, heli, ranked, run_id}; main.gd starts the run with it after the reload, begin_run consumes it
+var _run := {} # {id, ranked, started, modifiers, ended, mode}: the run this session plays; all but `ended` are saved with it
 var _auth := {}
 var _outbox: Array = [] # [{run_id, day, rescued, kills, ended, victory, modifiers}]
 var _dir := "" # profile folder _auth and _outbox were read from
@@ -142,15 +145,17 @@ func submit_run(run_id: String, stats: Dictionary) -> void:
 	_flush()
 
 
-## kind: "points" | "days" | "rescued" | "kills" | "best_run". Answers on `board` or `board_failed`.
+## kind: BOARDS. Answers on `board` or `board_failed`.
 func fetch_board(kind: String, limit := 50) -> void:
 	_board_seq += 1
 	var seq := _board_seq
 	var view := "best_run" if kind == "best_run" else "leaderboard_" + kind
+	var now := Time.get_unix_time_from_system()
+	var only: String = {"daily": "&daily_date=eq." + utc_date(now), "season": "&season_week=eq." + season_week(now)}.get(kind, "") # views have no parameters
 	if not enabled or not kind in BOARDS:
 		board_failed.emit.call_deferred("offline")
 		return
-	var r: Dictionary = await _call(HTTPClient.METHOD_GET, "/rest/v1/%s?order=rank,name&limit=%d" % [view, limit], null, false)
+	var r: Dictionary = await _call(HTTPClient.METHOD_GET, "/rest/v1/%s?order=rank,name&limit=%d%s" % [view, limit, only], null, false)
 	if seq != _board_seq:
 		return # a newer request took over
 	if not r["ok"]:
@@ -164,7 +169,7 @@ func fetch_board(kind: String, limit := 50) -> void:
 		if i >= 0:
 			own = rows[i]
 		else:
-			var o: Dictionary = await _call(HTTPClient.METHOD_GET, "/rest/v1/%s?player_id=eq.%s" % [view, uid], null, false)
+			var o: Dictionary = await _call(HTTPClient.METHOD_GET, "/rest/v1/%s?player_id=eq.%s%s" % [view, uid, only], null, false)
 			if seq != _board_seq:
 				return
 			if o["ok"] and not _rows(o["data"]).is_empty():
@@ -213,13 +218,41 @@ func fetch_player(id: String) -> void:
 	player.emit(s)
 
 
-## Run start (main.gd, new run only): first upsert; if it fails the run is unranked.
-func begin_run(modifiers := []) -> void:
+## Today's daily without the seed (010 get_daily): {ok, error, data: {date, season_week, modifiers, heli, played, resets_in}}.
+func fetch_daily() -> Dictionary:
+	if not enabled:
+		return {"ok": false, "status": 0, "data": null, "error": "offline"}
+	return await _call(HTTPClient.METHOD_POST, "/rest/v1/rpc/get_daily", {})
+
+
+## DAILY on the title: claims today's attempt (the first one of the day is ranked) and fills daily_run. "" ok, else an error code.
+## No offline daily: without the server there is no seed.
+func start_daily() -> String:
 	_sync_profile()
-	_run = {"id": _uuid(), "ranked": false, "started": false, "ended": false, "modifiers": modifiers.duplicate()}
+	if not enabled:
+		return "offline"
+	if not is_registered():
+		return "no_player"
+	var id := _uuid()
+	var r: Dictionary = await _call(HTTPClient.METHOD_POST, "/rest/v1/rpc/start_daily", {"p_run_id": id})
+	if not r["ok"] or not r["data"] is Dictionary:
+		return r["error"] if r["error"] != "" else "offline"
+	daily_run = r["data"]
+	daily_run["run_id"] = id
+	daily_run["seed"] = int(daily_run["seed"])
+	return ""
+
+
+## Run start (main.gd, new run only): first upsert; if it fails the run is unranked. mode "daily": the run id start_daily
+## claimed, ranked only if it was the day's first attempt (the server makes it the daily run).
+func begin_run(modifiers := [], mode := "normal") -> void:
+	_sync_profile()
+	var d := daily_run if mode == "daily" else {}
+	daily_run = {}
+	_run = {"id": d.get("run_id", _uuid()), "ranked": false, "started": false, "ended": false, "modifiers": modifiers.duplicate(), "mode": mode}
 	ranked = false
 	imported = false
-	if not enabled or not is_registered():
+	if not enabled or not is_registered() or mode == "daily" and not d.get("ranked", false):
 		return
 	_run["ranked"] = true
 	ranked = true
@@ -268,7 +301,8 @@ func error_text(code: String) -> String:
 func _save_state() -> Dictionary:
 	if imported:
 		return {"imported": true} # no run id: nothing of this run is ever sent
-	return {} if _run.is_empty() else {"id": _run["id"], "ranked": _run["ranked"], "started": _run["started"], "modifiers": _run["modifiers"]}
+	return {} if _run.is_empty() else {"id": _run["id"], "ranked": _run["ranked"], "started": _run["started"], "modifiers": _run["modifiers"],
+		"mode": _run.get("mode", "normal")}
 
 
 func _load_state(d: Dictionary) -> void:
@@ -276,7 +310,7 @@ func _load_state(d: Dictionary) -> void:
 	imported = d.get("imported", false)
 	if d.is_empty() or imported:
 		return
-	_run = {"id": d["id"], "ranked": d["ranked"], "started": d["started"], "ended": false, "modifiers": d["modifiers"]}
+	_run = {"id": d["id"], "ranked": d["ranked"], "started": d["started"], "ended": false, "modifiers": d["modifiers"], "mode": d.get("mode", "normal")}
 	ranked = d["ranked"]
 	if ranked and not d["started"]: # closed before the server answered the first call
 		_start_run.call_deferred()
@@ -480,6 +514,20 @@ func _rows(data: Variant) -> Array:
 				r[k] = int(r[k])
 		out.append(r)
 	return out
+
+
+## "2026-11-02": the UTC date of a unix time (the daily's date and the daily board's filter).
+static func utc_date(unix: float) -> String:
+	return Time.get_date_string_from_unix_time(int(unix))
+
+
+## "2026-W45": ISO week of a unix time in UTC, as the server's to_char(.., 'IYYY-"W"IW') (the season).
+static func season_week(unix: float) -> String:
+	var days := floori(unix / 86400.0)
+	var thursday := days - (days + 3) % 7 + 3 # 1970-01-01 was a Thursday: (days + 3) % 7 is 0 on Mondays
+	var year: int = Time.get_date_dict_from_unix_time(thursday * 86400)["year"]
+	var jan1 := int(Time.get_unix_time_from_datetime_dict({"year": year, "month": 1, "day": 1})) / 86400
+	return "%d-W%02d" % [year, (thursday - jan1) / 7 + 1]
 
 
 func _uuid() -> String:

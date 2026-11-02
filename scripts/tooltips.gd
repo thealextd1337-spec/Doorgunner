@@ -87,6 +87,8 @@ const TIPS := {
 	"title_profiles": "Switch, add or delete pilots. Each has their own unlocks.",
 	"title_board": "The best runs, ranked by score.",
 	"title_backup": "Export, import and cloud backup of your save.",
+	"title_daily": "Today's daily: the same world, modifiers and heli for every pilot. The first start of the day is ranked, later ones are practice. Needs the server.",
+	"title_continue_daily": "Pick up the saved daily run. Your normal run is kept apart.",
 	"title_heli": "Cycles the helis you have repaired in earlier runs. Repair a wreck of another type to fly it from the start.",
 	# --- ESC menu, key screen, help screen
 	"menu_keys": "Change any key or mouse button. Conflicts show in red.",

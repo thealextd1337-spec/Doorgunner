@@ -42,9 +42,10 @@ func on(id: String) -> bool:
 	return id in active
 
 
-## Run start (main.gd, title NEW RUN): take the picked ids and apply the one-time effects.
-func start(ids: Array) -> void:
-	active = ids.filter(func(id): return TABLE.has(id) and unlocked(id))
+## Run start (main.gd, title NEW RUN): take the picked ids and apply the one-time effects. `forced` (the daily's
+## server modifiers): no unlock needed, unknown ids are kept.
+func start(ids: Array, forced := false) -> void:
+	active = ids.filter(func(id): return forced or TABLE.has(id) and unlocked(id))
 	if on("glass_cockpit"):
 		Game.max_hp *= HULL
 		Game.hp = Game.max_hp
