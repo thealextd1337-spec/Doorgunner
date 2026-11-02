@@ -1,15 +1,22 @@
 extends Node
 ## Long-run balance simulation (docs/ROADMAP.md P18). main.gd adds this node when env SMOKE=longrun:
 ##   SMOKE=longrun godot --headless --path . --fixed-fps 60 --quit-after 5000000
-## Optional env: LONGRUN_DAYS (default 40), LONGRUN_OUT (default build/longrun.csv).
+## Optional env: LONGRUN_DAYS (default 40), LONGRUN_OUT (default build/longrun.csv), LONGRUN_EVAC=1 (push for the evacuation
+## from day 15, STAY BEHIND after the victory and play on), LONGRUN_MODS=dense,warlords (run modifiers, ids or their first word).
 ## A bot plays the real game: it flies the heli (input actions) to towns and landmarks, lands at settlements and loot,
 ## shoots what comes near (door gun, real bullets), delivers, keeps the workers on the jobs the stocks need, builds
 ## barracks, sandbags, a watchtower, clinic, well, generator, perimeter stages and turrets, orders heli repairs, picks the
-## first level-up card, and hovers over the base shooting during assaults and bandit raids. No outposts, convoys, wrecks,
-## missions or evacuation (not cheap to script; they only add income).
+## first level-up card, and hovers over the base shooting during assaults and bandit raids.
+## Through the systems' public APIs (what the keys and base-menu buttons call) it also: crews and founds outposts (O on the
+## pad, O at a gas station / checkpoint / radio mast), reinforces thin garrisons and refuels at outposts; protects a
+## settlement it cannot empty (P) and picks up the villages' food; builds a Motor Pool and trucks and sends convoys (CONVOY
+## tab) to seen towns and landmarks; hooks spotted wrecks (G), tows them inside the fence, starts the HANGAR repair and
+## switches to a repaired heli with more seats; lands at checkpoints and airfields for key parts; flies the missions it can
+## do (rooftop rescue, black box, medicine run). In evac mode: Radio Station, Airstrip, the final siege, STAY BEHIND.
 ## Time runs fast: Engine.time_scale is set every frame so a frame is QUIET_DT game seconds while nothing is near the heli
 ## or the base, FLY_DT while flying and FIGHT_DT (small enough for bullets) while enemies are close. One CSV row per day.
-## The run counts as collapsed if it ends before the last day (exit 1). Runtime: ~10-20 min for 40 days (see CHANGELOG).
+## The run counts as collapsed if it ends before the last day (exit 1). Runtime: ~30-40 min for 40 days (Q4, all systems on).
+## CSV: one row per day (COLS), the first line "# seed .. days .. evac .. mods .. result ..". tools/longrun_report.py sums it up.
 
 const DAYS := 40
 const QUIET_DT := 1.0
@@ -26,7 +33,20 @@ const LZ_CLEAR := 180.0 # px: no landing while an enemy is this close to the spo
 const LZ_WAIT := 25.0 # game s of clearing an LZ before giving up on it
 const LOOT := ["survivors", "hideout", "crate", "upgrade", "wreck", "scrapyard", "pharmacy", "water_tower", "fuel_station", "radio_tower"]
 const COLS := ["day", "scrap", "metal", "parts", "electronics", "food", "water", "fuel", "ammo", "people", "injured", "deaths", "morale",
-	"kills", "base_hp", "assault", "wave", "bandit_raids", "points", "level", "sorties", "delivered", "heli_hp", "buildings", "sandbags"]
+	"kills", "base_hp", "assault", "wave", "bandit_raids", "points", "level", "sorties", "delivered", "heli_hp", "buildings", "sandbags",
+	"outposts", "garrison", "outposts_fell", "villages", "villages_fell", "village_supply", "convoys_sent", "convoys_back", "convoys_lost",
+	"trucks", "wrecks_hooked", "repairs", "repaired", "heli_type", "key_parts", "missions_done", "missions_failed", "evac", "victory", "save_bytes"]
+const KEEP := 15 # scrap kept for hull repairs
+const CREW_HOME := 8 # healthy people that stay at the base before a crew leaves for an outpost
+const CONVOY_HOME := 10 # people at the base before a truck takes some of them away
+const CONVOY_TRIPS := 3 # trips to one site before the bot looks elsewhere (DEPLETE)
+const CONVOY_REACH := 5000.0
+const VILLAGES_MAX := 3
+const VILLAGE_KEEP := 3 # survivors left behind that make a settlement worth protecting
+const T := preload("res://scripts/chunk_manager.gd").T
+const DEMOLISH := [T.BUILDING, T.RUIN, T.HEDGE] # what the builders can clear off an airstrip lane
+const HOOK_WAIT := 30.0 # game s of hovering for the hook before giving up
+const MOD_ALIAS := {"dense": "dense_horde", "warlords": "warlords", "scarcity": "scarcity", "dry": "dry_season", "glass": "glass_cockpit", "blackout": "blackout"}
 
 var main: Node2D
 var days := DAYS
@@ -54,6 +74,14 @@ var aim_foe: Node2D = null
 var aim_last := Vector2.ZERO
 var frames := [0, 0, 0] # quiet, fly, fight frames today (runtime log)
 var DEBUG := OS.get_environment("LONGRUN_DEBUG") != ""
+var evac_mode := OS.get_environment("LONGRUN_EVAC") == "1"
+var mods: Array = []
+var n := {"outposts_fell": 0, "villages_fell": 0, "village_supply": 0, "convoys_back": 0, "convoys_lost": 0, "hooked": 0} # counted from signals / radio
+var no_road := {} # convoy destinations without a road
+var strip_day := -1 # last day find_spot found nothing
+var lane := Rect2i() # evac mode: the airstrip lane kept free (size 0: none fits)
+var lane_rot := 0
+var lane_r := 0.0 # fence radius the lane needs; 0: not picked yet
 
 
 func _ready() -> void:
@@ -91,11 +119,21 @@ func _run() -> void:
 		assault_result = "running"
 		wave = Assault.wave_size(d))
 	Game.day_changed.connect(_on_day)
+	for m in OS.get_environment("LONGRUN_MODS").split(",", false):
+		mods.append(MOD_ALIAS.get(m.strip_edges(), m.strip_edges()))
+	if not mods.is_empty(): # the title's NEW RUN path; the bot's zeroed meta has none unlocked, so unlock them for the call
+		var m0: Dictionary = Game.meta.duplicate()
+		for id in mods:
+			Game.meta[main.modifiers.UNLOCK[id][0]] = main.modifiers.UNLOCK[id][1]
+		main.modifiers.start(mods)
+		Game.meta = m0
+	main.outposts.fell.connect(_on_fell)
+	Game.radio_message.connect(_on_radio)
 	Game.run_ended.connect(func(reason): _finish("ended day %d: %s" % [Game.day, reason]))
 	if DEBUG:
 		Game.heli.damaged.connect(func(a, src): if a >= 5.0: print("BOT hit %.0f %s state %s at %s" % [a, src, state, Game.heli.global_position.round()]))
 		Game.radio_message.connect(func(m): print("RADIO d%d %.2f %s" % [Game.day, Game.time, m]))
-	print("LONGRUN seed %d, %d days" % [Game.seed, days])
+	print("LONGRUN seed %d, %d days, evac %s, mods %s" % [Game.seed, days, evac_mode, main.modifiers.active])
 
 
 func _process(delta: float) -> void:
@@ -104,6 +142,12 @@ func _process(delta: float) -> void:
 	var real := maxf(0.0001, delta / Engine.time_scale) # the engine's unscaled frame time (1/60 under --fixed-fps 60)
 	if main.choice_ui.visible:
 		main.choice_ui.pick(0)
+		return
+	if main.evac.phase == "choice": # the victory screen (it pauses the tree): STAY BEHIND, the run goes on
+		for c in main.get_children():
+			if c.get_script() == preload("res://scripts/victory_ui.gd") and c.visible:
+				print("LONGRUN victory day %d, staying behind" % Game.day)
+				c._pick(true)
 		return
 	if get_tree().paused or not Game.running:
 		return
@@ -131,10 +175,10 @@ func _bot(delta: float) -> void:
 	var base_foe := _nearest_enemy(base.global_position, Game.base_radius + BASE_HOT)
 	hot = foe != null or base_foe != null or Game.attack_active
 	var near_lz: bool = state == "out" and target != null and target["land"] and heli.global_position.distance_to(target["pos"]) < 350.0
-	_shoot(foe if state in ["defend", "loading", "landing", "landing_home", "takeoff", "base"] or near_lz or foe != null and (foe.global_position.distance_to(heli.global_position) < 140.0 or foe.is_in_group("bandits")) else null) # cruising past a horde: save the ammo
+	_shoot(foe if state in ["defend", "loading", "landing", "landing_home", "takeoff", "base", "hook", "tow"] or near_lz or foe != null and (foe.global_position.distance_to(heli.global_position) < 140.0 or foe.is_in_group("bandits")) else null) # cruising past a horde: save the ammo
 	var defend: bool = Game.attack_active or base_foe != null and base_foe.global_position.distance_to(base.global_position) < Game.base_radius + 160.0 \
 		or (Game.attack_pending and Game.time > 0.75)
-	if state in ["out", "home", "defend"] and heli.landed and heli.pending == 0: # put down by an engine failure (wear.gd)
+	if state in ["out", "home", "defend", "hook", "tow"] and heli.landed and heli.pending == 0: # put down by an engine failure (wear.gd)
 		_release()
 		if not main.wear.grounded():
 			heli._toggle_landing() # field repair done: up again
@@ -151,7 +195,9 @@ func _bot(delta: float) -> void:
 			if defend:
 				_take_off("defend")
 			elif t_state > 8.0 and Game.hp > Game.max_hp * 0.6 and not main.wear.grounded() and main.wear.orders.is_empty():
-				target = _pick_target(heli.global_position)
+				target = _errand()
+				if target == null:
+					target = _pick_target(heli.global_position)
 				if target != null:
 					sorties += 1
 					t_sortie = 0.0
@@ -190,19 +236,23 @@ func _bot(delta: float) -> void:
 			if target["land"] and state == "out" and to.distance_to(heli.global_position) < 260.0 and _nearest_enemy(to, LZ_CLEAR) != null:
 				_fly_to(to + (heli.global_position - to).normalized() * 160.0, 30.0) # hold off and clear the LZ first
 				if t_state > LZ_WAIT:
-					visited[target["poi"].get_instance_id()] = true
+					visited[target["poi"].get_instance_id() if target["poi"] != null else target["site"]] = true
 					_next_or_home()
 				return
-			if _fly_to(to, 6.0 if target["land"] else 60.0):
-				if target["land"]:
+			if _fly_to(to, 6.0 if target["land"] or target.has("hook") else 60.0):
+				if target.has("hook"):
+					state = "hook"
+					t_state = 0.0
+				elif target["land"]:
 					_release()
 					if heli.vel.length() <= heli.LAND_SPEED and heli.pending == 0:
 						if main.is_landable(heli.position):
 							heli._toggle_landing()
 							state = "landing_home" if state == "home" else "landing"
 							t_state = 0.0
-						else:
-							target["pos"] = _landing_spot(heli.position, 48.0)
+						else: # an errand's site was not loaded when it was picked: look around it once, then around the heli
+							target["pos"] = _landing_spot(target.get("around", heli.position), target.get("reach", 48.0))
+							target.erase("around")
 				else:
 					visited[target["site"]] = true
 					_next_or_home()
@@ -223,10 +273,45 @@ func _bot(delta: float) -> void:
 			var close := _nearest_enemy(heli.global_position, 110.0)
 			if t_state < delta * 1.5:
 				hp_landed = Game.hp
+				_act(target)
+			if done and p != null and is_instance_valid(p) and p.kind == "survivors" and not p.done and p.survivors.size() >= VILLAGE_KEEP \
+					and main.outposts.allies.size() < VILLAGES_MAX:
+				main.outposts.protect() # seats full, people left: they stay as allies (fails while hostiles are close)
 			if done or t_state > LOAD_MAX or Game.hp < Game.max_hp * 0.6 or Game.hp < hp_landed - Game.max_hp * 0.12 or defend or (close != null and t_state > 1.0):
 				if p != null and is_instance_valid(p):
 					visited[p.get_instance_id()] = true
 				_take_off("next")
+		"hook": # hovering over a wreck until the hook is in
+			var w: Dictionary = main.wrecks.wrecks.get(target["hook"], {})
+			if main.wrecks.slung():
+				state = "tow"
+				t_state = 0.0
+				return
+			if defend or w.get("state", "") != "site" or t_state > HOOK_WAIT or _must_return():
+				if main.wrecks.hook != "":
+					main.wrecks.toggle_hook() # hook up again
+				visited["w" + target["hook"]] = true
+				_go_home()
+				return
+			_fly_to(w["pos"], 4.0)
+			if main.wrecks.hook == "" and heli.global_position.distance_to(w["pos"]) < main.wrecks.HOOK_RADIUS * 0.5 \
+					and heli.vel.length() < main.wrecks.HOOK_MAX_SPEED * heli.MAX_SPEED * 0.6:
+				main.wrecks.toggle_hook() # G
+		"tow": # a wreck on the sling: into the fence, let go, land
+			var base_pos: Vector2 = base.global_position
+			if not main.wrecks.slung():
+				_go_home() # broke apart
+				return
+			var load_at: Vector2 = main.wrecks.load_pos
+			if load_at.distance_to(base_pos) < Game.base_radius - 48.0 and heli.vel.length() < 40.0:
+				main.wrecks.toggle_hook() # G: set it down for the HANGAR
+				_go_home()
+				return
+			if Game.fuel < _fuel_for(heli.global_position.distance_to(base_pos)): # cannot make it home with the load: drop it, fetch it later
+				main.wrecks.toggle_hook()
+				_go_home()
+				return
+			_fly_to(base_pos, 20.0)
 		"takeoff":
 			if not heli.landed and heli.pending == 0:
 				state = target.get("then", "out") if target != null else "home"
@@ -271,9 +356,11 @@ func _go_home() -> void:
 	t_state = 0.0
 
 
-func _fuel_for(dist: float) -> float:
-	var speed: float = Game.heli.MAX_SPEED * 0.85
-	return dist / speed * (Game.heli.FUEL_IDLE + 0.85 * Game.heli.FUEL_FLY) / Game.stats["fuel_eff"] * main.wear.fuel_factor() * 1.25
+func _fuel_for(dist: float, sling := false) -> float:
+	sling = sling or main.wrecks.slung()
+	var speed: float = Game.heli.MAX_SPEED * 0.85 * (main.wrecks.htype()["sling"] if sling else 1.0)
+	return dist / speed * (Game.heli.FUEL_IDLE + 0.85 * Game.heli.FUEL_FLY) / Game.stats["fuel_eff"] * main.wear.fuel_factor() * 1.25 \
+		* (main.wrecks.SLING_FUEL if sling else 1.0)
 
 
 ## The nearest worthwhile POI (survivors first while seats are free), else the nearest unvisited site; null if nothing
@@ -295,6 +382,15 @@ func _pick_target(from: Vector2) -> Variant:
 		if score < best_score:
 			best_score = score
 			best = {"pos": _landing_spot(p.position, 40.0), "poi": p, "site": "", "land": true}
+	for c in _tasks():
+		var t: Dictionary = c[1]
+		var d: float = from.distance_to(t["pos"])
+		var back: float = t["pos"].distance_to(base_pos)
+		if _fuel_for(d) + _fuel_for(back, t.has("hook")) > budget or back > _reach() or _camp_near(t["pos"]):
+			continue
+		if d * c[0] < best_score:
+			best_score = d * c[0]
+			best = t
 	if best != null and best_score < 1800.0:
 		return best
 	for s in main.chunks.sites_near(from, 6000.0):
@@ -307,6 +403,80 @@ func _pick_target(from: Vector2) -> Variant:
 			return {"pos": s["pos"], "poi": null, "site": s["uid"], "land": false}
 		break
 	return best
+
+
+## Errands besides the POIs, [weight, target] (the weight scales the distance): missions it can do, villages with food to pick
+## up or that need a visit, outposts with fuel when the tank is low, spotted wrecks (one at a time: none waiting in the fence),
+## checkpoints and airfields not searched for key parts yet.
+func _tasks() -> Array:
+	var out := []
+	var land := func(pos: Vector2, site: String, reach := 48.0) -> Dictionary:
+		return {"pos": pos, "around": pos, "reach": reach, "poi": null, "site": site, "land": true}
+	for m in main.missions.open:
+		var id := "m%d" % m["id"]
+		if visited.has(id):
+			continue
+		if m["type"] == "rooftop" and not m["state"].has("poi"): # fly there; the family on the roof then is a survivors POI
+			out.append([0.6, {"pos": m["pos"], "poi": null, "site": id, "land": false}])
+		elif m["type"] == "blackbox" or m["type"] == "medicine" and Game.base_medicine >= main.missions.MEDICINE_COST:
+			out.append([0.6, land.call(m["pos"], id, 40.0)])
+	var op: Node = main.outposts
+	for v in op.villages():
+		if v["stock"]["food"] + v["stock"]["water"] >= 10.0 or v["away_days"] >= op.NEGLECT_DAYS - 3:
+			out.append([0.8, land.call(v["pos"], "", 40.0)])
+	if Game.fuel < Game.max_fuel * 0.5:
+		for o in op.list:
+			if o["fuel"] >= 25.0:
+				out.append([0.7, land.call(o["pos"], "", 8.0)])
+	var w: Node = main.wrecks
+	if not w.slung() and not w.wrecks.values().any(func(x): return x["state"] == "base"):
+		for uid in w.wrecks:
+			var x: Dictionary = w.wrecks[uid]
+			if x["state"] == "site" and x.get("spotted", false) and not visited.has("w" + uid):
+				out.append([1.0, {"pos": x["pos"], "poi": null, "site": "", "land": false, "hook": uid}])
+	for kind in ["checkpoint", "airfield"]:
+		for s in main.chunks.sites_near(main.base.global_position, 6000.0, kind):
+			if not w.looted.has(s.uid) and not visited.has("k" + s.uid):
+				out.append([1.2, land.call(s.pos, "k" + s.uid, 200.0)])
+	return out
+
+
+## At the base pad before a sortie: a crew left over from a plan that did not work goes back to the barracks; a thin garrison
+## gets a crew (O on the pad, O on the outpost's pad), else a new outpost is crewed and founded. null if there is nothing to do.
+func _errand() -> Variant:
+	var op: Node = main.outposts
+	if not op.crew().is_empty():
+		op.load_crew()
+	var healthy: int = Game.rescued - Game.injured
+	if healthy < CREW_HOME + op.CREW or Game.seats - Game.passengers < op.CREW or Game.attack_pending:
+		return null
+	var base_pos: Vector2 = main.base.global_position
+	for o in op.list:
+		if op.garrison(o["id"]).filter(func(p): return not p["injured"]).size() < op.CREW and op.garrison(o["id"]).size() + op.CREW <= op.GARRISON_MAX \
+				and _fuel_for(2.0 * o["pos"].distance_to(base_pos)) < Game.fuel - FUEL_RESERVE and op.load_crew():
+			return {"pos": o["pos"], "poi": null, "site": "", "land": true, "act": "outpost"}
+	if op.list.size() >= op.max_outposts() or Game.scrap < op.FOUND_COST + KEEP or Game.day < 3:
+		return null
+	for s in main.chunks.sites_near(base_pos, minf(_reach(), 5000.0)):
+		var d: float = s.pos.distance_to(base_pos)
+		if not s.kind in op.SITE_KINDS or visited.has("f" + s.uid) or d < op.MIN_FROM_BASE + 100.0 or _camp_near(s.pos) \
+				or op.list.any(func(o): return o["pos"].distance_to(s.pos) < op.MIN_APART + 100.0) or _fuel_for(2.0 * d) > Game.fuel - FUEL_RESERVE:
+			continue
+		if op.load_crew():
+			return {"pos": s.pos, "around": s.pos, "reach": 200.0, "poi": null, "site": "f" + s.uid, "land": true, "act": "found"}
+		break
+	return null
+
+
+## Landed for an errand: O where it founds or reinforces; the rest (key parts, village pickup, black box, medicine, outpost
+## refuel) happens on landing by itself. Each errand site is tried once.
+func _act(t: Variant) -> void:
+	if t == null:
+		return
+	if t.get("site", "") != "":
+		visited[t["site"]] = true
+	if t.get("act", "") != "":
+		main.outposts.press_o()
 
 
 ## How far out the bot goes: farther each day, as a player learns the map (danger grows with distance, Game.danger_at).
@@ -425,7 +595,11 @@ func _manage() -> void:
 			main.wear.order_repair(part)
 	if Game.base_hp < Game.max_base_hp * 0.6:
 		base.ui.buy("repair")
-	var keep := 15 # scrap kept for hull repairs
+	_fleet()
+	_convoys()
+	if evac_mode:
+		_evac()
+	var keep := KEEP
 	var pop: int = Game.rescued
 	var plans := []
 	if Game.housing() + 4 * _queued("barracks") < pop + 2 and _queued("barracks") < 2 and Game.scrap >= Game.BUILDINGS["barracks"][1] + keep:
@@ -438,6 +612,8 @@ func _manage() -> void:
 		plans.append("well")
 	if pop >= 8 and Game.built("generator") + _queued("generator") == 0:
 		plans.append("generator")
+	if Game.day >= 6 and pop >= CONVOY_HOME and Game.built("motor_pool") + _queued("motor_pool") == 0:
+		plans.append("motor_pool")
 	for kind in plans:
 		if Game.scrap >= Game.BUILDINGS[kind][1] + keep and base.next_site().is_empty():
 			_place(kind)
@@ -452,7 +628,8 @@ func _manage() -> void:
 	var i := 0
 	while Game.sandbags.size() < bags and Game.scrap >= Game.SANDBAG_COST + keep and i < 192: # rings 20, 36 and 52 px inside the fence
 		var at: Vector2 = base.global_position + Vector2(Game.base_radius - 20.0 - 16.0 * (i / 64), 0).rotated((i % 64) * TAU / 64.0)
-		base.place_sandbag(Vector2i((at / 16.0).floor()))
+		if not _on_lane(Vector2i((at / 16.0).floor())):
+			base.place_sandbag(Vector2i((at / 16.0).floor()))
 		i += 1
 
 
@@ -468,9 +645,47 @@ func _place(kind: String) -> bool:
 		for x in range(-d, d + 1):
 			for y in [-d, d]:
 				for cell in [c0 + Vector2i(x, y), c0 + Vector2i(y, x)]:
-					if base.cell_pos(cell).distance_to(base.global_position) < Game.base_radius - 40.0 and base.place_building(kind, cell):
+					if base.cell_pos(cell).distance_to(base.global_position) < Game.base_radius - 40.0 and not _on_lane(cell, Game.BUILDINGS[kind][3]) \
+							and base.place_building(kind, cell):
 						return true
 	return false
+
+
+## Evac mode: on the first call, the airstrip lane kept free from day 1. Of the straight lanes around the pad (either way round,
+## off the pad and the hangar) whose ground holds a strip once houses and hedges are torn down, the one needing the smallest
+## fence (up to the last perimeter stage); the perimeter grows until it fits.
+func _pick_lane() -> void:
+	var base: Node2D = main.base
+	var c0 := Vector2i((base.global_position / 16.0).floor())
+	lane_r = INF
+	for rot in [0, 1]:
+		for off in range(-26, 23):
+			for along in range(-32, 9):
+				var r := Rect2i(c0 + (Vector2i(along, off) if rot == 0 else Vector2i(off, along)), Evac.strip_size(rot))
+				var need := 0.0
+				for x in r.size.x:
+					for y in r.size.y:
+						if need >= lane_r:
+							break
+						var pos: Vector2 = base.cell_pos(r.position + Vector2i(x, y))
+						var t: int = main.chunks.get_cell_atlas_coords(r.position + Vector2i(x, y)).x
+						var d: float = pos.distance_to(base.global_position)
+						need = maxf(need, d if d >= base.PAD_CLEAR and not base.HANGAR.has_point(pos - base.global_position) and (not t in main.evac.BLOCKED or t in DEMOLISH) else INF)
+				if need < lane_r:
+					lane_r = need
+					lane = r
+					lane_rot = rot
+	if lane_r > Game.BASE_RADIUS + Game.PERIMETER_MAX * Game.PERIMETER_STEP:
+		lane = Rect2i()
+	print("LONGRUN airstrip lane %s rot %d needs radius %.0f" % [lane, lane_rot, lane_r])
+
+
+func _on_lane(cell: Vector2i, size := 1) -> bool:
+	if not evac_mode:
+		return false
+	if lane_r == 0.0:
+		_pick_lane()
+	return lane.intersects(Rect2i(cell, Vector2i(size, size)))
 
 
 ## Jobs from what the stocks need: water and food first, builders while there is work, militia, workshop, the rest on fuel/ammo/repair.
@@ -492,10 +707,13 @@ func _jobs() -> void:
 	if Game.injured > 0 and Game.built("clinic") > 0:
 		w["medic"] = 1
 	w["militia"] = maxi(1, free / 4)
-	if Game.salvage.values().any(func(v): return v >= 1.0):
+	var goal := _salvage_goal()
+	if Game.salvage.keys().any(func(k): return Game.salvage[k] >= goal.get(k, 0.0) + 1.0):
 		w["workshop"] = 1 if free < 10 else 2
 	if Game.base_hp < Game.max_base_hp:
 		w["repair"] = 1
+	if main.wrecks.wrecks.values().any(func(x): return x["state"] == "repair"):
+		w["repair"] = w.get("repair", 0) + 2 # mechanics and engineers in the hangar
 	w["fuel"] = (1 + Game.rescued / 8) if Game.base_fuel < Game.base_fuel_cap * 0.6 else 0 # the heli burns ~250 a flying day
 	w["ammo"] = (1 + Game.rescued / 8) if Game.base_ammo < Game.base_ammo_cap * 0.7 else 0
 	for j in ["water", "farm", "build", "militia", "medic", "workshop", "repair", "fuel", "ammo"]:
@@ -505,7 +723,144 @@ func _jobs() -> void:
 	Game.workers["militia"] += free # the rest stand guard
 
 
+## Salvage the workshop must not break down: a truck while the motor pool has room, the repair of a wreck waiting in the
+## fence, the radio's electronics in evac mode.
+func _salvage_goal() -> Dictionary:
+	var goal := {}
+	var cv: Node = main.convoys
+	if cv.pools() > 0 and cv.trucks + cv.list.size() < cv.pools() * cv.TRUCKS_PER_POOL:
+		goal = cv.TRUCK_COST.duplicate()
+	var w: Node = main.wrecks
+	for uid in w.wrecks:
+		if w.wrecks[uid]["state"] == "base":
+			var c: Dictionary = w.cost(uid)
+			for k in ["metal", "parts", "electronics"]:
+				goal[k] = goal.get(k, 0.0) + c[k]
+			break
+	if _radio_due():
+		goal["electronics"] = goal.get("electronics", 0.0) + main.evac.RADIO_ELECTRONICS
+	return goal
+
+
+func _radio_due() -> bool:
+	return evac_mode and main.evac.phase == "" and Game.built("radio") + _queued("radio") == 0 # from day 1: electronics are rare
+
+
+## HANGAR: start the repair of a wreck in the fence once it is paid for (the radio's electronics first), fly the repaired heli
+## with the most seats.
+func _fleet() -> void:
+	var w: Node = main.wrecks
+	for uid in w.wrecks:
+		if w.wrecks[uid]["state"] == "base" and w.repair_refusal(uid) == "" \
+				and (not _radio_due() or Game.salvage["electronics"] - w.cost(uid)["electronics"] >= main.evac.RADIO_ELECTRONICS):
+			w.start_repair(uid)
+	for uid in w.parked():
+		if preload("res://scripts/heli_types.gd").get_type(w.type_id(uid))["seats"] > w.htype()["seats"] and w.switch_refusal(uid) == "":
+			print("LONGRUN day %d: switching to the %s" % [Game.day, w.type_id(uid)])
+			w.switch_to(uid)
+
+
+## Motor pool: trucks from salvage; a truck with a driver and up to 2 escorts to the nearest seen site not looted out (allied
+## villages with food waiting count too), never while an assault is near or the base is thin.
+func _convoys() -> void:
+	var cv: Node = main.convoys
+	if cv.pools() == 0:
+		return
+	if cv.trucks + cv.list.size() < cv.pools() * cv.TRUCKS_PER_POOL:
+		cv.build_truck()
+	var drivers: Array = cv.drivers()
+	if cv.trucks <= 0 or drivers.is_empty() or Game.rescued < CONVOY_HOME or Game.attack_pending or Game.attack_active:
+		return
+	var base_pos: Vector2 = main.base.global_position
+	var best: Dictionary = {}
+	var bd := INF
+	for d in cv.destinations():
+		var dist: float = d["pos"].distance_to(base_pos)
+		var trips: int = cv.trips.get(d["uid"], 0)
+		if no_road.has(d["uid"]) or d["kind"] == "outpost" or dist > CONVOY_REACH or trips >= CONVOY_TRIPS or _camp_near(d["pos"]) \
+				or cv.list.any(func(c): return c["dest"]["uid"] == d["uid"]):
+			continue
+		if d["kind"] == "ally" and main.outposts.allies[d["uid"]]["stock"]["food"] < 20.0:
+			continue
+		if dist * (1 + trips) < bd:
+			bd = dist * (1 + trips)
+			best = d
+	if best.is_empty():
+		return
+	var driver: Dictionary = drivers[0]
+	var why: String = cv.send(best["uid"], driver["id"], mini(2, mini(cv.escort_pool(driver["id"]).size(), int(Game.base_rifles))))
+	if why != "":
+		no_road[best["uid"]] = true # no road there (or another refusal): not again
+		if DEBUG:
+			print("BOT convoy to %s refused: %s" % [best["name"], why])
+
+
+## Evac mode: Radio Station once the frequency is announced, perimeter level 1 if the fence is too small, then the Airstrip.
+## The siege is held by the defend state like any assault; the victory screen is answered in _process.
+func _evac() -> void:
+	var e: Node = main.evac
+	var base: Node2D = main.base
+	if not e.announced or e.phase != "":
+		return
+	if Game.built("radio") + _queued("radio") == 0:
+		if e.tool_note("radio") == "" and Game.scrap >= Game.BUILDINGS["radio"][1] + KEEP:
+			_place("radio")
+		return
+	if not e.contact or not e.strip().is_empty():
+		return
+	_on_lane(Vector2i.ZERO) # picks the lane if not yet
+	if Game.base_radius < maxf(e.MIN_RADIUS, lane_r if lane.has_area() else 0.0):
+		if base.next_site("perimeter").is_empty():
+			base.expand_perimeter()
+		return
+	var why := "no lane"
+	if strip_day != Game.day and Game.scrap >= Game.BUILDINGS["airstrip"][1] + KEEP:
+		if lane.has_area():
+			why = e.strip_problem(lane.position, lane_rot)
+			if why == "":
+				base.place_rot = lane_rot
+				base.place_building("airstrip", lane.position)
+				base.place_rot = 0
+				return
+			var marked := 0 # houses and hedges on the lane: the builders tear them down first
+			for x in lane.size.x:
+				for y in lane.size.y:
+					if main.chunks.get_cell_atlas_coords(lane.position + Vector2i(x, y)).x in DEMOLISH:
+						marked += 1
+						base.mark_demolition(lane.position + Vector2i(x, y))
+			if marked > 0:
+				return
+		for rot in [0, 1]:
+			var cell: Vector2i = e.find_spot(rot)
+			if cell.x != -99999:
+				base.place_rot = rot
+				base.place_building("airstrip", cell)
+				base.place_rot = 0
+				return
+		strip_day = Game.day # no room today
+		print("LONGRUN day %d: no room for the airstrip (lane: %s)" % [Game.day, why])
+
+
 # ---------------------------------------------------------------- log
+
+func _on_fell(_id: String, kind: String) -> void:
+	n["outposts_fell" if kind == "outpost" else "villages_fell"] += 1
+	if kind == "outpost": # its site (and the others tried) may be held again
+		for k in visited.keys().filter(func(k): return k is String and k.begins_with("f")):
+			visited.erase(k)
+
+
+func _on_radio(m: String) -> void:
+	if m.begins_with("Base: villages sent "):
+		var w := m.split(" ")
+		n["village_supply"] += int(w[3]) + int(w[6])
+	elif m.begins_with("ALERT: Convoy") and " was destroyed " in m:
+		n["convoys_lost"] += 1
+	elif m.begins_with("Convoy ") and " is back:" in m:
+		n["convoys_back"] += 1
+	elif m.begins_with("Crew: she's hooked"):
+		n["hooked"] += 1
+
 
 func _on_day(day: int) -> void:
 	var d := day - 1 # the day that just ended
@@ -519,6 +874,18 @@ func _on_day(day: int) -> void:
 		int(Game.base_food), int(Game.base_water), int(Game.base_fuel), int(Game.base_ammo), Game.rescued, Game.injured, deaths,
 		int(main.morale.value), Game.kills, int(Game.base_hp), res, wave if res != "" else 0, raids, pts, Game.level, sorties, delivered,
 		int(Game.hp), Game.buildings.filter(func(b): return b["built"]).size(), Game.sandbags.size()]
+	var op: Node = main.outposts
+	var cv: Node = main.convoys
+	var w: Node = main.wrecks
+	var states: Array = w.wrecks.values().map(func(x): return x["state"])
+	var ms: Node = main.missions
+	Save.autosave() # the size of a run save today (Q3's 2 MB budget)
+	var f := FileAccess.open(Save.path(), FileAccess.READ)
+	vals += [op.list.size(), op.list.reduce(func(a, o): return a + op.garrison(o["id"]).size(), 0), n["outposts_fell"], op.allies.size(), n["villages_fell"],
+		n["village_supply"], cv.seq, n["convoys_back"], n["convoys_lost"], cv.trucks + cv.list.size(), n["hooked"],
+		states.count("repair"), states.count("parked") + states.count("active") - 1, w.type_id(), w.keys.values().reduce(func(a, b): return a + b, 0),
+		ms.completed, ms.seq - ms.completed - ms.open.size(), main.evac.phase if main.evac.phase != "" else ("contact" if main.evac.contact else "-"),
+		int(main.evac.victory), f.get_length() if f else 0]
 	rows.append(",".join(vals.map(func(v): return str(v))))
 	printerr("LONGRUN ", rows[-1], "  (%.0f s real, frames quiet/fly/fight %s)" % [Time.get_ticks_msec() / 1000.0, frames])
 	frames = [0, 0, 0]
@@ -538,7 +905,8 @@ func _finish(why: String) -> void:
 		out = ProjectSettings.globalize_path("res://build/longrun.csv")
 	DirAccess.make_dir_recursive_absolute(out.get_base_dir())
 	var f := FileAccess.open(out, FileAccess.WRITE)
-	f.store_string("# seed %d\n%s\n%s\n" % [Game.seed, ",".join(COLS), "\n".join(rows)])
+	f.store_string("# seed %d days %d evac %d mods %s result %s\n%s\n%s\n" % [Game.seed, days, int(evac_mode), "+".join(mods) if not mods.is_empty() else "-",
+		"OK" if why == "" else "COLLAPSED " + why.replace(",", ";"), ",".join(COLS), "\n".join(rows)])
 	f.close()
 	Save.delete_run()
 	Game.meta = meta_keep # the bot's run must not count for the test profile
