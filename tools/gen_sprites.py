@@ -1214,6 +1214,7 @@ def main():
         images.update(arsenal_sprites())
         images.update(buildings2_sprites())
         images.update(world2_sprites())
+        images.update(bosses_sprites())
         for name, im in images.items():
             w, h = SIZES[name]
             assert im.size == (w * OUT, h * OUT), (name, im.size)
@@ -1841,6 +1842,97 @@ def world2_sprites():
 
 
 SIZES.update({"boat": (20, 8), "cooling_tower": (48, 48), "pylon": (16, 16)})
+
+
+# ---------------------------------------------------------------- Q12 bosses
+
+def matriarch():
+    """Swollen brood mother facing up: long raking arms, egg sacs along her flanks, a gaping jaw."""
+    s = Spr(32, 32)
+    skin = mix(P["zskin"], (200, 190, 170), 0.3)
+    sac = mix(P["flesh"], (226, 214, 150), 0.55)
+    s.paint(s.m().line([(11, 15), (6, 9), (8, 3.4)], 1.7).line([(21, 15), (26, 9), (24, 3.4)], 1.7), skin, sh=0.5)
+    s.paint(s.m().ell(16, 19, 9.6, 10.4), mix(P["zcloth"], P["flesh"], 0.35), sh=2.4)
+    sacs = s.m()
+    for x, y, r in ((8.4, 17, 3.2), (23.6, 17, 3.2), (9.4, 24, 2.8), (22.6, 24, 2.8), (16, 27, 3.0)):
+        sacs.ell(x, y, r)
+    s.paint(sacs, sac, sh=0.9, light=0.5)
+    s.paint(s.m().ell(8.4, 16.4, 1.1, 0.7).ell(23.6, 16.4, 1.1, 0.7).ell(16, 26.4, 1.1, 0.7), dk(sac, 0.6), sh=0, edge=False)  # nuclei
+    gore(s, ((14, 21, 1.6), (19, 18, 1.2)))
+    s.paint(s.m().ell(16, 9, 4.4, 4.6), skin, sh=1.2)
+    s.paint(s.m().ell(16, 10.6, 2.2, 2.0), (70, 26, 28), sh=0, edge=False)  # open jaw
+    s.paint(s.m().ell(14.2, 7.4, 0.8).ell(17.8, 7.4, 0.8), (224, 206, 80), sh=0, edge=False)
+    return s.drop(1.2)
+
+
+def juggernaut():
+    """Welded plate armour all round, a horned ram helmet in front and a red-hot fuel pack on the back (the weak spot, bottom)."""
+    s = Spr(32, 32)
+    plate = P["metal"]
+    s.paint(s.m().ell(16, 17, 11.6, 12.6), dk(P["zskin"], 0.8), sh=2.0)
+    s.paint(s.m().ell(6.4, 15, 4.4, 4.0).ell(25.6, 15, 4.4, 4.0), plate, sh=1.0, light=0.5)  # pauldrons
+    s.paint(s.m().rect(7, 9, 25, 21, 2.2), dk(plate, 1.02), sh=1.2, light=0.7)  # chest plate
+    s.paint(s.m().rect(9, 10.4, 23, 12, 0.3), mix(plate, (255, 255, 255), 0.25), sh=0, edge=False)
+    rivets = s.m()
+    for x, y in ((9.6, 19), (14, 19.6), (18, 19.6), (22.4, 19), (9.6, 11), (22.4, 11)):
+        rivets.ell(x, y, 0.45)
+    s.paint(rivets, mix(plate, (255, 255, 255), 0.5), sh=0, edge=False)
+    s.paint(s.m().poly([(9, 7), (12, 3), (13.4, 7)]).poly([(23, 7), (20, 3), (18.6, 7)]), (206, 200, 184), sh=0.4)  # horns
+    s.paint(s.m().ell(16, 7.4, 4.0, 3.2), dk(plate, 0.88), sh=1.0)  # ram helmet
+    s.paint(s.m().rect(12.8, 7.4, 19.2, 8.4, 0.2), (210, 60, 40), sh=0, edge=False)  # eye slit
+    s.paint(s.m().ell(16, 28, 4.4, 3.0), (60, 50, 48), sh=0.6)  # fuel pack, rear
+    s.paint(s.m().ell(16, 28.4, 2.6, 1.8), (240, 84, 44), sh=0, edge=False)  # the weak spot
+    s.paint(s.m().ell(16, 28.6, 1.1, 0.8), (255, 214, 120), sh=0, edge=False)
+    return s.drop(1.2)
+
+
+def hive():
+    """Fleshy mound seen from above: ring of tendrils, brood pods and a central maw."""
+    s = Spr(48, 48)
+    flesh = P["flesh"]
+    arms = s.m()
+    for k in range(10):
+        a = k * 0.6283 + 0.3
+        x0, y0 = 24 + 12 * math.cos(a), 24 + 12 * math.sin(a)
+        arms.line([(x0, y0), (24 + 18.5 * math.cos(a + 0.18), 24 + 18.5 * math.sin(a + 0.18)),
+                   (24 + 22.5 * math.cos(a - 0.05), 24 + 22.5 * math.sin(a - 0.05))], 2.2)
+    s.paint(arms, dk(P["zskin"], 0.85), sh=0.7)
+    s.paint(s.m().ell(24, 24, 15.5), mix(flesh, P["zskin"], 0.4), sh=2.6, light=1.2)
+    pods = s.m()
+    for x, y, r in ((14, 17, 3.2), (33, 15, 3.6), (12, 29, 3.0), (35, 30, 3.4), (22, 36, 3.2), (26, 11, 2.8)):
+        pods.ell(x, y, r)
+    s.paint(pods, mix(flesh, (226, 214, 150), 0.5), sh=1.0, light=0.5)
+    s.paint(s.m().ell(24, 24, 7.2, 6.4), (70, 26, 28), sh=1.2)  # maw
+    s.paint(s.m().ell(24, 24, 4.4, 3.6), (30, 10, 12), sh=0, edge=False)
+    teeth = s.m()
+    for k in range(8):
+        a = k * 0.7854
+        teeth.poly([(24 + 7 * math.cos(a), 24 + 6.2 * math.sin(a)), (24 + 4.6 * math.cos(a + 0.2), 24 + 4 * math.sin(a + 0.2)),
+                    (24 + 4.6 * math.cos(a - 0.2), 24 + 4 * math.sin(a - 0.2))])
+    s.paint(teeth, (226, 218, 196), sh=0, edge=False)
+    gore(s, ((16, 24, 1.6), (30, 20, 1.3), (21, 32, 1.4)))
+    return s.drop(1.6)
+
+
+def warlord():
+    """Bandit leader facing up: long red coat, wide hat, a heavy gun held forward."""
+    s = Spr(14, 14)
+    s.paint(s.m().line([(8.8, 8.0), (8.8, 1.6)], 1.1), P["metal"], sh=0.2)  # heavy gun
+    s.paint(s.m().line([(8.8, 5.6), (8.8, 4.0)], 1.7), dk(P["metal"], 0.7), sh=0, edge=False)
+    s.paint(s.m().ell(7, 8.6, 4.6, 3.8), BANDIT_RAG, sh=1.0)  # coat
+    s.paint(s.m().ell(7, 11.4, 3.2, 1.8), dk(BANDIT_RAG, 0.7), sh=0, edge=False)  # tails
+    s.paint(s.m().line([(3.6, 8.6), (9.2, 5.6)], 0.9), (214, 178, 70), sh=0, edge=False)  # gold sash
+    s.paint(s.m().ell(6.4, 6.0, 2.0), P["skin"], sh=0.6)
+    s.paint(s.m().ell(6.4, 5.4, 3.6, 2.8), dk(BANDIT_CLOTH, 0.7), sh=0.6)  # wide hat
+    s.paint(s.m().ell(6.4, 5.2, 1.6), BANDIT_CLOTH, sh=0, edge=False)
+    return s.drop(0.5)
+
+
+def bosses_sprites():
+    return {n: f().out() for n, f in (("matriarch", matriarch), ("juggernaut", juggernaut), ("hive", hive), ("warlord", warlord))}
+
+
+SIZES.update({"matriarch": (32, 32), "juggernaut": (32, 32), "hive": (48, 48), "warlord": (14, 14)})
 
 
 if __name__ == "__main__":

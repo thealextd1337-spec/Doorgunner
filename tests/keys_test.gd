@@ -134,8 +134,11 @@ func _run() -> void:
 	_press(KEY_F5)
 	await frame
 	check(codex_ui.visible and _page_has("Help & codex", "F5") and codex_ui.hint.text.contains("F5"), "the new help key opens it and is shown")
+	var kept: Dictionary = Codex.entries # Q12 and Q11 fill the pages: look at an empty one
+	Codex.entries = {}
 	codex_ui.show_page("Enemies")
 	check(_texts(codex_ui.content).has("Nothing to read here yet."), "empty category says so")
+	Codex.entries = kept
 	codex_ui.close()
 	check(not get_tree().paused and not main.ui_open, "closing restores pause and ui_open")
 
