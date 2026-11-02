@@ -126,6 +126,7 @@ func _add_ui_layers() -> void:
 	add_child(choice_ui)
 	add_child(preload("res://scripts/game_over_ui.gd").new())
 	add_child(preload("res://scripts/victory_ui.gd").new())
+	add_child(preload("res://scripts/onboarding.gd").new()) # Q11: chapters, hints, codex unlocks (before settings_ui: it registers a toggle)
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	add_child(preload("res://scripts/perf.gd").new()) # Q1: F3 performance overlay, ?perf=1 console log
 	add_child(preload("res://scripts/touch_ui.gd").new()) # Q5: sticks and buttons while Controls.touch is on
