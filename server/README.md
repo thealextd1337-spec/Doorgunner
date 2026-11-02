@@ -4,6 +4,22 @@ Anonymous sign-in, a player profile (name + portrait), server-scored runs and le
 The game client only needs the project URL and the **anon key** (`scripts/online_config.gd`); both are public.
 All writes go through `security definer` RPCs, all tables have RLS on.
 
+## To run for 1.1.0 (once, in this order)
+
+The project has 001-005 and the word lists. In the **SQL Editor** paste and run each file, one at a time, in this order
+(all are idempotent, so running one twice does no harm):
+
+1. `supabase/006_modifiers.sql`
+2. `supabase/007_balance.sql`
+3. `supabase/008_errors.sql`
+4. `supabase/009_cloud_save.sql`
+5. `supabase/010_daily_season.sql`
+6. Tests: `test_008.sql`, then `test_009.sql`, then `test_010.sql`. Each must end with `ALL TESTS PASSED` (on a `FAIL:`
+   run `rollback;` once). They roll themselves back and leave nothing behind.
+
+If you ever re-run `009_cloud_save.sql` (or `test_009.sql` fails and you re-run 009), run `010_daily_season.sql` again
+right after it: 009 puts back an older trigger that 010 replaces. 1.1.0 itself adds no new SQL.
+
 | File | Content |
 |---|---|
 | `supabase/001_schema.sql` | extensions, tables (`players`, `runs`, `banned_words`, `allowed_words`, `modifiers`), RLS, grants |
