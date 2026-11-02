@@ -134,8 +134,11 @@ func _run() -> void:
 	_press(KEY_F5)
 	await frame
 	check(codex_ui.visible and _page_has("Help & codex", "F5") and codex_ui.hint.text.contains("F5"), "the new help key opens it and is shown")
+	var filled := Codex.entries.duplicate() # Q11 fills the codex: take the entries away to see an empty category
+	Codex.entries.clear()
 	codex_ui.show_page("Enemies")
 	check(_texts(codex_ui.content).has("Nothing to read here yet."), "empty category says so")
+	Codex.entries.merge(filled)
 	codex_ui.close()
 	check(not get_tree().paused and not main.ui_open, "closing restores pause and ui_open")
 

@@ -200,7 +200,7 @@ func scrap_item(id: String) -> int:
 	return refund
 
 const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0, "victories": 0,
-	"tutorial_done": 0, "version": "", "start_helis": "", "codex": ""}
+	"tutorial_done": 0, "version": "", "start_helis": "", "codex": "", "onboarding": ""}
 var meta := META_DEFAULT.duplicate() # the active profile's meta.json; global options live in Settings (settings_registry.gd)
 var profiles := {"list": [], "last": ""}
 # run variables Save stores (stats, slots, seats, max_fuel/max_ammo and weight come from recompute)
