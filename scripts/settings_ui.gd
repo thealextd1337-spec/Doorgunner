@@ -5,6 +5,7 @@ extends CanvasLayer
 var panel: PanelContainer
 var rows := {} # key -> HSlider or CheckButton
 var skip_btn: Button
+var keys_ui: CanvasLayer # key bindings screen (keys_ui.gd)
 var prev_ui_open := false
 
 
@@ -52,16 +53,28 @@ func _ready() -> void:
 		box.add_child(s)
 		rows[key] = s
 	_sync()
+	keys_ui = preload("res://scripts/keys_ui.gd").new()
+	add_child(keys_ui)
 	skip_btn = Button.new()
 	skip_btn.text = "Skip tutorial"
+	skip_btn.tooltip_text = Tooltips.tip("menu_skip")
 	skip_btn.pressed.connect(func():
 		Game.world.tutorial.finish(false)
 		close())
 	box.add_child(skip_btn)
+	var foot := HBoxContainer.new() # resume hint, key bindings and help share one row: the panel has no room for another
+	box.add_child(foot)
 	var hint := Label.new()
 	hint.text = "[ESC] resume"
 	hint.modulate = Color(0.7, 0.7, 0.7)
-	box.add_child(hint)
+	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	foot.add_child(hint)
+	for def in [["Key bindings...", "menu_keys", func(): keys_ui.open()], ["Help & codex", "menu_help", func(): Game.world.codex_ui.open()]]:
+		var b := Button.new()
+		b.text = def[0]
+		b.tooltip_text = Tooltips.tip(def[1])
+		b.pressed.connect(def[2])
+		foot.add_child(b)
 	var ver := Label.new()
 	ver.text = Game.version_text()
 	ver.modulate = Color(0.5, 0.5, 0.5)

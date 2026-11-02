@@ -226,7 +226,7 @@ func _raw_checks(dir: String) -> PackedStringArray:
 	var out: PackedStringArray = []
 	var key := RegEx.create_from_string("\\bKEY_([A-Z0-9]|F\\d+|TAB|ESCAPE|ENTER|KP_\\w+|SPACE|UP|DOWN|LEFT|RIGHT|BACKSPACE|DELETE|SHIFT|CTRL|ALT|META|HOME|END|INSERT|PAGE\\w+)\\b")
 	for f in DirAccess.get_files_at(dir):
-		if not f.ends_with(".gd") or f == "controls.gd":
+		if not f.ends_with(".gd") or f in ["controls.gd", "keymap.gd"]:
 			continue
 		var fn := ""
 		var lines := FileAccess.get_file_as_string(dir + f).split("\n")

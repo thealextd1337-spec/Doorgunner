@@ -7,6 +7,7 @@ var base: Node2D
 var spawner: Node
 var hud: CanvasLayer
 var choice_ui: CanvasLayer
+var codex_ui: CanvasLayer # F1 help and codex
 var night: CanvasModulate
 var radio_target: Node2D # POI currently highlighted on the HUD compass
 var ui_open := false # overlays set this so clicks do not fire the gun
@@ -125,6 +126,8 @@ func _add_ui_layers() -> void:
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	add_child(preload("res://scripts/perf.gd").new()) # Q1: F3 performance overlay, ?perf=1 console log
 	add_child(preload("res://scripts/touch_ui.gd").new()) # Q5: sticks and buttons while Controls.touch is on
+	codex_ui = preload("res://scripts/codex_ui.gd").new() # Q6b: F1 help and codex
+	add_child(codex_ui)
 
 
 func _show_title() -> void:

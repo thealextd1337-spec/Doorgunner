@@ -65,6 +65,15 @@ func load_file() -> void:
 		values[key] = _coerce(key, _file.get(key, defs[key]["default"]))
 
 
+## Free-form data that is neither toggle nor slider (the key bindings, keymap.gd): kept under `key` in settings.json.
+func get_extra(key: String, default: Variant) -> Variant:
+	return _file.get(key, default)
+
+
+func set_extra(key: String, value: Variant) -> void:
+	_file[key] = value
+
+
 func save() -> void:
 	_file.merge(values, true)
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(_file))

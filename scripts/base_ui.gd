@@ -164,6 +164,7 @@ func _ready() -> void:
 	for t in ["BUILD", "WORKERS", "HANGAR", "CONVOY"]:
 		var b := Button.new()
 		b.text = t
+		b.tooltip_text = Tooltips.tip("tab_" + t)
 		b.custom_minimum_size = Vector2(110, 34)
 		b.add_theme_font_override("font", mono)
 		b.add_theme_font_size_override("font_size", 16)
@@ -190,6 +191,7 @@ func _ready() -> void:
 	main_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	toggle_btn = Button.new()
 	toggle_btn.add_theme_font_override("font", mono)
+	toggle_btn.tooltip_text = Tooltips.tip("toggle")
 	toggle_btn.add_theme_font_size_override("font_size", 13)
 	toggle_btn.custom_minimum_size = Vector2(140, 26)
 	toggle_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
@@ -220,7 +222,7 @@ func _ready() -> void:
 		b.custom_minimum_size = Vector2(96, 40)
 		b.add_theme_font_override("font", mono)
 		b.text = "%s%s\n%s" % ["%d " % (i + 1) if i < 9 else "", t[0].to_upper(), "+scrap" if kind == "demolish" else "%d scrap" % t[1]]
-		b.tooltip_text = Buildings2.TIPS.get(kind, BUILD_INFO[kind])
+		b.tooltip_text = Tooltips.building(kind)
 		b.toggled.connect(func(_on: bool):
 			get_parent().place_kind = kind
 			refresh())
@@ -378,7 +380,7 @@ func _workers_tab(main: VBoxContainer) -> void:
 	for j in JOBS:
 		var name := _label(JOBS[j][0], 14)
 		name.custom_minimum_size.x = 58
-		name.tooltip_text = JOBS[j][1]
+		name.tooltip_text = Tooltips.tip("job_" + j)
 		name.mouse_filter = Control.MOUSE_FILTER_STOP
 		grid.add_child(name)
 		var r := []
@@ -388,6 +390,7 @@ func _workers_tab(main: VBoxContainer) -> void:
 		for d in [-1, 1]:
 			var b := Button.new()
 			b.text = "-" if d < 0 else "+"
+			b.tooltip_text = Tooltips.tip("job_minus" if d < 0 else "job_plus")
 			b.custom_minimum_size = Vector2(26, 24)
 			b.pressed.connect(_adjust_worker.bind(j, d))
 			grid.add_child(b)
@@ -402,6 +405,7 @@ func _workers_tab(main: VBoxContainer) -> void:
 	v.add_child(bar)
 	var unassign := Button.new()
 	unassign.text = "Unassign all"
+	unassign.tooltip_text = Tooltips.tip("unassign")
 	unassign.pressed.connect(unassign_all)
 	bar.add_child(unassign)
 	worker_msg = _label("", 13, BAD)
@@ -415,9 +419,9 @@ func _workers_tab(main: VBoxContainer) -> void:
 	var filters := [["All", "all"], ["Idle", "idle"], ["Injured", "injured"], ["Pinned", "pinned"]]
 	filters += JOBS.keys().map(func(j): return ["Job: " + JOBS[j][0], "job:" + j])
 	filters += People.SKILL_JOBS.keys().map(func(k): return ["Skill: " + k.capitalize(), "skill:" + k])
-	ctl.add_child(_picker(filters, func(val: String): people_filter = val; _refresh_people()))
+	ctl.add_child(_picker(filters, func(val: String): people_filter = val; _refresh_people(), Tooltips.tip("pick_filter")))
 	ctl.add_child(_label("SORT", 12, ACCENT, true))
-	ctl.add_child(_picker([["Job", "job"], ["Name", "name"], ["Skill", "skill"], ["Level", "level"]], func(val: String): people_sort = val; _refresh_people()))
+	ctl.add_child(_picker([["Job", "job"], ["Name", "name"], ["Skill", "skill"], ["Level", "level"]], func(val: String): people_sort = val; _refresh_people(), Tooltips.tip("pick_sort")))
 	people_count = _label("", 12, DIM, true)
 	ctl.add_child(people_count)
 	person_info = _label("", 12, SAND, true)
@@ -436,8 +440,9 @@ func _workers_tab(main: VBoxContainer) -> void:
 
 
 ## OptionButton over [text, value] pairs; `on_pick` gets the value.
-func _picker(items: Array, on_pick: Callable) -> OptionButton:
+func _picker(items: Array, on_pick: Callable, tip := "") -> OptionButton:
 	var o := OptionButton.new()
+	o.tooltip_text = tip
 	o.focus_mode = Control.FOCUS_NONE # SPACE takes off
 	o.add_theme_font_size_override("font_size", 12)
 	for i in items.size():
@@ -461,11 +466,14 @@ func _hangar_tab(main: VBoxContainer) -> void:
 	v.add_child(grid)
 	for k in LOADOUT:
 		var name := _label(LOADOUT[k][0], 13)
+		name.tooltip_text = Tooltips.tip("loadout_" + k)
+		name.mouse_filter = Control.MOUSE_FILTER_STOP
 		name.custom_minimum_size.x = 260
 		grid.add_child(name)
 		for d in [-1, 1]:
 			var b := Button.new()
 			b.text = "-" if d < 0 else "+"
+			b.tooltip_text = Tooltips.tip("loadout_minus" if d < 0 else "loadout_plus")
 			b.custom_minimum_size = Vector2(28, 26)
 			b.pressed.connect(_adjust_loadout.bind(k, d))
 			grid.add_child(b)
@@ -537,7 +545,7 @@ func _refresh_wear() -> void:
 		var on: bool = wear.orders.has(c)
 		r[3].text = "working... (cancel)" if on else ("Repair %d parts" % wear.repair_cost(c) if v < 100.0 else "like new")
 		r[3].disabled = v >= 100.0 and not on
-		r[3].tooltip_text = "~%d s with the repair crew; parts: %d" % [wear.repair_seconds(c), Game.salvage["parts"]] if v < 100.0 else ""
+		r[3].tooltip_text = "~%d s with the repair crew; parts: %d" % [wear.repair_seconds(c), Game.salvage["parts"]] if v < 100.0 else Tooltips.tip("wear_done")
 
 
 func show_tab(tab: String) -> void:
@@ -683,7 +691,7 @@ func refresh() -> void:
 				r[1].get_child(i).color = ACCENT if i < lvl else Color(0.2, 0.22, 0.14)
 			r[2].text = "MAX" if lvl >= UPGRADES[id][1] else "Buy %d" % cost(id)
 		r[2].disabled = why != ""
-		r[2].tooltip_text = why
+		r[2].tooltip_text = why if why != "" else Tooltips.tip("buy_" + id)
 	for kind in place_btns:
 		var b: Button = place_btns[kind]
 		var on: bool = base.placing and base.place_kind == kind
@@ -696,7 +704,7 @@ func refresh() -> void:
 		if kind == "demolish":
 			b.text = "%sDEMOLISH  -  %s\n%d orders" % ["> " if on else "", BUILD_INFO[kind], base.demolitions.size()]
 		b.disabled = Game.scrap < t[1] and not on
-		b.tooltip_text = "needs %d scrap, you have %d" % [t[1], Game.scrap] if b.disabled else Buildings2.TIPS.get(kind, "click, then click inside the fence to place")
+		b.tooltip_text = "needs %d scrap, you have %d" % [t[1], Game.scrap] if b.disabled else Tooltips.building(kind)
 		var note: String = Game.world.evac.tool_note(kind)
 		if note == "":
 			note = Buildings2.refusal(kind)
@@ -712,7 +720,7 @@ func refresh() -> void:
 		Game.base_radius / 10.0, (Game.base_radius + Game.PERIMETER_STEP) / 10.0, base.building_cost("perimeter"), plvl, Game.PERIMETER_MAX, "   building..." if busy else ""]
 	perimeter_btn.disabled = plvl >= Game.PERIMETER_MAX or busy or Game.scrap < base.building_cost("perimeter")
 	perimeter_btn.tooltip_text = "maximum level" if plvl >= Game.PERIMETER_MAX else ("the current stage is still being built" if busy \
-		else ("needs %d scrap, you have %d" % [base.building_cost("perimeter"), Game.scrap] if perimeter_btn.disabled else "Build workers put up the next fence ring"))
+		else ("needs %d scrap, you have %d" % [base.building_cost("perimeter"), Game.scrap] if perimeter_btn.disabled else Tooltips.tip("perimeter")))
 	status_panel.visible = not base.placing and not collapsed
 	main_panel.visible = not base.placing and not collapsed
 	build_bar.visible = base.placing and not collapsed
@@ -731,10 +739,10 @@ func refresh() -> void:
 		var r: Array = job_rows[j]
 		r[0].text = str(Game.workers[j])
 		r[1].disabled = Game.workers[j] <= Game.pinned(j)
-		r[1].tooltip_text = "%d pinned here: unpin them first" % Game.pinned(j) if r[1].disabled and Game.pinned(j) > 0 else ""
+		r[1].tooltip_text = "%d pinned here: unpin them first" % Game.pinned(j) if r[1].disabled and Game.pinned(j) > 0 else Tooltips.tip("job_minus")
 		var why := worker_refusal(j, Game.workers[j] + 1)
 		r[2].modulate = Color(1, 1, 1, 0.35) if why != "" else Color.WHITE # greyed but clickable: a click shows why
-		r[2].tooltip_text = why
+		r[2].tooltip_text = why if why != "" else Tooltips.tip("job_plus")
 		var note := ""
 		var bad := false
 		match j:
@@ -795,6 +803,7 @@ func _person_row(p: Dictionary) -> HBoxContainer:
 			l.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			l.clip_text = true
 			l.focus_mode = Control.FOCUS_NONE
+			l.tooltip_text = Tooltips.tip("person")
 			l.pressed.connect(func(): person_sel = p["id"]; _show_person())
 		else:
 			l = Label.new()
@@ -807,12 +816,11 @@ func _person_row(p: Dictionary) -> HBoxContainer:
 		l.custom_minimum_size.x = PERSON_COLS[i]
 		row.add_child(l)
 	if pin != "":
-		row.get_child(0).tooltip_text = "pinned: stays on this job (injured: off duty until healed)"
+		row.get_child(0).tooltip_text = Tooltips.tip("pinned")
 		row.get_child(0).mouse_filter = Control.MOUSE_FILTER_STOP
-	var sel := _picker([["Auto", ""]] + JOBS.keys().map(func(j): return [JOBS[j][0], j]), func(val: String): pin_person(p["id"], val))
+	var sel := _picker([["Auto", ""]] + JOBS.keys().map(func(j): return [JOBS[j][0], j]), func(val: String): pin_person(p["id"], val), Tooltips.tip("pick_pin"))
 	sel.selected = 0 if pin == "" else 1 + JOBS.keys().find(pin)
 	sel.custom_minimum_size = Vector2(PERSON_COLS[6], 22)
-	sel.tooltip_text = "Pin to a job (Auto: assigned by skill)"
 	row.add_child(sel)
 	return row
 
@@ -830,9 +838,9 @@ func _refresh_weapons() -> void:
 	weapon_box.add_child(_rule())
 	weapon_box.add_child(_label("WEAPONS  hardpoints %d/%d  (X switches in flight)" % [Game.heli_weapons.size(), Game.slots["hardpoint"]], 12, ACCENT, true))
 	for id in Game.heli_weapons:
-		_weapon_row("HELI  %s Lv %d%s" % [Weapons.TABLE[id]["name"], Progression.level(id), "  (equipped)" if id == Game.weapon else ""], "Stow", "the heli needs one gun" if Game.heli_weapons.size() < 2 else "", stow.bind(id))
+		_weapon_row("HELI  %s Lv %d%s" % [Weapons.TABLE[id]["name"], Progression.level(id), "  (equipped)" if id == Game.weapon else ""], "Stow", "the heli needs one gun" if Game.heli_weapons.size() < 2 else "", stow.bind(id), "stow", id)
 	for id in Game.weapon_bay:
-		_weapon_row("BAY   %s Lv %d" % [Weapons.TABLE[id]["name"], Progression.level(id)], "Mount", "no free hardpoint" if Game.heli_weapons.size() >= Game.slots["hardpoint"] else "", mount.bind(id))
+		_weapon_row("BAY   %s Lv %d" % [Weapons.TABLE[id]["name"], Progression.level(id)], "Mount", "no free hardpoint" if Game.heli_weapons.size() >= Game.slots["hardpoint"] else "", mount.bind(id), "mount", id)
 	_refresh_items()
 
 
@@ -845,21 +853,23 @@ func _refresh_items() -> void:
 		if Progression.ITEMS[id]["slot"] != "hardpoint":
 			var lv: int = Game.heli_items[id]
 			_weapon_row("%s  %s Lv %d" % [Progression.ITEMS[id]["slot"].substr(0, 3).to_upper(), Progression.ITEMS[id]["name"], lv],
-				"Scrap +%d" % (lv * Progression.CARD_SCRAP / 2), "", func(): Game.scrap_item(id); refresh())
+				"Scrap +%d" % (lv * Progression.CARD_SCRAP / 2), "", func(): Game.scrap_item(id); refresh(), "scrap", id)
 
 
 ## Row with a button; `refusal` != "" disables it and is shown on hover.
-func _weapon_row(text: String, btn: String, refusal: String, cb: Callable) -> void:
+func _weapon_row(text: String, btn: String, refusal: String, cb: Callable, tip_id: String, item_id: String) -> void:
 	var h := HBoxContainer.new()
 	weapon_box.add_child(h)
 	var l := _label(text, 13, SAND, true)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.tooltip_text = Tooltips.item(item_id)
+	l.mouse_filter = Control.MOUSE_FILTER_STOP
 	h.add_child(l)
 	var b := Button.new()
 	b.text = btn
 	b.custom_minimum_size.x = 96
 	b.disabled = refusal != ""
-	b.tooltip_text = refusal
+	b.tooltip_text = refusal if refusal != "" else Tooltips.tip(tip_id)
 	b.pressed.connect(cb)
 	h.add_child(b)
 
