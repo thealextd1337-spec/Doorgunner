@@ -7,6 +7,7 @@ extends RefCounted
 ## Like controls.gd this is input-layer code: the raw-key scan in tests/controls_test.gd skips it.
 
 const MODIFIERS := [KEY_SHIFT, KEY_CTRL, KEY_ALT, KEY_META]
+const REQUIRED := ["menu", "help"] # always keep one binding: without them there is no way back to the key screen
 # [group, [[action, label], ...]]; the menus show them in this order
 const GROUPS := [
 	["Flying", [["move_up", "Fly up"], ["move_down", "Fly down"], ["move_left", "Fly left"], ["move_right", "Fly right"],
@@ -66,20 +67,27 @@ static func is_default(action: String) -> bool:
 	return cur == defaults[action].map(encode)
 
 
-## Replaces the bindings of `action` and stores them (written to disk with the next Settings.save()).
-static func set_bindings(action: String, events: Array) -> void:
+## Replaces the bindings of `action` and saves settings.json at once (closing the window from the key screen keeps them).
+## False (nothing changes) when it would leave a REQUIRED action unbound.
+static func set_bindings(action: String, events: Array) -> bool:
+	if events.is_empty() and action in REQUIRED:
+		return false
 	_apply(action, events)
-	var saved: Dictionary = Settings.get_extra("keys", {}).duplicate()
+	var saved = Settings.get_extra("keys", {})
+	saved = saved.duplicate() if saved is Dictionary else {}
 	if is_default(action):
 		saved.erase(action)
 	else:
 		saved[action] = events.map(encode)
 	Settings.set_extra("keys", saved)
+	Settings.save()
 	Input.action_release(action)
+	return true
 
 
 static func reset() -> void:
 	Settings.set_extra("keys", {})
+	Settings.save()
 	apply_saved()
 
 
@@ -155,6 +163,11 @@ static func event_text(e: InputEvent) -> String:
 static func text(action: String) -> String:
 	var evs := events_of(action)
 	return " / ".join(evs.map(event_text)) if not evs.is_empty() else "-"
+
+
+## "[K]": the current keys of `action` for the live key hints (HUD hint line, outposts, base menu toggle).
+static func tag(action: String) -> String:
+	return "[%s]" % text(action)
 
 
 ## Labels of the other actions that share a key with `action` although the defaults do not share it (R is restart, rotate and reroll

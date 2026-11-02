@@ -139,6 +139,20 @@ func _run() -> void:
 	codex_ui.close()
 	check(not get_tree().paused and not main.ui_open, "closing restores pause and ui_open")
 
+	# --- the live key hints follow a rebinding: HUD hint line, outpost / protect hints, base menu toggle
+	check(_rebind("land", 0, _key(KEY_U)) and _rebind("outpost", 0, _key(KEY_Y)) and _rebind("base_menu", 0, _key(KEY_KP_5)), "rebind land, outpost, base menu")
+	main.outposts._ctx = {"o": "found an outpost", "p": true}
+	check(main.outposts.hint().contains("[Y] found an outpost") and main.outposts.hint().contains("[P] protect"), "outpost hints show the keys: " + main.outposts.hint())
+	Game.heli.landed = true
+	await frame
+	check(main.hud.hint.text.begins_with("[U] take off") or main.hud.hint.text == "spooling...", "HUD hint shows the new land key: " + main.hud.hint.text)
+	Game.heli.landed = false
+	await frame
+	check(main.hud.hint.text.begins_with("[U] land") and main.hud.hint.text.contains("[Mouse left] fire"), "...in flight too: " + main.hud.hint.text)
+	main.outposts._ctx = {}
+	main.base.ui.refresh()
+	check(main.base.ui.toggle_btn.text.ends_with("[Kp 5]"), "base menu toggle shows the new key: " + main.base.ui.toggle_btn.text)
+
 	# --- reset to defaults
 	keys_ui.reset_all()
 	check(InputMap.event_is_action(_key(KEY_B), "found") and not InputMap.event_is_action(_key(KEY_K), "found"), "reset: B founds again")
@@ -153,9 +167,27 @@ func _run() -> void:
 	keys_ui.begin("found", 0)
 	_press(KEY_V)
 	check(keys_ui.capturing == "" and InputMap.event_is_action(_key(KEY_V), "found"), "a pressed key binds")
+	keys_ui.begin("found", 0)
+	_press(KEY_F1)
+	check(keys_ui.capturing == "" and InputMap.event_is_action(_key(KEY_F1), "found") and not codex_ui.visible, "F1 while capturing binds, the codex stays shut")
+	_press(KEY_F1)
+	check(not codex_ui.visible, "no codex under the open key screen")
 	_press(KEY_ESCAPE)
 	check(not keys_ui.visible, "ESC closes the key screen")
 	keys_ui.reset_all()
+
+	# --- robustness: ESC menu and help keep one key, junk under "keys", every change is on disk at once
+	check(not keys_ui.remove("menu", 0) and not KeyMap.events_of("menu").is_empty(), "the last ESC menu key cannot be removed")
+	check(not keys_ui.remove("help", 0) and InputMap.event_is_action(_key(KEY_F1), "help"), "the last help key cannot be removed")
+	check(keys_ui.status.text.contains("needs at least one key"), "...and the screen says why")
+	check(_rebind("help", -1, _key(KEY_F2)) and keys_ui.remove("help", 0) and KeyMap.text("help") == "F2", "with a second key the first can go")
+	Settings.set_extra("keys", "junk")
+	check(_rebind("found", 0, _key(KEY_K)) and Settings.get_extra("keys", {}).get("found") == ["p%d" % KEY_K], "a non-dictionary \"keys\" is replaced, not a crash")
+	file = JSON.parse_string(FileAccess.get_file_as_string(Settings.path))
+	check(file is Dictionary and file.get("keys", {}).get("found") == ["p%d" % KEY_K], "a rebind is saved without Settings.save()")
+	keys_ui.reset_all()
+	file = JSON.parse_string(FileAccess.get_file_as_string(Settings.path))
+	check(file is Dictionary and file.get("keys") == {}, "reset is saved at once")
 
 	# --- codex: register, unlock, persists per profile
 	if not Codex.entries.has("t_walker"):

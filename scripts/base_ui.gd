@@ -112,6 +112,7 @@ func _ready() -> void:
 	head.flat = true
 	head.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	head.focus_mode = Control.FOCUS_NONE # SPACE takes off
+	head.tooltip_text = Tooltips.tip("status_fold")
 	head.add_theme_font_override("font", mono)
 	head.add_theme_font_size_override("font_size", UiTheme.FONT_S)
 	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
@@ -724,7 +725,7 @@ func refresh() -> void:
 	status_panel.visible = not base.placing and not collapsed
 	main_panel.visible = not base.placing and not collapsed
 	build_bar.visible = base.placing and not collapsed
-	toggle_btn.text = "BASE MENU [TAB]" if collapsed else "HIDE MENU [TAB]"
+	toggle_btn.text = ("BASE MENU " if collapsed else "HIDE MENU ") + KeyMap.tag("base_menu")
 	_layout()
 	# HANGAR
 	loadout_info.text = "weight %d/%d pts (over 8: -4 %% speed each)  speed x%.2f\nseats %d  fuel %d  ammo %d  armour x%.2f" % [

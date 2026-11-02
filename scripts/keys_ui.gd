@@ -8,29 +8,35 @@ var list: VBoxContainer
 var status: Label
 var capturing := "" # action waiting for a key press
 var capture_index := -1 # binding being replaced, -1: add a new one
+var root: Control # UiTheme root
+var panel: PanelContainer
 
 
 func _ready() -> void:
 	layer = 46 # over the ESC menu (25), under nothing that matters while it is open
 	process_mode = PROCESS_MODE_ALWAYS
 	visible = false
+	add_to_group("keys_ui") # codex_ui.gd keeps F1 away while this is open
+	root = UiTheme.attach(self)
+	root.theme = UiTheme.theme()
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.color = Color(0, 0, 0, 0.8)
-	add_child(dim)
+	root.add_child(dim)
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right"]:
 		margin.add_theme_constant_override("margin_" + side, 160)
 	for side in ["top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 40)
-	add_child(margin)
-	var panel := PanelContainer.new()
+	root.add_child(margin)
+	root.fit = margin # the scale stops where the widest row still fits (rows scroll vertically)
+	panel = PanelContainer.new()
 	var sb := StyleBoxFlat.new() # opaque, like the base menu panels
 	sb.bg_color = UiTheme.PANEL
 	sb.border_width_top = 6
 	sb.border_color = UiTheme.ACCENT
-	sb.set_content_margin_all(16)
+	sb.set_content_margin_all(UiTheme.PAD)
 	panel.add_theme_stylebox_override("panel", sb)
 	margin.add_child(panel)
 	var outer := VBoxContainer.new()
@@ -39,7 +45,7 @@ func _ready() -> void:
 	outer.add_child(head)
 	var title := Label.new()
 	title.text = "KEY BINDINGS"
-	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_font_size_override("font_size", UiTheme.FONT_XL)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	var reset := Button.new()
@@ -128,11 +134,15 @@ func bind(raw: InputEvent) -> bool:
 	return true
 
 
-func remove(action: String, index: int) -> void:
+## False when `index` is the last binding of a KeyMap.REQUIRED action (ESC menu, help): those keep one.
+func remove(action: String, index: int) -> bool:
 	var evs := KeyMap.events_of(action)
 	evs.remove_at(index)
-	KeyMap.set_bindings(action, evs)
+	var ok := KeyMap.set_bindings(action, evs)
 	_refresh()
+	if not ok:
+		status.text = "\"%s\" needs at least one key." % KeyMap.label_of(action)
+	return ok
 
 
 func _input(event: InputEvent) -> void:

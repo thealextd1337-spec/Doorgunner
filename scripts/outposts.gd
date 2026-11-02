@@ -564,7 +564,7 @@ func _scan() -> Dictionary:
 
 ## Extra hint text for the landed HUD line.
 func hint() -> String:
-	return ("   [O] " + _ctx["o"] if _ctx.get("o", "") != "" else "") + ("   [P] protect this settlement" if _ctx.get("p", false) else "")
+	return ("   %s %s" % [KeyMap.tag("outpost"), _ctx["o"]] if _ctx.get("o", "") != "" else "") + ("   %s protect this settlement" % KeyMap.tag("protect") if _ctx.get("p", false) else "")
 
 
 func status() -> String:

@@ -15,29 +15,34 @@ var page_btns := {} # page name -> Button
 var prev_ui_open := false
 var was_paused := false
 var hint: Label
+var root: Control # UiTheme root
+var panel: PanelContainer
 
 
 func _ready() -> void:
 	layer = 45 # over the title (40) and the touch layer (31)
 	process_mode = PROCESS_MODE_ALWAYS
 	visible = false
+	root = UiTheme.attach(self)
+	root.theme = UiTheme.theme()
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.color = Color(0, 0, 0, 0.7)
-	add_child(dim)
+	root.add_child(dim)
 	var margin := MarginContainer.new()
 	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right"]:
 		margin.add_theme_constant_override("margin_" + side, 140)
 	for side in ["top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 50)
-	add_child(margin)
-	var panel := PanelContainer.new()
+	root.add_child(margin)
+	root.fit = margin # the scale stops where the widest row still fits (rows scroll vertically)
+	panel = PanelContainer.new()
 	var sb := StyleBoxFlat.new() # opaque, like the base menu panels
 	sb.bg_color = UiTheme.PANEL
 	sb.border_width_top = 6
 	sb.border_color = UiTheme.ACCENT
-	sb.set_content_margin_all(16)
+	sb.set_content_margin_all(UiTheme.PAD)
 	panel.add_theme_stylebox_override("panel", sb)
 	margin.add_child(panel)
 	var outer := VBoxContainer.new()
@@ -46,7 +51,7 @@ func _ready() -> void:
 	outer.add_child(head)
 	var title := Label.new()
 	title.text = "HELP & CODEX"
-	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_font_size_override("font_size", UiTheme.FONT_XL)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	var close_btn := Button.new()
@@ -91,10 +96,10 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## No help while a level-up card choice waits.
+## No help while a level-up card choice waits or the key screen is open (it may be capturing F1 as a new binding).
 func _blocked() -> bool:
 	var w := Game.world
-	return w != null and is_instance_valid(w.choice_ui) and w.choice_ui.visible
+	return w != null and is_instance_valid(w.choice_ui) and w.choice_ui.visible 		or get_tree().get_nodes_in_group("keys_ui").any(func(k): return k.visible)
 
 
 func open() -> void:
@@ -167,7 +172,7 @@ func _heading(text: String) -> void:
 	var l := Label.new()
 	l.text = text.to_upper()
 	l.add_theme_color_override("font_color", UiTheme.ACCENT)
-	l.add_theme_font_size_override("font_size", 16)
+	l.add_theme_font_size_override("font_size", UiTheme.FONT_L)
 	content.add_child(l)
 
 

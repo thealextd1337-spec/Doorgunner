@@ -157,7 +157,7 @@ WEAPON %s  (%d m)
 " % [ # rescued / kills: title screen service record only
 		Game.day, h, m, "NIGHT" if Game.is_night() else "",
 		Game.scrap, Game.passengers, Game.seats, carried, Game.heli.weapon_range() / 10.0]
-	info.text += "NO BASE: land on open ground and press B" if not Game.base_founded else "BASE HP %d/%d   NOISE %d%%
+	info.text += "NO BASE: land on open ground and press " + KeyMap.text("found") if not Game.base_founded else "BASE HP %d/%d   NOISE %d%%
 STOCK %d fuel  %d ammo  %d food
 WATER %d  MED %d  RIFLES %d
 SALVAGE %d/%d/%d   INJURED %d
@@ -175,7 +175,8 @@ ABOARD " + ", ".join(Game.people.filter(func(p): return p["aboard"]).map(preload
 	fold_btn.custom_minimum_size.y = UiTheme.TOUCH_MIN if Controls.touch else 0.0
 	hint.visible = not Controls.touch # key hints mean nothing on touch; the touch layer shows context buttons there
 	if Game.heli:
-		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" + ("   [B] found the base here" if Game.heli.can_found() else "") + Game.world.outposts.hint() if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q][E] turn   [X] weapon   [ESC] sound" + ("   [F] loudspeaker" if Game.heli_items.has("loudspeaker") else "") + ("   [G] hook the wreck" if Game.world.wrecks.wreck_below(Game.heli.position) != "" else "")
+		var k := KeyMap.tag # the hints follow a rebinding (keymap.gd)
+		hint.text = "spooling..." if Game.heli.pending != 0 else k.call("land") + " take off" + ("   %s found the base here" % k.call("found") if Game.heli.can_found() else "") + Game.world.outposts.hint() if Game.heli.landed 			else "%s land   %s fire   %s%s turn   %s weapon   %s sound" % [k.call("land"), k.call("fire"), k.call("yaw_left"), k.call("yaw_right"), k.call("weapon_swap"), k.call("menu")] 			+ ("   %s loudspeaker" % k.call("system") if Game.heli_items.has("loudspeaker") else "") + ("   %s hook the wreck" % k.call("hook") if Game.world.wrecks.wreck_below(Game.heli.position) != "" else "")
 	alert.text = Assault.alert_text() if fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0 else ""
 	if Game.fuel < Game.max_fuel * 0.2 and alert.text == "":
 		alert.text = "LOW FUEL"

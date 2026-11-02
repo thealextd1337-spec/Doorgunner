@@ -14,6 +14,7 @@ const TIPS := {
 	"tab_HANGAR": "Loadout, guns, fitted items and the state of the heli.",
 	"tab_CONVOY": "Trucks from the motor pool run supplies and rescues for you.",
 	"toggle": "Fold the menu away to use the door gun from the pad. Same key opens it again.",
+	"status_fold": "Fold the status panel to its header (it folds by itself when the menu needs the room).",
 	# --- base menu: upgrades
 	"buy_turrets": "Another auto turret on the fence ring. Shoots whatever gets close.",
 	"buy_fuel": "A bigger fuel depot, and a bigger tank in the heli.",
