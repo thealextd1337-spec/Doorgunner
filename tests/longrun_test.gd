@@ -253,9 +253,13 @@ func _bot(delta: float) -> void:
 							heli._toggle_landing()
 							state = "landing_home" if state == "home" else "landing"
 							t_state = 0.0
+						elif target.get("retried", false): # no landable cell around it (water, rock, a roof): skip it for good
+							visited[target["poi"].get_instance_id() if target["poi"] != null else target["site"]] = true
+							_next_or_home()
 						else: # an errand's site was not loaded when it was picked: look around it once, then around the heli
 							target["pos"] = _landing_spot(target.get("around", heli.position), target.get("reach", 48.0))
 							target.erase("around")
+							target["retried"] = true
 				else:
 					visited[target["site"]] = true
 					_next_or_home()
