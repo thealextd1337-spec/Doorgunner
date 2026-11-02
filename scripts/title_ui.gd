@@ -1,15 +1,21 @@
 extends CanvasLayer
 ## Title screen over the live world. ENTER / SPACE / START button emits start_pressed once and hides.
-## HANGAR button / H swaps the decorative heli for the list of all heli items and their meta unlocks.
+## HANGAR button / H swaps the decorative heli for the list of all heli items and their meta unlocks (scrolls).
+## Laid out for the whole canvas: its UiTheme root shrinks to 90 % but never grows past 100 %; the right-hand side
+## (heli, hangar, run setup, version) is anchored to the right edge.
 
 signal start_pressed
 
-const SAND := Color(0.91, 0.86, 0.71)
-const ACCENT := Color(0.96, 0.77, 0.18) # warning yellow
-const PANEL := Color(0.06, 0.08, 0.04, 0.86)
-const OLIVE := Color(0.33, 0.37, 0.2)
+const SAND := UiTheme.SAND
+const ACCENT := UiTheme.ACCENT # warning yellow
+const PANEL := Color(UiTheme.PANEL, 0.86) # the live world shows through
+const OLIVE := UiTheme.OLIVE
+const RIGHT_X := 484.0 # px from the right edge to the hangar / setup panels' left side
+const RIGHT_W := 448.0
 
-var mono := SystemFont.new()
+var mono := UiTheme.mono()
+var root: UiTheme.Root
+var right: Control # anchored to the top-right corner: decorative heli and callsign
 var stats: Label
 var hint: Label
 var rotor: Sprite2D
@@ -45,32 +51,39 @@ func _ready() -> void:
 	layer = 40
 	process_mode = PROCESS_MODE_ALWAYS
 	visible = false
-	mono.font_names = PackedStringArray(["Consolas", "DejaVu Sans Mono", "monospace"])
+	root = UiTheme.attach(self, null, 1.0)
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.color = Color(0.02, 0.03, 0.01, 0.68)
-	add_child(dim)
+	root.add_child(dim)
+	right = Control.new()
+	right.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(right)
 	# big decorative heli on the right, over the real base
 	var heli := Node2D.new()
 	deco = heli
-	heli.position = Vector2(990, 330)
+	heli.position = Vector2(990 - 1280, 330)
 	heli.scale = Vector2(6, 6)
 	heli.rotation = 0.35
-	add_child(heli)
+	right.add_child(heli)
 	var body := Art.sprite("heli")
 	heli.add_child(body)
 	rotor = Art.sprite("rotor")
 	rotor.scale *= 1.5
 	heli.add_child(rotor)
 	var call := _label("CALLSIGN  DG-1  //  ON THE PAD", 14, OLIVE.lightened(0.4), mono)
-	call.position = Vector2(875, 540)
+	call.position = Vector2(875 - 1280, 540)
 	deco_call = call
-	add_child(call)
+	right.add_child(call)
 	var ver := _label(Game.version_text(), 12, OLIVE.lightened(0.3), mono)
-	ver.position = Vector2(970, 694) # bottom-right corner of the 1280x720 canvas
-	ver.size = Vector2(300, 18)
+	ver.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	ver.offset_left = -310
+	ver.offset_top = -26
+	ver.offset_right = -UiTheme.MARGIN
+	ver.offset_bottom = -UiTheme.MARGIN + 2
 	ver.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	add_child(ver)
+	root.add_child(ver)
 
 	var panel := PanelContainer.new()
 	panel.position = Vector2(80, 90)
@@ -81,7 +94,7 @@ func _ready() -> void:
 	sb.border_color = ACCENT
 	sb.set_content_margin_all(32)
 	panel.add_theme_stylebox_override("panel", sb)
-	add_child(panel)
+	root.add_child(panel)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
 	panel.add_child(v)
@@ -162,7 +175,7 @@ func _ready() -> void:
 	badge.add_theme_constant_override("icon_max_width", 48)
 	badge.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	badge.pressed.connect(_open_profiles)
-	add_child(badge)
+	root.add_child(badge)
 	profile_ui = ProfileUi.new()
 	profile_ui.changed.connect(open)
 	add_child(profile_ui)
@@ -187,8 +200,12 @@ func _ready() -> void:
 
 
 func _build_hangar() -> void:
-	hangar = PanelContainer.new()
-	hangar.position = Vector2(796, 96)
+	hangar = PanelContainer.new() # top right down to the version line; the list scrolls
+	hangar.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	hangar.offset_left = -RIGHT_X
+	hangar.offset_right = -RIGHT_X + RIGHT_W
+	hangar.offset_top = 96
+	hangar.offset_bottom = -36
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = PANEL
 	sb.border_width_top = 8
@@ -196,28 +213,37 @@ func _build_hangar() -> void:
 	sb.set_content_margin_all(20)
 	hangar.add_theme_stylebox_override("panel", sb)
 	hangar.visible = false
-	add_child(hangar)
+	root.add_child(hangar)
 	var v := VBoxContainer.new()
 	hangar.add_child(v)
 	v.add_child(_label("// HANGAR  -  PARTS ON RECORD", 13, ACCENT, mono))
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(scroll)
 	hangar_grid = GridContainer.new()
 	hangar_grid.columns = 3
 	hangar_grid.add_theme_constant_override("h_separation", 14)
-	v.add_child(hangar_grid)
+	scroll.add_child(hangar_grid)
 
 
 ## NEW RUN panel bottom right: start heli (cycles the unlocked types) and the run modifiers (locked ones say how to unlock).
 func _build_setup() -> void:
-	setup = PanelContainer.new()
-	setup.position = Vector2(796, 500)
-	setup.custom_minimum_size = Vector2(440, 0)
+	setup = PanelContainer.new() # bottom right, grows up
+	setup.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	setup.offset_left = -RIGHT_X
+	setup.offset_right = -RIGHT_X + RIGHT_W
+	setup.offset_top = -36
+	setup.offset_bottom = -36
+	setup.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	setup.custom_minimum_size = Vector2(RIGHT_W, 0)
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = PANEL
 	sb.border_width_top = 4
 	sb.border_color = ACCENT
-	sb.set_content_margin_all(14)
+	sb.set_content_margin_all(UiTheme.PAD)
 	setup.add_theme_stylebox_override("panel", sb)
-	add_child(setup)
+	root.add_child(setup)
 	var v := VBoxContainer.new()
 	setup.add_child(v)
 	setup_title = _label("", 13, ACCENT, mono)

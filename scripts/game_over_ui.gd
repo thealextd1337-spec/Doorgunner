@@ -13,7 +13,8 @@ func _ready() -> void:
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.color = Color(0, 0, 0, 0.75)
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(dim)
+	var root := UiTheme.attach(self)
+	root.add_child(dim)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -21,6 +22,7 @@ func _ready() -> void:
 	var panel := PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center.add_child(panel)
+	root.fit = panel
 	var margin := MarginContainer.new()
 	for side in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
 		margin.add_theme_constant_override(side, 24)

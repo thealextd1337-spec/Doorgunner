@@ -19,6 +19,7 @@ func _init() -> void:
 	register_slider("vol_music", "Music & ambience", 0, 100, 1, 70)
 	register_toggle("muted", "Mute all  (M)", true) # sound off by default for now; M or ESC menu turns it on
 	register_toggle("shake", "Screen shake (heavy guns)", true)
+	register_slider(UiTheme.SCALE_KEY, "UI scale  (90-150 %)", UiTheme.SCALE_MIN, UiTheme.SCALE_MAX, UiTheme.SCALE_STEP, UiTheme.SCALE_DEFAULT) # Q6a
 
 
 func register_toggle(key: String, label: String, default: bool) -> void:

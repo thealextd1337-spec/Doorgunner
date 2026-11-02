@@ -1,8 +1,16 @@
 extends CanvasLayer
 ## In-flight HUD: resource bars, clock, radio log, compass arrows to base and radio target.
+## Zones (Q6a, logical px under the UiTheme root): top left status (bars, slots, foldable info block), top right minimap,
+## top centre alert line, bottom left radio log, bottom row key hints. Each frame _fit() gives the info block and the log
+## only the lines that fit between the other zones and what other layers put on screen (touch pads, base menu panels):
+## priority bars > alert > hints > info > log.
 
+var root: UiTheme.Root
+var status_zone: VBoxContainer
 var bars := {}
 var info: Label
+var fold_btn: Button
+var info_folded := false # [-] on the status block: only the first INFO_MIN_LINES lines
 var slots_label: Label # fitted items per slot type, under the bars
 var log_label: Label
 var hint: Label
@@ -13,6 +21,14 @@ var log_lines: Array[String] = []
 var _map_at := Vector2.INF # heli position at the last minimap redraw
 var _map_ms := 0
 
+const STATUS_W := 300.0 # top-left zone width
+const BAR_W := 200.0
+const LOG_W := 620.0
+const LOG_LINES := 5
+const LOG_MIN_LINES := 2 # the info block leaves this much log room above the hints
+const LOG_MIN_W := 160.0 # an obstacle starting further right than this from the log's left edge narrows the log instead of pushing it up
+const INFO_MIN_LINES := 2 # folded or squeezed info block: day, clock, scrap, passengers
+const ALERT_MIN_W := 120.0 # narrower than this between other panels: the alert line hides
 const MAP_SIZE := 200.0
 const MAP_SCALE := 16.0 # world px per minimap px
 const MAP_SEEN := 480.0 # POIs this close to the heli become known
@@ -39,32 +55,45 @@ const POI_COLORS := {
 
 func _ready() -> void:
 	layer = 5
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(root)
-	var y := 10
-	for id in ["hp", "fuel", "ammo", "xp"]:
-		bars[id] = _make_bar(root, Vector2(10, y))
-		y += 22
-	slots_label = _label(root, Vector2(10, y), 860)
-	slots_label.add_theme_font_size_override("font_size", 13)
-	# logical canvas is fixed at 1280x720 (stretch mode canvas_items)
-	info = _label(root, Vector2(620, 10), 650, HORIZONTAL_ALIGNMENT_RIGHT)
-	log_label = _label(root, Vector2(10, 575), 620) # five lines end above the hint row (y 690)
-	log_label.modulate = Color(0.8, 1, 0.8)
-	hint = _label(root, Vector2(390, 690), 500, HORIZONTAL_ALIGNMENT_CENTER)
-	alert = _label(root, Vector2(390, 60), 500, HORIZONTAL_ALIGNMENT_CENTER)
-	alert.add_theme_font_size_override("font_size", 26)
-	alert.modulate = Color(1, 0.3, 0.3)
-	compass = Control.new()
+	process_mode = PROCESS_MODE_ALWAYS # keeps fitting under a paused ESC menu (the UI scale changes there) or level-up card
+	compass = Control.new() # world-attached arrows and door arcs: unscaled, straight on the layer
 	compass.set_anchors_preset(Control.PRESET_FULL_RECT)
 	compass.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	compass.draw.connect(_draw_compass)
-	root.add_child(compass)
+	add_child(compass)
+	root = UiTheme.attach(self)
+	status_zone = VBoxContainer.new()
+	status_zone.position = Vector2(UiTheme.MARGIN, UiTheme.MARGIN)
+	status_zone.custom_minimum_size.x = STATUS_W
+	status_zone.add_theme_constant_override("separation", UiTheme.GAP)
+	status_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(status_zone)
+	for id in ["hp", "fuel", "ammo", "xp"]:
+		bars[id] = _make_bar(status_zone)
+	slots_label = _label(status_zone)
+	slots_label.add_theme_font_size_override("font_size", UiTheme.FONT)
+	fold_btn = Button.new()
+	fold_btn.flat = true
+	fold_btn.focus_mode = Control.FOCUS_NONE
+	fold_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	fold_btn.add_theme_font_size_override("font_size", UiTheme.FONT_S)
+	fold_btn.add_theme_color_override("font_color", UiTheme.ACCENT)
+	UiTheme.outline(fold_btn)
+	fold_btn.pressed.connect(func(): info_folded = not info_folded)
+	status_zone.add_child(fold_btn)
+	info = _label(status_zone)
+	log_label = _label(root)
+	log_label.modulate = UiTheme.RADIO
+	hint = _label(root, HORIZONTAL_ALIGNMENT_CENTER)
+	alert = _label(root, HORIZONTAL_ALIGNMENT_CENTER)
+	alert.add_theme_font_size_override("font_size", UiTheme.FONT_ALERT)
+	alert.modulate = UiTheme.ALERT
 	minimap = Control.new()
-	minimap.position = Vector2(1280 - MAP_SIZE - 10, 720 - MAP_SIZE - 10)
-	minimap.size = Vector2(MAP_SIZE, MAP_SIZE)
+	minimap.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	minimap.offset_left = -UiTheme.MARGIN - MAP_SIZE
+	minimap.offset_right = -UiTheme.MARGIN
+	minimap.offset_top = UiTheme.MARGIN
+	minimap.offset_bottom = UiTheme.MARGIN + MAP_SIZE
 	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	minimap.clip_contents = true
 	minimap.draw.connect(_draw_minimap)
@@ -72,35 +101,33 @@ func _ready() -> void:
 	Game.radio_message.connect(_on_radio)
 
 
-func _make_bar(parent: Control, pos: Vector2) -> Dictionary:
+func _make_bar(parent: Control) -> Dictionary:
 	var bg := ColorRect.new()
-	bg.position = pos
-	bg.size = Vector2(200, 16)
+	bg.custom_minimum_size = Vector2(BAR_W, 16)
+	bg.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	bg.color = Color(0, 0, 0, 0.55)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(bg)
 	var fill := ColorRect.new()
 	fill.position = Vector2(2, 2)
-	fill.size = Vector2(196, 12)
+	fill.size = Vector2(BAR_W - 4, 12)
 	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bg.add_child(fill)
 	var lbl := Label.new()
 	lbl.position = Vector2(6, -2)
-	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.add_theme_color_override("font_outline_color", Color.BLACK)
-	lbl.add_theme_constant_override("outline_size", 3)
+	lbl.add_theme_font_size_override("font_size", UiTheme.FONT)
+	UiTheme.outline(lbl)
 	bg.add_child(lbl)
 	return {"fill": fill, "label": lbl}
 
 
-func _label(parent: Control, pos: Vector2, width: float, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+## Outlined, word-wrapping HUD text; _fit() sets its rect.
+func _label(parent: Control, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var l := Label.new()
-	l.position = pos
-	l.size = Vector2(width, 100)
 	l.horizontal_alignment = align
-	l.add_theme_font_size_override("font_size", 14)
-	l.add_theme_color_override("font_outline_color", Color.BLACK)
-	l.add_theme_constant_override("outline_size", 3)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.add_theme_font_size_override("font_size", UiTheme.FONT_M)
+	UiTheme.outline(l)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(l)
 	return l
@@ -108,7 +135,7 @@ func _label(parent: Control, pos: Vector2, width: float, align := HORIZONTAL_ALI
 
 func _set_bar(id: String, value: float, maxv: float, text: String, color: Color) -> void:
 	var b: Dictionary = bars[id]
-	b["fill"].size.x = 196.0 * clampf(value / maxv, 0.0, 1.0)
+	b["fill"].size.x = (BAR_W - 4.0) * clampf(value / maxv, 0.0, 1.0)
 	b["fill"].color = color
 	b["label"].text = text
 
@@ -123,19 +150,29 @@ func _process(_delta: float) -> void:
 	var next_attack := Game.days_to_assault()
 	var table: Dictionary = preload("res://scripts/weapons.gd").TABLE
 	var carried := " / ".join(Game.heli_weapons.map(func(id): return table[id]["name"].to_upper() if id == Game.weapon else table[id]["name"]))
-	info.text = "DAY %d  %02d:%02d %s\nSCRAP %d\nPASSENGERS %d/%d\nWEAPON %s  (%d m)\n" % [ # rescued / kills: title screen service record only
+	info.text = "DAY %d  %02d:%02d %s
+SCRAP %d   PASSENGERS %d/%d
+WEAPON %s  (%d m)
+" % [ # rescued / kills: title screen service record only
 		Game.day, h, m, "NIGHT" if Game.is_night() else "",
 		Game.scrap, Game.passengers, Game.seats, carried, Game.heli.weapon_range() / 10.0]
-	info.text += "NO BASE: land on open ground and press B" if not Game.base_founded else "BASE HP %d/%d   STOCK %d fuel  %d ammo  %d food  SALVAGE %d/%d/%d\nWATER %d  MED %d  RIFLES %d  INJURED %d\nPOWER %s (gen fuel %d/day)\nNOISE %d%%\nNext assault: %s" % [
-		Game.base_hp, Game.max_base_hp, Game.base_fuel, Game.base_ammo, Game.base_food, Game.salvage["metal"], Game.salvage["parts"], Game.salvage["electronics"],
-		Game.base_water, Game.base_medicine, Game.base_rifles, Game.injured, "on" if Game.power else "off", Game.built("generator") * Game.GEN_FUEL, Game.noise_level * 100.0,
+	info.text += "NO BASE: land on open ground and press B" if not Game.base_founded else "BASE HP %d/%d   NOISE %d%%
+STOCK %d fuel  %d ammo  %d food
+WATER %d  MED %d  RIFLES %d
+SALVAGE %d/%d/%d   INJURED %d
+POWER %s (gen fuel %d/day)
+Next assault: %s" % [
+		Game.base_hp, Game.max_base_hp, Game.noise_level * 100.0, Game.base_fuel, Game.base_ammo, Game.base_food, Game.base_water, Game.base_medicine, Game.base_rifles,
+		Game.salvage["metal"], Game.salvage["parts"], Game.salvage["electronics"], Game.injured, "on" if Game.power else "off", Game.built("generator") * Game.GEN_FUEL,
 		"TONIGHT" if Game.attack_pending or Game.attack_active else "in %d day(s)" % (next_attack if next_attack > 0 else Game.ATTACK_EVERY_DAYS)]
 	info.text += Game.world.outposts.status() + Game.world.convoys.status() + Game.world.evac.status()
 	if Game.passengers >= Game.seats and Game.passengers > 0: # full cabin: who is aboard
-		info.text += "\nABOARD " + ", ".join(Game.people.filter(func(p): return p["aboard"]).map(preload("res://scripts/people.gd").short))
-	info.visible = not Game.world.ui_open # base menu shows the same numbers
+		info.text += "
+ABOARD " + ", ".join(Game.people.filter(func(p): return p["aboard"]).map(preload("res://scripts/people.gd").short))
 	slots_label.text = Progression.slot_line() + "     " + Game.world.wear.status_line()
-	slots_label.visible = not Game.world.ui_open # would show through between the base menu panels
+	fold_btn.text = ("[+] " if info_folded else "[-] ") + "STATUS"
+	fold_btn.custom_minimum_size.y = UiTheme.TOUCH_MIN if Controls.touch else 0.0
+	hint.visible = not Controls.touch # key hints mean nothing on touch; the touch layer shows context buttons there
 	if Game.heli:
 		hint.text = "spooling..." if Game.heli.pending != 0 else "[SPACE] take off" + ("   [B] found the base here" if Game.heli.can_found() else "") + Game.world.outposts.hint() if Game.heli.landed else "[SPACE] land   [LMB] fire   [Q][E] turn   [X] weapon   [ESC] sound" + ("   [F] loudspeaker" if Game.heli_items.has("loudspeaker") else "") + ("   [G] hook the wreck" if Game.world.wrecks.wreck_below(Game.heli.position) != "" else "")
 	alert.text = Assault.alert_text() if fmod(Time.get_ticks_msec() / 400.0, 2.0) < 1.0 else ""
@@ -149,11 +186,126 @@ func _process(_delta: float) -> void:
 	var wear_alert: String = Game.world.wear.alert()
 	if wear_alert != "":
 		alert.text = wear_alert # engine trouble outranks everything else
+	_fit()
 	compass.queue_redraw()
 	if Game.heli and (Game.heli.global_position.distance_to(_map_at) >= MAP_SCALE or Time.get_ticks_msec() - _map_ms >= MAP_REDRAW_MS):
 		_map_at = Game.heli.global_position
 		_map_ms = Time.get_ticks_msec()
 		minimap.queue_redraw()
+
+
+## Lays the zones out for this frame (root px): hints at the bottom, the log above them (or in the touch layer's free
+## band), the info block down to what the log and other layers leave, the alert between the side zones.
+func _fit() -> void:
+	var w := root.size.x
+	var h := root.size.y
+	var m := float(UiTheme.MARGIN)
+	var g := float(UiTheme.GAP)
+	var obst := _obstacles()
+	var bottom := h - m
+	if hint.visible and hint.text != "":
+		_wrap(hint, w - 2.0 * m, 99)
+		hint.position = Vector2(m, bottom - hint.size.y)
+		hint.visible = not obst.any(func(r: Rect2): return r.intersects(hint.get_rect())) # under the build bar
+		if hint.visible:
+			bottom = hint.position.y - g
+	var left := m
+	var right := m + minf(LOG_W, w - 2.0 * m)
+	for n in get_tree().get_nodes_in_group(UiTheme.OBSTACLES):
+		var band: Rect2 = n.log_band() if n.has_method("log_band") else Rect2()
+		if band.has_area():
+			band = Rect2(band.position / root.factor, band.size / root.factor)
+			left = band.position.x
+			right = band.end.x
+			bottom = minf(bottom, band.end.y)
+	for r in obst: # panels along the bottom edge (build bar) lift the log
+		if r.end.y > h - m - UiTheme.BOTTOM_ROW and r.position.y > h / 2.0 and r.position.x < right and r.end.x > left:
+			bottom = minf(bottom, r.position.y - g)
+	var lh := _lh(log_label)
+	# panels of other layers win over the status zone and the minimap (the base menu shows the same numbers).
+	# Heights from minimum sizes, not child rects: the VBox sorts deferred, its rows would lag a frame behind.
+	var head_h := 0.0 # bars to the fold button
+	for c: Control in status_zone.get_children():
+		if c == info:
+			break
+		if c.visible:
+			head_h += c.get_combined_minimum_size().y + UiTheme.GAP
+	var fixed := Rect2(status_zone.position, Vector2(STATUS_W, head_h - UiTheme.GAP))
+	status_zone.visible = not obst.any(func(r: Rect2): return r.intersects(fixed))
+	minimap.visible = not obst.any(func(r: Rect2): return r.intersects(minimap.get_rect()))
+	if status_zone.visible:
+		var limit := bottom - LOG_MIN_LINES * lh - g if left < m + STATUS_W else h - m
+		for r in obst:
+			if r.position.x < m + STATUS_W and r.end.x > m and r.position.y > m:
+				limit = minf(limit, r.position.y - g)
+		var top := status_zone.position.y + head_h
+		var n := clampi(floori((limit - top + _spacing(info)) / _lh(info)), 0, info.get_line_count())
+		info.max_lines_visible = mini(n, INFO_MIN_LINES) if info_folded else n
+		info.update_minimum_size() # see _wrap: a Label does not tell its VBox when max_lines_visible shrinks it
+		info.visible = info.max_lines_visible > 0
+		status_zone.reset_size()
+		obst.append(Rect2(status_zone.position, Vector2(STATUS_W, status_zone.get_combined_minimum_size().y)))
+	# side obstacles narrow the log, the ones above it push its top down
+	for r in obst:
+		if r.position.y < bottom and r.end.y > bottom - LOG_LINES * lh and r.position.x > left + LOG_MIN_W and r.position.x < right:
+			right = r.position.x - g
+	var log_top := 0.0
+	for r in obst:
+		if r.position.y < bottom and r.end.x > left and r.position.x < right:
+			log_top = maxf(log_top, r.end.y + g)
+	log_label.size.x = right - left
+	var total := log_label.get_line_count()
+	var fit := clampi(floori((bottom - log_top + _spacing(log_label)) / lh), 0, total) if right - left >= LOG_MIN_W / 2.0 else 0
+	log_label.lines_skipped = total - fit # newest lines stay
+	log_label.visible = fit > 0 and log_label.text != ""
+	_wrap(log_label, right - left, fit)
+	log_label.position = Vector2(left, bottom - log_label.size.y)
+	# alert line: top centre between the side zones, narrowed by panels of other layers
+	var side := maxf(STATUS_W, MAP_SIZE) + m + g
+	var a_left := side
+	var a_right := w - side
+	var a_top := m + UiTheme.TOP_ROW
+	for r in obst:
+		if r.position.y < a_top + UiTheme.FONT_ALERT * 2.0 and r.end.y > a_top:
+			if r.get_center().x < w / 2.0:
+				a_left = maxf(a_left, r.end.x + g)
+			else:
+				a_right = minf(a_right, r.position.x - g)
+	alert.visible = alert.text != "" and a_right - a_left >= ALERT_MIN_W
+	if alert.visible:
+		_wrap(alert, a_right - a_left, 3)
+		alert.position = Vector2(a_left, a_top)
+
+
+## Screen rects of other layers' panels and pads (UiTheme.OBSTACLES group), in root px.
+func _obstacles() -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	for n in get_tree().get_nodes_in_group(UiTheme.OBSTACLES):
+		if n.visible:
+			for c: Control in n.obstacles():
+				if c.is_visible_in_tree():
+					var r := c.get_global_rect()
+					out.append(Rect2(r.position / root.factor, r.size / root.factor))
+	return out
+
+
+## Width-bound label, height from its (at most max_lines) wrapped lines. Twice: the first call applies the width, the
+## minimum height of a wrapping label depends on it. update_minimum_size(): a Label keeps its cached minimum (which
+## set_size clamps to) when max_lines_visible / lines_skipped change.
+func _wrap(l: Label, width: float, max_lines: int) -> void:
+	l.max_lines_visible = max_lines
+	l.update_minimum_size()
+	l.size = Vector2(width, 0)
+	l.update_minimum_size()
+	l.size = Vector2(width, l.get_minimum_size().y)
+
+
+func _spacing(l: Label) -> float:
+	return l.get_theme_constant("line_spacing")
+
+
+func _lh(l: Label) -> float:
+	return l.get_line_height() + _spacing(l)
 
 
 func _on_radio(msg: String) -> void:
@@ -207,7 +359,7 @@ func _arrow(center: Vector2, world_pos: Vector2, color: Color, text: String) -> 
 	var tip := center + dir * 120.0
 	var pts := PackedVector2Array([tip, tip - dir * 14 + dir.orthogonal() * 7, tip - dir * 14 - dir.orthogonal() * 7])
 	compass.draw_polygon(pts, PackedColorArray([color, color, color]))
-	compass.draw_string(ThemeDB.fallback_font, tip - dir * 52 + Vector2(-40, 5), "%s %dm" % [text, int(dist / 10.0)], HORIZONTAL_ALIGNMENT_CENTER, 80, 12, color)
+	compass.draw_string(ThemeDB.fallback_font, tip - dir * 52 + Vector2(-40, 5), "%s %dm" % [text, int(dist / 10.0)], HORIZONTAL_ALIGNMENT_CENTER, 80, int(UiTheme.FONT_S * root.factor), color)
 
 
 ## North-up minimap centred on the heli: coarse terrain, base, known POIs, enemies.
