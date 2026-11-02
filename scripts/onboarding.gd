@@ -119,6 +119,7 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	var layer := CanvasLayer.new()
 	layer.layer = 12 # over the HUD, under the menus
 	add_child(layer)
@@ -172,10 +173,12 @@ func enabled() -> bool:
 
 
 func _process(delta: float) -> void:
-	if not Game.running or Game.world == null:
+	if Game.world == null:
+		return
+	(panel.get_parent() as Control).visible = not Game.world.choice_ui.visible # an event or level-up card never covers a step and its Skip button
+	if not Game.running or get_tree().paused: # process_mode ALWAYS only for the line above (a level-up card pauses)
 		return
 	step_age += delta
-	(panel.get_parent() as Control).visible = not Game.world.choice_ui.visible # an event or level-up card never covers a step and its Skip button
 	if hint_t > 0.0:
 		hint_t -= delta
 		if hint_t <= 0.0 and chapter == "":

@@ -157,8 +157,10 @@ func _chapters() -> String:
 	check(ob.chapter == "base", "the base chapter starts first on a quiet base")
 	check(ob.panel.visible, "the chapter panel is up")
 	Events.offer("stray_dog")
-	ob._process(0.0)
+	var age: float = ob.step_age
+	ob._process(1.0)
 	check(main.choice_ui.visible and not ob.panel.is_visible_in_tree(), "an event card hides the chapter card (and its Skip button)")
+	check(get_tree().paused and ob.can_process() and ob.step_age == age, "also while paused (a level-up card pauses), and no chapter time passes then")
 	main.choice_ui.pick_event(main.choice_ui.ev["view"]["default"])
 	ob._process(0.0)
 	check(not main.choice_ui.visible and ob.panel.is_visible_in_tree(), "the chapter card is back after the answer")

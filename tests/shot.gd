@@ -1,6 +1,6 @@
 extends Node
 ## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (no base at the start, then founds it at the start site; flight, combat, bandits, level-up cards, base BUILD / WORKERS / HANGAR,
-## base pawns after delivering 6, settings, key bindings, F1 help, title hangar), quits.
+## base pawns after delivering 6, settings, key bindings, F1 help, a boss under a chapter card, an event card over it, title hangar), quits.
 ## Time-based so it works at any refresh rate. UI_SCALE=90..150 takes them at that UI scale.
 
 var t := 0.0
@@ -43,12 +43,12 @@ func _process(delta: float) -> void:
 				ms._add("rooftop", {"pos": Game.heli.position + Vector2(300, -200), "text": "a family is stuck on a roof in a city", "state": {}})
 				ms._add("screamer", {"pos": Game.heli.position + Vector2(-600, 500), "text": "a screamer is calling hordes at a village", "state": {}})
 				ms._add("blackbox", {"pos": Game.heli.position + Vector2(1500, 900), "text": "recover the black box from the airliner crash site", "state": {}})
-				Game.world.get_children().filter(func(c): return c.get("panel") != null and c.layer == 6)[0]._unhandled_input(_j_key())
+				Game.world.get_children().filter(func(c): return c is CanvasLayer and c.layer == 6 and c.get("panel") != null)[0]._unhandled_input(_j_key())
 				step = 21
 		21:
 			if t > 5.4:
 				_save("shot_missions.png")
-				Game.world.get_children().filter(func(c): return c.get("panel") != null and c.layer == 6)[0]._unhandled_input(_j_key())
+				Game.world.get_children().filter(func(c): return c is CanvasLayer and c.layer == 6 and c.get("panel") != null)[0]._unhandled_input(_j_key())
 				# the HUD with everything at once: mission arrows, the assault arrow at the fence, worn parts and an engine alarm
 				Game.heli.position = Game.world.base.position + Vector2(-60, -40)
 				Game.world.assault.plan = {"day": Game.day + 1, "theme": "", "dir": 2, "blood": false, "known": true, "tower": true}
@@ -344,6 +344,25 @@ func _process(delta: float) -> void:
 			if t > 20.6:
 				_save("shot_codex.png")
 				Game.world.codex_ui.close()
+				# R2W3: a boss next to the heli under a chapter card, then an event card over the chapter (the chapter steps aside)
+				for c in Game.world.get_children(): # the victory screen and the base menu from the shots above are in the way
+					if c.get_script() == preload("res://scripts/victory_ui.gd"):
+						c.visible = false
+				Game.world.base.ui.visible = false
+				var cam: Vector2 = get_viewport().get_camera_2d().get_screen_center_position()
+				Game.world.spawn_enemy("juggernaut", cam + Vector2(-60, -60)).process_mode = Node.PROCESS_MODE_DISABLED
+				_onboarding().start_chapter("missions")
+				step = 97
+		97:
+			if t > 21.0:
+				_save("shot_boss_chapter.png")
+				Events.offer("stray_dog")
+				step = 98
+		98:
+			if t > 21.4:
+				_save("shot_chapter_event.png")
+				Game.world.choice_ui.pick_event(Game.world.choice_ui.ev["view"]["default"])
+				_onboarding().skip_chapter()
 				Profiles.active()["enlisted"] = true # in memory only: no ENLIST pop-up over the hangar shot
 				Game.meta["total_kills"] = maxi(Game.meta["total_kills"], 500) # in memory: two modifiers unlocked for the title shot
 				Game.meta["runs"] = maxi(Game.meta["runs"], 3)
@@ -353,26 +372,26 @@ func _process(delta: float) -> void:
 				title._toggle_hangar()
 				step = 10
 		10:
-			if t > 20.9:
+			if t > 21.9:
 				_save("shot_title_hangar.png")
 				title_ui()._toggle_hangar()
 				title_ui().mods = ["dense_horde"]
 				title_ui()._refresh_setup()
 				step = 11
 		11:
-			if t > 21.2:
+			if t > 22.2:
 				_save("shot_title.png")
 				title_ui().profile_ui.open_list()
 				step = 12
 		12:
-			if t > 21.5:
+			if t > 22.5:
 				_save("shot_profiles.png")
 				title_ui().profile_ui.enlist("", false)
 				title_ui().profile_ui.name_edit.text = "Hitler"
 				title_ui().profile_ui.name_edit.text_changed.emit("Hitler")
 				step = 13
 		13:
-			if t > 21.8:
+			if t > 22.8:
 				_save("shot_enlist.png")
 				title_ui().profile_ui.close()
 				var rows: Array = []
@@ -381,7 +400,7 @@ func _process(delta: float) -> void:
 				title_ui().board_ui.show_rows("points", rows, {"rank": 77, "player_id": "me", "name": "Me", "avatar": 1, "value": 120})
 				step = 14
 		14:
-			if t > 22.1:
+			if t > 23.1:
 				_save("shot_leaderboard.png")
 				get_tree().quit()
 
@@ -396,6 +415,10 @@ func _j_key() -> InputEventKey:
 
 func _esc() -> CanvasLayer:
 	return Game.world.get_children().filter(func(c): return c.get_script() == preload("res://scripts/settings_ui.gd"))[0]
+
+
+func _onboarding() -> Node:
+	return Game.world.get_children().filter(func(c): return c.get_script() == preload("res://scripts/onboarding.gd"))[0]
 
 
 func title_ui() -> CanvasLayer:
