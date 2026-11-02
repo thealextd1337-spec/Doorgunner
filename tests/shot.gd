@@ -1,7 +1,7 @@
 extends Node
 ## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (no base at the start, then founds it at the start site; flight, combat, bandits, level-up cards, base BUILD / WORKERS / HANGAR,
 ## base pawns after delivering 6, settings, title hangar), quits.
-## Time-based so it works at any refresh rate.
+## Time-based so it works at any refresh rate. UI_SCALE=90..150 takes them at that UI scale.
 
 var t := 0.0
 var step := 0
@@ -11,6 +11,9 @@ var t_out := 0.0
 func _ready() -> void:
 	process_priority = -10 # press keys before the heli reads them
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	if OS.get_environment("UI_SCALE") != "": # UI_SCALE=150: the shots at that UI scale (Q6a); settings go to the smoke profile
+		Settings.path = Game.profile_dir() + "settings_shot.json"
+		Settings.set_value(UiTheme.SCALE_KEY, int(OS.get_environment("UI_SCALE")))
 
 
 func _process(delta: float) -> void:
