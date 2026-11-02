@@ -12,7 +12,9 @@ func _process(delta: float) -> void:
 	horde_cd -= delta
 	if horde_cd <= 0.0:
 		horde_cd = HORDE_INTERVAL
+		var t0 := Time.get_ticks_usec()
 		_horde()
+		Perf.add("spawn", t0)
 
 
 ## A horde (SpawnTable.horde: 6-12 zombies, later sometimes a runner pack) spawned around a town near the heli (towns are where the dead are).
