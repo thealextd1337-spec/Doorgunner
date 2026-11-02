@@ -40,7 +40,8 @@ var confirm: ConfirmationDialog
 var badge: Button # active profile (portrait + name), opens PROFILES
 var profile_ui: ProfileUi
 var data_ui: SaveDataUi # BACKUP: export / import (Q3)
-var restore_btn: Button # RESTORE FROM CLOUD: no local run, but a cloud copy (Q3)
+var restore_btn: Button # RESTORE FROM CLOUD: no local run, but a cloud copy (Q3), of the normal or the daily slot
+var restore_slot := "run"
 var board_ui: LeaderboardUi
 # NEW RUN setup (P15): run modifiers and the start heli, read by main.gd when the run starts
 const Modifiers := preload("res://scripts/modifiers.gd")
@@ -411,18 +412,21 @@ func _overlay_open() -> bool:
 ## No local run but a cloud copy: offer RESTORE. Answers later (network), so it re-checks that the title is still as it was.
 func _refresh_cloud() -> void:
 	restore_btn.visible = false
-	if Save.has_run():
+	for s in ["run", "daily"]:
+		if Save.has_run(s):
+			continue
+		var meta := await CloudSave.peek(s)
+		if meta.is_empty() or Save.has_run(s) or not visible:
+			continue
+		restore_slot = s
+		restore_btn.text = "RESTORE %sFROM CLOUD  -  SAVED %s" % ["DAILY " if s == "daily" else "", str(meta.get("updated_at", "")).substr(0, 16).replace("T", " ")]
+		restore_btn.visible = true
 		return
-	var meta := await CloudSave.peek()
-	if meta.is_empty() or Save.has_run() or not visible:
-		return
-	restore_btn.text = "RESTORE FROM CLOUD  -  SAVED %s" % str(meta.get("updated_at", "")).substr(0, 16).replace("T", " ")
-	restore_btn.visible = true
 
 
 func _restore() -> void:
 	restore_btn.disabled = true
-	var err := await CloudSave.restore()
+	var err := await CloudSave.restore(restore_slot)
 	restore_btn.disabled = false
 	if err != "":
 		notice.text = err

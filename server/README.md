@@ -32,6 +32,8 @@ All writes go through `security definer` RPCs, all tables have RLS on.
 | `009_cloud_save.sql` | Q3 cloud save | **written, not run on any project yet (no token); user must run it, then `test_009.sql`** |
 | `010_daily_season.sql` | Q14 daily + season (test: `test_010.sql`) | **written, not run on any project yet (no token); user must run it after 009, then `test_010.sql`** |
 
+Re-running `009_cloud_save.sql` after 010 puts back 009's `cloud_saves_drop_ended_run` (drops only the `run` slot) and so downgrades the trigger: always re-run `010_daily_season.sql` after any re-run of 009.
+
 Rules (ROADMAP2): every SQL change is a new idempotent `supabase/0NN_<name>.sql` (numbers above are fixed), the user
 applies it, the client tolerates it missing. Each package keeps its SQL tests in its own `test_0NN.sql` (same style as
 `test.sql`: one transaction, rolled back, ends with `ALL TESTS PASSED`) instead of editing the shared `test.sql`, and

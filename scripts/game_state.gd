@@ -427,6 +427,16 @@ func saved_count() -> int:
 	return people.filter(func(p): return not p["aboard"]).size()
 
 
+## One new person joins the base (named from the run seed like everybody else); `skill` "" keeps the rolled one.
+func join(skill := "") -> Dictionary:
+	var p: Dictionary = People.make(seed, person_seq, day, false)
+	person_seq += 1
+	if skill != "":
+		p["skill"] = skill
+	people.append(p)
+	return p
+
+
 ## Count setter (rescued, passengers): new people join, or the newest leave.
 func _resize(aboard: bool, n: int) -> void:
 	var list := _at(aboard)

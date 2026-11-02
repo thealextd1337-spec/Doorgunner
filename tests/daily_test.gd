@@ -163,7 +163,19 @@ func _cases() -> void:
 	Game.day = 3
 	check(Save.autosave(true), "daily autosave")
 	check(await _wait(func(): return not CloudSave._uploading and CloudSave._last_upload.has(Game.profile_dir() + "daily")), "daily slot uploaded")
+	# review: the title offers the daily slot's cloud copy too and restores it into that slot
+	var dbytes := FileAccess.get_file_as_bytes(Save.path())
 	Save.slot = "run"
+	for f in ["daily.sav", "daily.sav.bak"]:
+		DirAccess.remove_absolute(Game.profile_dir() + f)
+	var t0: CanvasLayer = preload("res://scripts/title_ui.gd").new()
+	main.add_child(t0)
+	t0.open()
+	check(await _wait(func(): return t0.restore_btn.visible) and t0.restore_btn.text.contains("DAILY") and t0.restore_slot == "daily", "title offers RESTORE DAILY: " + t0.restore_btn.text)
+	await t0._restore()
+	check(FileAccess.get_file_as_bytes(Game.profile_dir() + "daily.sav") == dbytes and not Save.has_run() and Save.slot == "run", "restored into daily.sav, the run slot untouched")
+	check(t0.cont_daily_btn.visible and not t0.restore_btn.visible, "the restored daily shows as CONTINUE")
+	t0.queue_free()
 	var normal_online := Online._run
 	Online._run = {"id": "normal-run", "ranked": false, "started": false, "ended": false, "modifiers": [], "mode": "normal"}
 	Game.mode = "normal"
@@ -228,6 +240,18 @@ func _cases() -> void:
 	check(await _wait(func(): return lb.list.get_child_count() == 1 and lb.status.text == ""), "all-time points: %s" % lb.status.text)
 	check(lb.tabs.visible and lb.scope_btns["points"].button_pressed and lb.tab_btns["points"].button_pressed, "ALL-TIME shows its tabs")
 	lb.queue_free()
+
+	# --- review: a claim older than an hour that never reached the runs table is practice
+	await _req(HTTPClient.METHOD_POST, "/_test", {"today": "2030-01-02"})
+	check(await Online.start_daily() == "" and Online.daily_run.get("ranked") == true, "a new day: first start ranked")
+	var late: Dictionary = Online.daily_run.duplicate()
+	await _req(HTTPClient.METHOD_POST, "/_test", {"age_attempts": 3700})
+	Game.new_run(late["seed"], late["modifiers"], "daily")
+	main.start_run(Game.start_mods, late["heli"], "daily")
+	check(await _wait(func(): return Online._run["started"]), "the late run was sent")
+	var late_run: Array = (await _server_runs()).filter(func(r): return r["id"] == late["run_id"])
+	check(late_run.size() == 1 and late_run[0]["mode"] == "normal" and late_run[0]["daily_date"] == null, "a late run on an old claim is no daily run: %s" % [late_run])
+	await _req(HTTPClient.METHOD_POST, "/_test", {"today": null})
 
 
 func _shot(name: String) -> void:

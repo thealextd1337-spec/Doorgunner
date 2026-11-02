@@ -89,7 +89,7 @@ func _table() -> void:
 	assert(Bandit.KINDS["warlord"]["boss_id"] == "warlord" and ResourceLoader.exists("res://assets/sprites/b/warlord.png"), "warlord is a bandit kind with a sprite")
 	assert(KINDS["boss"].get("boss_id", "") == "" and KINDS["boss"]["boss"], "the blood-moon boss is untouched")
 	for id in Bosses.REWARDS:
-		assert(Codex.entries.has(id) and Codex.entries[id]["category"] == "Enemies", "%s has a codex entry" % id)
+		assert(Codex.entries.has(Bosses.codex_id(id)) and Codex.entries[Bosses.codex_id(id)]["category"] == "Enemies" and CodexContent.ROWS.any(func(r): return r[1] == Bosses.codex_id(id)), "%s has a codex row" % id)
 		assert(Bosses.NAMES.has(id) and SpawnTable.BOSS_ROWS.has(id), "%s has a name and spawn rules" % id)
 	for k in SpawnTable.ROWS: # the boss rows are not in the ordinary weights
 		assert(not KINDS[k].has("boss_id"), "%s is no ordinary spawn" % k)
@@ -254,6 +254,19 @@ func _juggernaut() -> void:
 	back.hit(100000.0, Vector2.DOWN.rotated(0.0) * -1.0) # a shot from the rear side
 	assert(Game.meta["boss_kills"] == kills + 2 and Game.salvage["metal"] == metal + 40.0 and Game.base_rifles >= rifles + 2.0, "juggernaut rewards")
 	Game.base_founded = founded
+	# the base is its target only while the heli is near the base too (review: no siege while the player is away)
+	_free_all()
+	var b: Vector2 = main.base.global_position
+	var jp := _spot(b, 600.0)
+	for heli_d in [1600.0, 0.0]:
+		var j := _enemy("juggernaut", jp)
+		j.state.merge({"phase": 1, "mode": "walk", "t": 0.0, "w0": Bosses.JUG_WIND, "cd": 99.0, "dir": Vector2.ZERO, "chain": 0, "hit": false, "nemesis_id": ""})
+		heli.global_position = b + (jp - b).normalized() * heli_d
+		_step(j, 3.0)
+		var closer: bool = j.position.distance_to(b) < jp.distance_to(b) - 5.0
+		assert(closer == (heli_d == 0.0), "heli %.0f px from the base: the Juggernaut %s the base (%.0f -> %.0f)" % [heli_d, "goes for" if heli_d == 0.0 else "leaves", jp.distance_to(b), j.position.distance_to(b)])
+		j.free()
+	heli.global_position = b
 	print("BOSSES juggernaut OK")
 
 
@@ -324,9 +337,12 @@ func _hive() -> void:
 	assert(not sys._has_hive(site.uid), "gone")
 	# rolls: about HIVE pct of sites
 	var n := 0
+	var far_pos: Vector2 = main.base.global_position + Vector2(Bosses.HIVE_BASE_MIN + 500.0, 0)
 	for i in 400:
-		n += int(sys.wants_hive({"uid": "roll#%d" % i}))
+		n += int(sys.wants_hive({"uid": "roll#%d" % i, "pos": far_pos}))
 	assert(n > 400 * 0.45 and n < 400 * 0.75, "hive share of sites: %d / 400" % n)
+	for i in 400: # review: never next to the base
+		assert(not sys.wants_hive({"uid": "roll#%d" % i, "pos": main.base.global_position + Vector2(Bosses.HIVE_BASE_MIN - 100.0, 0)}), "no Hive within HIVE_BASE_MIN of the base")
 	print("BOSSES hive OK")
 
 
@@ -347,6 +363,16 @@ func _warlord() -> void:
 			assigned += 1
 			assert(c["kind"] == "prison" and c["garrison"]["warlord"] == 1, "warlords hold the big camps")
 	assert(assigned >= 1 and assigned <= Bosses.WARLORD_MAX, "at most %d: %d" % [Bosses.WARLORD_MAX, assigned])
+	# review: dead warlords free their place (the camp flag stays, the garrison count drops)
+	for c in bandits.camps.values():
+		if c.get("warlord", false):
+			c["garrison"]["warlord"] = 0
+	var again := 0
+	for i in 30:
+		var c2: Dictionary = bandits.add_camp("wl#more%d" % i, "prison", Vector2(3000 + i * 10, 800))
+		sys._assign_warlord(c2)
+		again += int(c2["warlord"])
+	assert(again >= 1 and again <= Bosses.WARLORD_MAX, "new warlords once the old ones are dead: %d" % again)
 	var near: Dictionary = bandits.add_camp("wl#near", "prison", Vector2(300, 0))
 	sys._assign_warlord(near)
 	assert(not near["warlord"] and not near["garrison"].has("warlord"), "none near the start")
@@ -483,9 +509,9 @@ func _roaming() -> void:
 	# codex: seen once close
 	e.position = heli.position + Vector2(200, 0)
 	var meta_codex: String = Game.meta["codex"]
-	Game.meta["codex"] = ",".join(Array(Codex.ids_unlocked()).filter(func(i): return i != kind))
+	Game.meta["codex"] = ",".join(Array(Codex.ids_unlocked()).filter(func(i): return i != Bosses.codex_id(kind)))
 	sys.scan()
-	assert(Codex.is_unlocked(kind), "%s unlocked in the codex when seen" % kind)
+	assert(Codex.is_unlocked(Bosses.codex_id(kind)), "%s unlocked in the codex when seen" % kind)
 	Game.meta["codex"] = meta_codex
 	# the old blood-moon boss still spawns its runners
 	var old := _enemy("boss", _spot(heli.position, 500.0))

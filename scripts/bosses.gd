@@ -52,7 +52,7 @@ const JUG_CHARGE_TIME := 1.4
 const JUG_CD := [6.0, 3.5]
 const JUG_DAZE := 2.6
 const JUG_WINDED := 1.2 # a charge that hit nothing
-const JUG_BASE_SIGHT := 1000.0 # it goes for the base within this
+const JUG_BASE_SIGHT := 1000.0 # it goes for the base within this, but only while the heli is within this of the base too
 const JUG_HELI_MULT := 0.6 # of its damage on a landed heli
 const JUG_SAND := 30.0 # sandbag damage per frame of ramming
 const JUG_CHAIN := 2 # charges in a row in phase 2
@@ -66,6 +66,7 @@ const HIVE_WAVE := [8, 10]
 const HIVE_SPECIAL := ["spitter", "bloater", "brute_armored"] # phase 2 adds one of each per wave
 const HIVE_CAP := 40 # enemies within 700 px: the wave waits
 const HIVE_FIRST := 6.0
+const HIVE_BASE_MIN := 1500.0 # px from the base (the start before founding): no Hive closer
 # Warlord
 const WARLORD_KINDS := ["prison", "quarry", "harbour"]
 const WARLORD_MIN_DIST := 2000.0 # px from the start
@@ -108,7 +109,6 @@ var _scan := 0.0
 func _ready() -> void:
 	Save.register("bosses", save_state, load_state)
 	Game.day_changed.connect(_on_day)
-	_codex()
 
 
 func _process(delta: float) -> void:
@@ -125,7 +125,7 @@ func scan() -> void:
 	var heli: Vector2 = Game.heli.global_position
 	for e in _alive():
 		var id: String = e.cfg["boss_id"]
-		if e.global_position.distance_to(heli) < SEE_DIST and Codex.unlock(id):
+		if e.global_position.distance_to(heli) < SEE_DIST and Codex.unlock(codex_id(id)):
 			Game.radio("Codex: %s logged." % NAMES[id])
 		var key := _key(e)
 		if key != "":
@@ -178,7 +178,8 @@ func spawn_roamer(kind: String) -> Node2D:
 
 ## Does the Hive sit in site `s` ({kind, pos, uid})? A fixed roll per site, none once destroyed.
 func wants_hive(s: Dictionary) -> bool:
-	return not records.get("hive:" + s.uid, {}).get("dead", false) and hash([Game.seed, s.uid, "hive"]) % 100 < SpawnTable.BOSS_ROWS["hive"]["pct"]
+	var home: Vector2 = Game.world.base.global_position if Game.base_founded else Vector2.ZERO
+	return not records.get("hive:" + s.uid, {}).get("dead", false) and s.pos.distance_to(home) >= HIVE_BASE_MIN and hash([Game.seed, s.uid, "hive"]) % 100 < SpawnTable.BOSS_ROWS["hive"]["pct"]
 
 
 func _has_hive(uid: String) -> bool:
@@ -198,7 +199,7 @@ func spawn_hive(s: Dictionary) -> Node2D:
 func _assign_warlord(c: Dictionary) -> void:
 	if c.has("warlord") or c["cleared"] or Game.day < SpawnTable.BOSS_ROWS["warlord"]["min_day"]:
 		return
-	var held: int = Game.world.bandits.camps.values().filter(func(o): return o.get("warlord", false) and not o["cleared"]).size()
+	var held: int = Game.world.bandits.camps.values().filter(func(o): return o["garrison"].get("warlord", 0) > 0 and not o["cleared"]).size() # living ones
 	c["warlord"] = c["kind"] in WARLORD_KINDS and c["pos"].length() >= WARLORD_MIN_DIST and held < WARLORD_MAX and hash([Game.seed, c["uid"], "warlord"]) % 100 < SpawnTable.BOSS_ROWS["warlord"]["pct"]
 	if c["warlord"] and not records.get("warlord:" + c["uid"], {}).get("dead", false):
 		c["garrison"]["warlord"] = 1
@@ -206,16 +207,9 @@ func _assign_warlord(c: Dictionary) -> void:
 		c["warlord"] = false
 
 
-func _codex() -> void:
-	var texts := {
-		"matriarch": ["The Matriarch", "A bloated brood mother. She rears up and screeches before she spawns runners and crawlers, so shoot her while she is busy. Wounded, she flees to heal, then comes back with a bigger brood."],
-		"juggernaut": ["The Juggernaut", "Welded plates all round: only the red fuel pack on its back is soft. It turns slowly, so circle it. When it lowers its head, leave the red lane: it rams houses, sandbags and a landed heli, and a crash leaves it dazed."],
-		"hive": ["The Hive", "A nest in a power plant or stadium. It throbs before every wave and calls them until it is destroyed. Wounded, it brings spitters, bloaters and armoured brutes. Destroying it yields electronics."],
-		"warlord": ["The Warlord", "He holds the big bandit camps, with bodyguards. His mortar shells a LANDED heli: a red circle shows where, lift off before it lands. Kill him and the bodyguards scatter."],
-	}
-	for id in texts:
-		if not Codex.entries.has(id):
-			Codex.register("Enemies", id, texts[id][0], texts[id][1])
+## Codex id of a boss (rows in codex_content.gd): bandit bosses b_, infected z_, like onboarding.gd's enemy ids.
+static func codex_id(id: String) -> String:
+	return ("b_" if id == "warlord" else "z_") + id
 
 
 ## Radio line at most once a minute per key.
@@ -271,7 +265,7 @@ static func on_death(e: Node2D) -> void:
 	Game.base_rifles += r["rifles"]
 	Game.world.morale.add(r["morale"], NAMES[id].to_lower() + " down")
 	Game.radio("Gunner: %s is down! %s" % [NAMES[id], _loot_text(r)])
-	Codex.unlock(id)
+	Codex.unlock(codex_id(id))
 	var key := _key(e)
 	if key != "":
 		m.records[key] = {"dead": true}
@@ -384,7 +378,8 @@ static func _juggernaut(e: Node2D, s: Dictionary, delta: float) -> bool:
 		Sfx.play("boss_roar", e.global_position, -2.0)
 		Game.radio("Gunner: the Juggernaut's plates are coming off! It is faster now, and it charges twice.")
 	var p2: bool = s["phase"] == 2
-	var target: Node2D = base if Game.base_founded and e.global_position.distance_to(base.global_position) < JUG_BASE_SIGHT else heli
+	var at_base: bool = Game.base_founded and heli.global_position.distance_to(base.global_position) < JUG_BASE_SIGHT # never while the player is away
+	var target: Node2D = base if at_base and e.global_position.distance_to(base.global_position) < JUG_BASE_SIGHT else heli
 	var to: Vector2 = target.global_position - e.global_position
 	match s["mode"]:
 		"walk":

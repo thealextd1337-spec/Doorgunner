@@ -3,7 +3,7 @@ extends RefCounted
 ## Every F1 codex entry of the base game in ONE table (docs/ROADMAP2.md Q11), so the texts can be reviewed in one place.
 ## Row: [category, id, title, text]. Ids are unique over all categories; prefixes: z_ infected, b_ bandits, bld_ buildings,
 ## item_ heli items and guns, heli_ heli types, sys_ systems. onboarding.gd unlocks an entry on the first encounter.
-## Later packages (bosses, events) register their own rows with Codex.register(); this table is not the only source.
+## Later packages may still add rows with Codex.register(); the bosses (Q12) live here too.
 
 const ROWS := [
 	# --- Enemies: infected
@@ -17,11 +17,16 @@ const ROWS := [
 	["Enemies", "z_bloater", "Bloater", "Swollen with gas. Bursts when he dies and the cloud hurts. Pop him at range."],
 	["Enemies", "z_boss", "Blood Moon Horror", "Comes with every blood moon. Huge, slow, brutal. The night does not end until he is dead."],
 	["Enemies", "z_nest", "Nest", "A hive that keeps spawning infected. Burn it out before you land anywhere near."],
+	# --- Enemies: bosses (Q12, scripts/bosses.gd; Bosses.codex_id)
+	["Enemies", "z_matriarch", "The Matriarch", "A bloated brood mother. She rears up and screeches before she spawns runners and crawlers, so shoot her while she is busy. Wounded, she flees to heal, then comes back with a bigger brood."],
+	["Enemies", "z_juggernaut", "The Juggernaut", "Welded plates all round: only the red fuel pack on its back is soft. It turns slowly, so circle it. When it lowers its head, leave the red lane: it rams houses, sandbags and a landed heli, and a crash leaves it dazed."],
+	["Enemies", "z_hive", "The Hive", "A nest in a power plant or stadium. It throbs before every wave and calls them until it is destroyed. Wounded, it brings spitters, bloaters and armoured brutes. Destroying it yields electronics."],
 	# --- Enemies: bandits
 	["Enemies", "b_rifle", "Bandit Rifleman", "Takes cover and shoots the heli. Hits less when you are fast, more when you are parked."],
 	["Enemies", "b_mg", "MG Nest", "Does not move, fires long bursts. Come from the side and keep your speed up."],
 	["Enemies", "b_rpg", "RPG Gunner", "Aims for a second and a half, a red line shows it. Turn hard, or drop flares and smoke."],
 	["Enemies", "b_technical", "Technical", "A pickup with a mounted gun that hunts on the roads. Fast, sturdy, and it brings friends."],
+	["Enemies", "b_warlord", "The Warlord", "He holds the big bandit camps, with bodyguards. His mortar shells a LANDED heli: a red circle shows where, lift off before it lands. Kill him and the bodyguards scatter."],
 	# --- Buildings
 	["Buildings", "bld_pad", "Landing Pad", "Your home plate. Land here to unload, refuel, rearm and open the base menu."],
 	["Buildings", "bld_sandbag", "Sandbag Post", "Zombies stop at it. Militia man it during assaults. Build workers lay one in 20 seconds."],

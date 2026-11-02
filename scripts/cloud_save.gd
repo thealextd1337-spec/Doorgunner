@@ -127,24 +127,27 @@ static func flush_pending() -> void:
 	_draining = false
 
 
-## Metadata {updated_at, version, format} of the cloud copy of the active slot, {} if there is none, it is outdated or the
-## server cannot be reached. A copy whose delete is still pending counts as gone.
-static func peek() -> Dictionary:
-	if not Online.enabled or not Online.is_registered() or Save.slot in pending_slots():
+## Metadata {updated_at, version, format} of the cloud copy of `slot` ("" = the active one), {} if there is none, it is outdated or
+## the server cannot be reached. A copy whose delete is still pending counts as gone.
+static func peek(slot := "") -> Dictionary:
+	slot = Save.slot if slot == "" else slot
+	if not Online.enabled or not Online.is_registered() or slot in pending_slots():
 		return {}
-	var r: Dictionary = await Online.cloud_call("get_save", {"p_slot": Save.slot, "p_meta_only": true})
+	var r: Dictionary = await Online.cloud_call("get_save", {"p_slot": slot, "p_meta_only": true})
 	if r["ok"] and r["data"] is Dictionary and int(r["data"].get("format", 0)) == Save.SAVE_FORMAT:
 		return r["data"]
 	return {}
 
 
-## Writes the cloud copy as the local save (only when there is no local one). "" ok, else a short reason for the title.
-static func restore() -> String:
-	if Save.has_run():
+## Writes the cloud copy of `slot` ("" = the active one) as that slot's local save (only when there is no local one). "" ok,
+## else a short reason for the title.
+static func restore(slot := "") -> String:
+	slot = Save.slot if slot == "" else slot
+	if Save.has_run(slot):
 		return "There is a local run already."
-	if Save.slot in pending_slots():
+	if slot in pending_slots():
 		return "That run is over."
-	var r: Dictionary = await Online.cloud_call("get_save", {"p_slot": Save.slot})
+	var r: Dictionary = await Online.cloud_call("get_save", {"p_slot": slot})
 	if not r["ok"]:
 		return Online.error_text(r["error"])
 	if not r["data"] is Dictionary:
@@ -153,7 +156,10 @@ static func restore() -> String:
 	var d: Variant = bytes_to_var(raw) if not raw.is_empty() else null
 	if not valid_run(d):
 		return Save.OLD_NOTICE if d is Dictionary else "The cloud save is damaged."
+	var keep: String = Save.slot
+	Save.slot = slot # _write writes the active slot
 	Save._write(raw)
+	Save.slot = keep
 	return ""
 
 

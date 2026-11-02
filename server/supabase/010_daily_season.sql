@@ -3,6 +3,8 @@
 -- server secret (table daily_secret, unreadable through the API), so nobody can compute a future day's world.
 -- get_daily() shows today's modifiers and heli (never the seed); start_daily(run_id) reveals the seed at run start and
 -- claims the player's ONE ranked attempt of the day (first start counts; later starts get the seed but ranked = false).
+-- A claimed attempt must reach the runs table within an hour (upsert_run at run start), else it counts as practice: nobody
+-- can take the seed, practise the world offline and hand in the best try under the ranked id later.
 -- upsert_run (007) is NOT rewritten: a BEFORE INSERT trigger on runs turns the claimed run id into a daily run (mode,
 -- daily_date, the daily's modifiers and the points for them). All of upsert_run's checks stay as they are.
 -- Season = ISO week (UTC) of a run's start, over all runs. Views leaderboard_daily / leaderboard_season have the column
@@ -104,7 +106,7 @@ begin
   if p_run_id is null or exists (select 1 from public.runs where id = p_run_id) then raise exception 'run_invalid'; end if;
   d := public.daily_for(today);
   insert into public.daily_attempts (player_id, date, run_id) values (uid, today, p_run_id) on conflict do nothing;
-  select coalesce(bool_or(run_id = p_run_id), false) into ranked
+  select coalesce(bool_or(run_id = p_run_id and started_at > now() - interval '1 hour'), false) into ranked
     from public.daily_attempts where player_id = uid and date = today;
   return jsonb_build_object('date', d.date, 'seed', d.seed, 'modifiers', to_jsonb(d.modifiers), 'heli', d.heli, 'ranked', ranked);
 end $$;
@@ -120,7 +122,8 @@ declare
 begin
   new.mode := 'normal';
   new.daily_date := null;
-  select * into a from public.daily_attempts where run_id = new.id and player_id = new.player_id;
+  select * into a from public.daily_attempts where run_id = new.id and player_id = new.player_id
+    and started_at > now() - interval '1 hour'; -- an older claim without a run row: practice
   if found then
     select modifiers into mods from public.daily where date = a.date;
     select least(round(coalesce(exp(sum(ln(m.factor))), 1), 4), 3) into factor from public.modifiers m where m.id = any(mods);

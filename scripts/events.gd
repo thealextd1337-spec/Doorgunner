@@ -129,6 +129,8 @@ func pick() -> String:
 
 func eligible() -> Array:
 	var out := []
+	if Game.mode == "daily": # the daily is the same run for everyone: no random cards (chapters and hints stay)
+		return out
 	for id: String in Cards.CARDS.keys() + extra.keys():
 		var c := card(id)
 		if not c.get("chain_only", false) and Game.day - last.get(id, -1000) >= c.get("cd", COOLDOWN) and holds(c.get("when", {})):
@@ -168,6 +170,8 @@ func view(id: String, ctx: Dictionary) -> Dictionary:
 	var def: int = c.get("default", opts.size() - 1)
 	while not opts[def]["ok"] and def > 0: # a default nobody can pay falls back to the next free one
 		def -= 1
+	if not opts[def]["ok"]: # still locked (e.g. default 0): the first free option, or the card would wait forever
+		def = maxi(0, opts.map(func(o): return o["ok"]).find(true))
 	return {"title": c["title"], "from": c["from"], "text": c["text"].format(ctx), "default": def, "opts": opts}
 
 
@@ -182,6 +186,10 @@ func resolve(id: String, ctx: Dictionary, i: int) -> void:
 		if s["id"] == id and s["ctx"] == ctx:
 			shown.erase(s)
 			break
+	if Game.passengers + int(o.get("fx", {}).get("aboard", 0)) > Game.seats: # the seat filled up while the card was open
+		Game.radio("Pilot: no free seat any more. We had to leave them.")
+		chosen.emit(id, i)
+		return
 	_apply(o.get("fx", {}), ctx)
 	var risk: Array = o.get("risk", [])
 	if not risk.is_empty() and randf() < risk[0]:
@@ -218,10 +226,8 @@ func _apply(fx: Dictionary, ctx: Dictionary) -> void:
 			"morale": Game.world.morale.add(v, "radio event")
 			"mood": mood = clampi(mood + int(v), -MOOD_MAX, MOOD_MAX)
 			"join":
-				Game.rescued += int(v)
-				for p in Game.people.slice(Game.people.size() - int(v)):
-					if fx.has("join_skill"):
-						p["skill"] = fx["join_skill"]
+				for n in int(v):
+					Game.join(fx.get("join_skill", ""))
 			"aboard": Game.passengers += int(v)
 			"aboard_hurt": Game.passengers_injured += int(v)
 			"hurt": Game.injure(int(v))

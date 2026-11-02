@@ -96,7 +96,10 @@ func _codex_encounters() -> void:
 	var hp: Vector2 = Game.heli.global_position
 	check(Codex.ids_unlocked().size() == 0, "a fresh profile knows nothing")
 	var far: Node2D = main.spawn_enemy("spitter", hp + Vector2(ob.SEE_DIST + 300.0, 0))
+	radio_log.clear()
 	ob.scan()
+	check(Codex.ids_unlocked().size() >= 3, "the first scan of a run finds several entries: %d" % Codex.ids_unlocked().size())
+	check(radio_log.filter(func(m): return m.begins_with("Codex:")).size() == 1 and radio_log.any(func(m): return " more added" in m), "... and radios them in ONE line: %s" % [radio_log])
 	check(not Codex.is_unlocked("z_spitter"), "a spitter far away is not met yet")
 	far.queue_free()
 	var e: Node2D = main.spawn_enemy("spitter", hp + Vector2(120, 0))
@@ -128,6 +131,11 @@ func _codex_encounters() -> void:
 	Game.buildings.pop_back()
 	Game.heli_items.erase("flamer")
 	check(not Codex.is_unlocked("sys_evac"), "systems not met stay locked")
+	var wire_cell := Vector2i(-30, -30)
+	Game.sandbags[wire_cell] = {"kind": "wire", "hp": 10.0, "built": true, "rot": 0}
+	ob.scan()
+	check(Codex.is_unlocked("bld_wire"), "a new wire cell unlocks barbed wire")
+	Game.sandbags.erase(wire_cell)
 	main.codex_ui.open()
 	main.codex_ui.show_page("Enemies")
 	var shown: Array = main.codex_ui.content.find_children("*", "Label", true, false).map(func(l): return l.text)
@@ -148,6 +156,12 @@ func _chapters() -> String:
 	_scan()
 	check(ob.chapter == "base", "the base chapter starts first on a quiet base")
 	check(ob.panel.visible, "the chapter panel is up")
+	Events.offer("stray_dog")
+	ob._process(0.0)
+	check(main.choice_ui.visible and not ob.panel.is_visible_in_tree(), "an event card hides the chapter card (and its Skip button)")
+	main.choice_ui.pick_event(main.choice_ui.ev["view"]["default"])
+	ob._process(0.0)
+	check(not main.choice_ui.visible and ob.panel.is_visible_in_tree(), "the chapter card is back after the answer")
 	Game.attack_pending = false
 	_scan()
 	check(ob.step == 0, "step 1 waits for the base menu")
@@ -168,8 +182,12 @@ func _chapters() -> String:
 	_scan()
 	check(ob.step == 4, "a placed well closes step 4")
 
-	# --- an assault cuts in; the base chapter is not marked and restarts later
+	# --- the tutorial's little horde is no first assault; a real one cuts in, the base chapter is not marked and restarts later
 	Game.attack_pending = true
+	Game.tutorial_wave = 8
+	ob.scan() # no step_age bump: the base chapter's step stays
+	check(ob.chapter == "base", "the tutorial's pending horde does not start the assault chapter")
+	Game.tutorial_wave = 0
 	_scan()
 	check(ob.chapter == "assault" and not ob.seen("ch_base"), "the assault chapter cuts in without marking the base chapter")
 	check(Save.autosave(), "Save.autosave() writes during the assault chapter")
@@ -251,6 +269,16 @@ func _hints() -> void:
 	check(ob.seen("hint_injured"), "an injured passenger brings the hint")
 	check(radio_log.any(func(m): return "Injured aboard" in m), "the hint is radioed")
 	check(ob.panel.visible and ob.head_label.text == "HINT", "the hint shows in the panel")
+	Game.hp = Game.max_hp * 0.2 # low hull: a second hint is due, but the first one is still up
+	var hints_n := func() -> int: return Array(Game.meta["onboarding"].split(",", false)).filter(func(i): return i.begins_with("hint_")).size()
+	var n_hints: int = hints_n.call()
+	ob.scan()
+	check(hints_n.call() == n_hints and ob.text_label.text.contains("Injured"), "no new hint while one shows (hint_t > 0)")
+	ob.hint_t = 0.0
+	ob.scan()
+	check(hints_n.call() == n_hints + 1, "the next hint once the panel is free")
+	Game.hp = Game.max_hp
+	ob.hint_t = 0.0
 	radio_log.clear()
 	Game.passengers_injured = 0
 	ob.scan()
@@ -264,6 +292,7 @@ func _hints() -> void:
 	Game.passengers = 2
 	Game.passengers_injured = 1
 	radio_log.clear()
+	ob.hint_t = 0.0
 	ob.scan()
 	check(radio_log.any(func(m): return "Injured aboard" in m), "another profile gets the hint too")
 	Game.passengers = 0
@@ -272,6 +301,7 @@ func _hints() -> void:
 	var hp: Vector2 = Game.heli.global_position
 	var b: Node2D = main.bandits.spawn_unit("rpg", hp + Vector2(150, 0), "guard", hp, "test_camp3")
 	radio_log.clear()
+	ob.hint_t = 0.0
 	ob.scan()
 	check(radio_log.any(func(m): return "RPG gunner" in m), "an RPG gunner in sight brings the rpg hint")
 	b.queue_free()

@@ -206,6 +206,7 @@ func _effects() -> void:
 	Events.offer("nurse")
 	ui.pick(0)
 	assert(Game.rescued == 7 and Game.people.back()["skill"] == "medic", "a medic joined")
+	assert(Game.people.back()["id"] == Game.person_seq - 1 and Game.people.back()["name"] != "", "... made by People like everybody (Game.join)")
 	_reset()
 	Events.offer("refugees")
 	ui.pick(0)
@@ -259,6 +260,14 @@ func _effects() -> void:
 	Events.offer("wounded_soldier")
 	ui.pick(0)
 	assert(Game.passengers == 1 and Game.passengers_injured == 1, "wounded soldier aboard")
+	# review: the free seat is checked again when the answer comes
+	_reset()
+	Game.heli.global_position = _base() + Vector2(2500, 0)
+	Game.heli.landed = false
+	Events.offer("wounded_soldier")
+	Game.passengers = Game.seats
+	ui.pick(0)
+	assert(ui.ev.is_empty() and Game.passengers == Game.seats and Game.passengers_injured == 0 and log.any(func(s): return "no free seat" in s), "seats filled meanwhile: nobody squeezed in")
 	_reset()
 	print("EVENTS effects OK")
 
@@ -329,6 +338,24 @@ func _fallback() -> void:
 	Events.register("zz_fallback", c)
 	assert(ev.view("zz_fallback", {})["default"] == 0, "unpayable default falls back to a free option")
 	Events.extra.erase("zz_fallback")
+	# review: scarcity - every option from the default down is locked: the first free one, and the clock can close the card
+	Game.scrap = 0
+	Game.base_rifles = 0.0
+	assert(ev.view("ultimatum", {})["default"] == 2, "ultimatum without scrap and rifles: Refuse is the default")
+	Game.base_fuel = 0.0
+	Game.base_water = 0.0
+	assert(ev.view("low_water", {})["default"] == 1, "low water without fuel: Ration is the default")
+	Events.offer("low_water")
+	ui.ev["left"] = 0.01
+	ui._process(0.1)
+	assert(ui.ev.is_empty() and Game.base_water == 8.0, "the clock answers it: rationed")
+	_clear()
+	# no random cards in the daily (the same run for everybody)
+	_reset()
+	assert(not ev.eligible().is_empty(), "cards fit on a normal day")
+	Game.mode = "daily"
+	assert(ev.eligible().is_empty() and ev.pick() == "", "none in a daily run")
+	Game.mode = "normal"
 
 
 func _queue() -> void:

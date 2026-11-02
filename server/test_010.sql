@@ -23,10 +23,11 @@ end $$;
 insert into public.modifiers (id, factor) values ('dense_horde', 1.30), ('warlords', 1.25), ('scarcity', 1.25)
 on conflict (id) do nothing;
 insert into auth.users (id, aud, role)
-select ('00000000-0000-0000-0000-00000000000' || n)::uuid, 'authenticated', 'authenticated' from generate_series(1, 3) n
+select ('00000000-0000-0000-0000-00000000000' || n)::uuid, 'authenticated', 'authenticated' from generate_series(1, 4) n
 on conflict do nothing;
 insert into public.players (id, name, avatar) values
-  ('00000000-0000-0000-0000-000000000001', 'Daily_One', 1), ('00000000-0000-0000-0000-000000000002', 'Daily_Two', 2);
+  ('00000000-0000-0000-0000-000000000001', 'Daily_One', 1), ('00000000-0000-0000-0000-000000000002', 'Daily_Two', 2),
+  ('00000000-0000-0000-0000-000000000004', 'Daily_Four', 4);
 
 -- 1. the daily is deterministic, stored once, and private --------------------------------
 select pg_temp.ok((public.daily_for('2026-11-02')).seed = (public.daily_for('2026-11-02')).seed, 'same date, same seed');
@@ -98,6 +99,17 @@ select public.put_save('run', 'aGk=', 'x', 3);
 select public.put_save('daily', 'aGk=', 'x', 3);
 select public.upsert_run('bbbbbbbb-0000-0000-0000-000000000001', 1, 3, 40, true, false, '{}', 't');
 select pg_temp.ok(public.get_save('daily') is null and public.get_save('run') is not null, 'ended daily: daily slot gone, run slot kept');
+
+-- 7. a claim older than an hour without a run row is practice --------------------------------
+select pg_temp.act('00000000-0000-0000-0000-000000000004');
+select pg_temp.ok((public.start_daily('cccccccc-0000-0000-0000-000000000001')->>'ranked')::boolean, 'player 4: first start is ranked');
+reset role;
+update public.daily_attempts set started_at = now() - interval '61 minutes' where run_id = 'cccccccc-0000-0000-0000-000000000001';
+select pg_temp.act('00000000-0000-0000-0000-000000000004');
+select pg_temp.ok(not (public.start_daily('cccccccc-0000-0000-0000-000000000001')->>'ranked')::boolean, 'a retry after an hour is practice');
+select public.upsert_run('cccccccc-0000-0000-0000-000000000001', 1, 0, 0, false, false, '{}', 't');
+reset role;
+select pg_temp.ok((select mode = 'normal' and daily_date is null from public.runs where id = 'cccccccc-0000-0000-0000-000000000001'), 'a late run on an old claim is a normal run');
 
 reset role;
 select 'ALL TESTS PASSED' as result;

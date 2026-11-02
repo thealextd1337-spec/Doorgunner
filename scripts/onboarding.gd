@@ -175,6 +175,7 @@ func _process(delta: float) -> void:
 	if not Game.running or Game.world == null:
 		return
 	step_age += delta
+	(panel.get_parent() as Control).visible = not Game.world.choice_ui.visible # an event or level-up card never covers a step and its Skip button
 	if hint_t > 0.0:
 		hint_t -= delta
 		if hint_t <= 0.0 and chapter == "":
@@ -286,6 +287,8 @@ func _done(when: String) -> bool:
 # --- hints ----------------------------------------------------------------------------------------------------------
 
 func _hints() -> void:
+	if hint_t > 0.0: # the last hint is still on the panel
+		return
 	for id: String in HINTS:
 		if not seen("hint_" + id) and call("_h_" + HINTS[id]["when"]):
 			_mark("hint_" + id)
@@ -320,7 +323,7 @@ func _h_base_hurt() -> bool: return Game.attack_active and Game.base_hp < Game.m
 
 # --- chapter triggers and step conditions ---------------------------------------------------------------------------
 
-func _t_assault() -> bool: return Game.attack_pending or Game.attack_active
+func _t_assault() -> bool: return Game.attack_active or Game.attack_pending and Game.tutorial_wave == 0 # not the tutorial's little horde ahead
 func _t_base() -> bool: return not Game.attack_pending and not Game.attack_active
 func _t_missions() -> bool: return not Game.world.missions.open.is_empty()
 func _t_outposts() -> bool:
@@ -364,12 +367,35 @@ func _w_evac_phase() -> bool: return Game.world.evac.phase != ""
 
 # --- codex ----------------------------------------------------------------------------------------------------------
 
+var _have := PackedStringArray() # unlocked ids, read once per scan
+var _new := PackedStringArray() # ids found this scan, unlocked together by _flush
+var _bags := -1 # Game.sandbags.size() at the last look
+
+
 func _unlock(id: String) -> void:
-	if Codex.entries.has(id) and Codex.unlock(id):
-		Game.radio("Codex: %s added (%s)." % [Codex.entries[id]["title"], KeyMap.tag("help")])
+	if Codex.entries.has(id) and not id in _have and not id in _new:
+		_new.append(id)
+
+
+## The scan's new entries in one go: one meta save, one radio line (a first load of an old run finds dozens).
+func _flush() -> void:
+	if _new.is_empty():
+		return
+	Game.meta["codex"] = ",".join(_have + _new)
+	Game._save_meta()
+	var first: String = Codex.entries[_new[0]]["title"]
+	Game.radio("Codex: %s added (%s)." % [first if _new.size() == 1 else "%s and %d more" % [first, _new.size() - 1], KeyMap.tag("help")])
+	_new.clear()
 
 
 func _scan_codex() -> void:
+	_have = Codex.ids_unlocked()
+	_new.clear()
+	_scan_codex_ids()
+	_flush()
+
+
+func _scan_codex_ids() -> void:
 	var w := Game.world
 	near = {}
 	if Game.heli != null:
@@ -393,8 +419,10 @@ func _scan_codex() -> void:
 	_unlock("bld_pad")
 	for b: Dictionary in Game.buildings:
 		_unlock("bld_" + b["kind"])
-	for s: Dictionary in Game.sandbags.values():
-		_unlock("bld_" + s["kind"])
+	if Game.sandbags.size() != _bags and not ("bld_sandbag" in _have and "bld_wire" in _have): # hundreds of cells: only when they change, until both are known
+		_bags = Game.sandbags.size()
+		for s: Dictionary in Game.sandbags.values():
+			_unlock("bld_" + s["kind"])
 	for id: String in Game.heli_items:
 		_unlock("item_" + id)
 	for id: String in Game.heli_weapons + Game.weapon_bay:
