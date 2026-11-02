@@ -3,17 +3,16 @@ extends CanvasLayer
 ## held out, a button strip on the right presses the flight actions (InputEventActions, so the game code stays the same),
 ## context buttons (found base / outpost / protect) appear when they apply. In build mode a tap on the map moves the
 ## preview and PLACE / REMOVE / ROTATE / DONE act on it. Multi-touch: every pad follows its own finger (index).
-## Positions are for the 1280x720 canvas; Q6a moves them into its HUD zones.
+## Layout (Q6a): under a UiTheme root, placed from its size every frame: fly stick bottom left, aim stick bottom right
+## with the strip left of it, context buttons in the band between them, MENU under the HUD minimap, build buttons a
+## column on the right. The HUD fits its radio log into log_band() and around obstacles().
 
 const STICK_R := 90.0
-const MOVE_AT := Vector2(150, 560) # left stick centre
-const AIM_AT := Vector2(940, 590) # right stick centre, left of the minimap (hud.gd, 200 px bottom right)
 const BTN := Vector2(96, 52) # button strip pad; both sides >= UiTheme.TOUCH_MIN
-const STRIP := Vector2(1066, 450) # top-left of the strip's bottom row, just above the minimap; rows stack upwards
 const GAP := 8.0
-const CONTEXT_AT := Vector2(640, 628) # centre of the context buttons row, above the HUD hint line
-const PLACE_AT := Vector2(1170, 230) # build mode buttons, a column above the minimap
+const CONTEXT_W := 150.0
 const CURSOR_AHEAD := Vector2(0, -56) # build preview starts this far from the landed heli
+const MAX_SCALE := 1.25 # past this UI scale the sticks, the strip and a context band no longer fit side by side
 
 var move_stick: Stick
 var aim_stick: Stick
@@ -25,23 +24,23 @@ var menu: Pad
 var restart: Pad
 var place_bar: Control
 var portrait: Label
+var root: UiTheme.Root
 var _was_placing := false
+var _strip_left := 0.0 # root px, left edge of the button strip (log_band)
 
 
 func _ready() -> void:
 	layer = 31 # over the base menu (10), ESC menu (25) and game over (30); under the title (40). Pads hide while paused
 	process_mode = PROCESS_MODE_ALWAYS # MENU must close the paused ESC menu
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(root)
+	add_to_group(UiTheme.OBSTACLES)
+	root = UiTheme.attach(self, null, MAX_SCALE)
 	flight = Control.new()
 	flight.set_anchors_preset(Control.PRESET_FULL_RECT)
 	flight.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(flight)
-	move_stick = Stick.new(MOVE_AT, STICK_R, "FLY")
+	move_stick = Stick.new(Vector2.ZERO, STICK_R, "FLY")
 	flight.add_child(move_stick)
-	aim_stick = Stick.new(AIM_AT, STICK_R, "AIM / FIRE")
+	aim_stick = Stick.new(Vector2.ZERO, STICK_R, "AIM / FIRE")
 	flight.add_child(aim_stick)
 	var strip := [["land", "LAND"], ["weapon_swap", "GUN"], ["yaw_left", "< YAW"], ["yaw_right", "YAW >"], ["system", "SPEAKER"], ["hook", "HOOK"], ["missions", "JOBS"]]
 	for i in strip.size():
@@ -49,17 +48,16 @@ func _ready() -> void:
 		flight.add_child(p)
 		pads[strip[i][0]] = p
 	for a in ["found", "outpost", "protect"]:
-		var p := Pad.new(a, a.to_upper(), Vector2.ZERO, Vector2(150, BTN.y))
+		var p := Pad.new(a, a.to_upper(), Vector2.ZERO, Vector2(CONTEXT_W, BTN.y))
 		flight.add_child(p)
 		context.append(p)
-	takeoff = Pad.new("land", "TAKE OFF", Vector2(400, 640), Vector2(200, BTN.y)) # gap between the base menu panels
+	takeoff = Pad.new("land", "TAKE OFF", Vector2.ZERO, Vector2(200, BTN.y)) # bottom left, under the base menu's status column
 	root.add_child(takeoff)
-	menu = Pad.new("menu", "MENU", Vector2(10, 130), Vector2(80, UiTheme.TOUCH_MIN)) # under the HUD bars
+	menu = Pad.new("menu", "MENU", Vector2.ZERO, Vector2(80, UiTheme.TOUCH_MIN)) # under the HUD minimap
 	root.add_child(menu)
-	restart = Pad.new("restart", "RESTART", Vector2(640 - 100, 600), Vector2(200, BTN.y))
+	restart = Pad.new("restart", "RESTART", Vector2.ZERO, Vector2(200, BTN.y))
 	root.add_child(restart)
 	place_bar = VBoxContainer.new()
-	place_bar.position = PLACE_AT
 	place_bar.add_theme_constant_override("separation", int(GAP))
 	root.add_child(place_bar)
 	for b in [["PLACE", _place], ["REMOVE", _remove], ["ROTATE", "rotate"], ["DONE", "menu"]]:
@@ -71,7 +69,7 @@ func _ready() -> void:
 	portrait.set_anchors_preset(Control.PRESET_FULL_RECT)
 	portrait.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	portrait.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	portrait.add_theme_font_size_override("font_size", 40)
+	portrait.add_theme_font_size_override("font_size", UiTheme.FONT_XL)
 	portrait.text = "Turn your device sideways:\nDoorgunner plays in landscape."
 	var dim := StyleBoxFlat.new()
 	dim.bg_color = Color(0, 0, 0, 0.9)
@@ -104,22 +102,68 @@ func _process(_delta: float) -> void:
 	pads["land"].text = "TAKE OFF" if heli.landed else "LAND"
 	pads["system"].visible = Game.heli_items.has("loudspeaker")
 	pads["hook"].visible = Game.world.wrecks.slung() or Game.world.wrecks.wreck_below(heli.position) != ""
-	var row := pads.values().filter(func(p): return p.visible) # strip without gaps for the hidden pads
-	for i in row.size():
-		row[i].position = STRIP + Vector2(i % 2, -(i / 2)) * (BTN + Vector2(GAP, GAP))
 	var ctx: Dictionary = Game.world.outposts._ctx # what [O] / [P] would do here, rescanned 4x a second
 	var on := [heli.can_found(), ctx.get("o", "") != "", ctx.get("p", false)]
-	var shown := context.filter(func(p): return on[context.find(p)])
 	for i in context.size():
 		context[i].visible = on[i]
-	for i in shown.size():
-		shown[i].position = CONTEXT_AT + Vector2((i - shown.size() / 2.0) * (shown[i].size.x + GAP), 0)
+	_layout()
 	for c in [move_stick, aim_stick]:
 		if not c.is_visible_in_tree():
 			c.release()
 	for p in pads.values() + context + [takeoff, menu, restart]:
 		if not p.is_visible_in_tree():
 			p.release()
+
+
+## Corners and bands from the root size (root px).
+func _layout() -> void:
+	var w := root.size.x
+	var h := root.size.y
+	var m := float(UiTheme.MARGIN)
+	var s := move_stick.size
+	move_stick.position = Vector2(m, h - m - s.y)
+	aim_stick.position = Vector2(w - m - s.x, h - m - s.y)
+	_strip_left = aim_stick.position.x - GAP - 2.0 * BTN.x - GAP
+	var row := pads.values().filter(func(p): return p.visible) # strip without gaps for the hidden pads
+	for i in row.size():
+		row[i].position = Vector2(_strip_left, h - m - BTN.y) + Vector2(i % 2, -(i / 2)) * (BTN + Vector2(GAP, GAP))
+	# context buttons: centred rows at the bottom of the band between the fly stick and the strip
+	var left := move_stick.position.x + s.x + GAP
+	var per_row := maxi(1, floori((_strip_left - GAP - left + GAP) / (CONTEXT_W + GAP)))
+	var shown := context.filter(func(p): return p.visible)
+	for i in shown.size():
+		var in_row := mini(per_row, shown.size() - i / per_row * per_row)
+		var x0 := (left + _strip_left - GAP) / 2.0 - (in_row * (CONTEXT_W + GAP) - GAP) / 2.0
+		shown[i].position = Vector2(x0 + (i % per_row) * (CONTEXT_W + GAP), h - m - BTN.y - (i / per_row) * (BTN.y + GAP))
+	takeoff.position = Vector2(m, h - m - BTN.y)
+	restart.position = Vector2((w - restart.size.x) / 2.0, h - m - BTN.y - 2.0 * GAP)
+	var map: Control = Game.world.hud.minimap
+	menu.position = Vector2(w - m - menu.size.x, map.get_global_rect().end.y / root.factor + GAP)
+	place_bar.reset_size()
+	place_bar.position = Vector2(w - m - BTN.x, (h - place_bar.size.y) / 2.0)
+
+
+## Where the HUD may put its radio log (screen px): the band between the sticks above the context buttons, or above
+## TAKE OFF in the base menu. Empty: no constraint.
+func log_band() -> Rect2:
+	if not visible:
+		return Rect2()
+	var r := Rect2()
+	if flight.visible:
+		var left := move_stick.position.x + move_stick.size.x + GAP
+		var bottom := root.size.y - UiTheme.MARGIN
+		for p in context:
+			if p.visible:
+				bottom = minf(bottom, p.position.y)
+		r = Rect2(left, 0, _strip_left - GAP - left, bottom - GAP)
+	elif takeoff.visible:
+		r = Rect2(UiTheme.MARGIN, 0, root.size.x - 2.0 * UiTheme.MARGIN, takeoff.position.y - GAP)
+	return Rect2(r.position * root.factor, r.size * root.factor)
+
+
+## Everything a finger presses here, for the HUD to stay clear of.
+func obstacles() -> Array:
+	return [move_stick, aim_stick, takeoff, menu, restart, place_bar] + pads.values() + context
 
 
 func _place() -> void:
@@ -195,8 +239,8 @@ class Pad extends Control:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(UiTheme.PANEL, 0.75 if finger >= 0 else 0.45))
 		draw_rect(Rect2(Vector2.ZERO, size), UiTheme.ACCENT if finger >= 0 else UiTheme.OLIVE, false, 2.0)
 		var font := ThemeDB.fallback_font
-		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15).x
-		draw_string(font, Vector2((size.x - w) / 2.0, size.y / 2.0 + 5.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, UiTheme.SAND)
+		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FONT_L).x
+		draw_string(font, Vector2((size.x - w) / 2.0, size.y / 2.0 + 5.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FONT_L, UiTheme.SAND)
 
 
 ## A virtual stick: value is the finger's offset from the centre, length 0..1.
@@ -242,5 +286,5 @@ class Stick extends Control:
 		draw_arc(c, radius, 0.0, TAU, 48, Color(UiTheme.SAND, 0.5), 2.0)
 		draw_circle(c + value * radius, radius * 0.38, Color(UiTheme.ACCENT, 0.7 if finger >= 0 else 0.35))
 		var font := ThemeDB.fallback_font
-		var w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
-		draw_string(font, Vector2(c.x - w / 2.0, c.y + radius + 18.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(UiTheme.SAND, 0.7))
+		var w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FONT).x
+		draw_string(font, Vector2(c.x - w / 2.0, c.y + radius + 18.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.FONT, Color(UiTheme.SAND, 0.7))

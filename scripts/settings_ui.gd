@@ -1,5 +1,6 @@
 extends CanvasLayer
 ## ESC: one row per option registered in Settings (sliders: label + slider, toggles: check button). Pauses the game while open.
+## Centred under a UiTheme root that scales as far as the panel fits (the "UI scale" row rescales it live).
 
 var panel: PanelContainer
 var rows := {} # key -> HSlider or CheckButton
@@ -11,20 +12,24 @@ func _ready() -> void:
 	layer = 25
 	process_mode = PROCESS_MODE_ALWAYS
 	visible = false
+	var root := UiTheme.attach(self)
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.color = Color(0, 0, 0, 0.55)
-	add_child(dim)
+	root.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(center)
 	panel = PanelContainer.new()
-	panel.position = Vector2(440, 200)
-	panel.size = Vector2(400, 0)
-	add_child(panel)
+	panel.custom_minimum_size.x = 400
+	center.add_child(panel)
+	root.fit = panel
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 10)
+	box.add_theme_constant_override("separation", UiTheme.GAP)
 	panel.add_child(box)
 	var title := Label.new()
 	title.text = "SOUND"
-	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_font_size_override("font_size", UiTheme.FONT_XL)
 	box.add_child(title)
 	for key in Settings.defs:
 		var def: Dictionary = Settings.defs[key]
@@ -60,7 +65,7 @@ func _ready() -> void:
 	var ver := Label.new()
 	ver.text = Game.version_text()
 	ver.modulate = Color(0.5, 0.5, 0.5)
-	ver.add_theme_font_size_override("font_size", 11)
+	ver.add_theme_font_size_override("font_size", UiTheme.FONT_XS)
 	box.add_child(ver)
 
 

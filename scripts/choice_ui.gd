@@ -22,19 +22,21 @@ func _ready() -> void:
 	layer = 20
 	process_mode = PROCESS_MODE_ALWAYS
 	visible = false
+	var root := UiTheme.attach(self)
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.color = Color(0, 0, 0, 0.7)
-	add_child(dim)
+	root.add_child(dim)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.add_child(center)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 20)
 	center.add_child(box)
+	root.fit = box # four cards at 150 % would not fit: scales only that far
 	title_label = Label.new()
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.add_theme_font_size_override("font_size", 28)
+	title_label.add_theme_font_size_override("font_size", UiTheme.FONT_XL + 4)
 	box.add_child(title_label)
 	row = HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER

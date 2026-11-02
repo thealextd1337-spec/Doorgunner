@@ -12,19 +12,26 @@ var _t := 0.0
 
 func _ready() -> void:
 	layer = 6
-	tag = Label.new()
-	tag.position = Vector2(540, 8)
-	tag.size = Vector2(200, 20)
+	var root := UiTheme.attach(self)
+	tag = Label.new() # top centre, in the HUD's TOP_ROW above its alert line
+	tag.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	tag.offset_left = -100
+	tag.offset_right = 100
+	tag.offset_top = UiTheme.MARGIN - 2
+	tag.offset_bottom = UiTheme.TOP_ROW
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tag.add_theme_font_size_override("font_size", 13)
+	tag.add_theme_font_size_override("font_size", UiTheme.FONT)
 	tag.add_theme_color_override("font_color", Color(1.0, 0.75, 0.3))
-	tag.add_theme_color_override("font_outline_color", Color.BLACK)
-	tag.add_theme_constant_override("outline_size", 3)
+	UiTheme.outline(tag)
 	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(tag)
+	root.add_child(tag)
 	panel = PanelContainer.new()
-	panel.position = Vector2(300, 100)
-	panel.custom_minimum_size = Vector2(680, 0)
+	panel.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	panel.offset_left = -320 # clear of the HUD status zone (300 px + margins) on both sides
+	panel.offset_right = 320
+	panel.offset_top = 100
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.custom_minimum_size = Vector2(640, 0)
 	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.visible = false
 	var sb := StyleBoxFlat.new()
@@ -33,9 +40,10 @@ func _ready() -> void:
 	sb.border_color = Overlay.ACCENT
 	sb.set_content_margin_all(16)
 	panel.add_theme_stylebox_override("panel", sb)
-	add_child(panel)
+	root.add_child(panel)
+	root.fit = panel
 	body = Label.new()
-	body.add_theme_font_size_override("font_size", 14)
+	body.add_theme_font_size_override("font_size", UiTheme.FONT_M)
 	body.add_theme_color_override("font_color", Overlay.SAND)
 	body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(body)
