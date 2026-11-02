@@ -15,7 +15,8 @@ extends Node
 ## do (rooftop rescue, black box, medicine run). In evac mode: Radio Station, Airstrip, the final siege, STAY BEHIND.
 ## Time runs fast: Engine.time_scale is set every frame so a frame is QUIET_DT game seconds while nothing is near the heli
 ## or the base, FLY_DT while flying and FIGHT_DT (small enough for bullets) while enemies are close. One CSV row per day.
-## The run counts as collapsed if it ends before the last day (exit 1). Runtime: ~10-20 min for 40 days (see CHANGELOG).
+## The run counts as collapsed if it ends before the last day (exit 1). Runtime: ~30-40 min for 40 days (Q4, all systems on).
+## CSV: one row per day (COLS), the first line "# seed .. days .. evac .. mods .. result ..". tools/longrun_report.py sums it up.
 
 const DAYS := 40
 const QUIET_DT := 1.0
@@ -81,7 +82,6 @@ var strip_day := -1 # last day find_spot found nothing
 var lane := Rect2i() # evac mode: the airstrip lane kept free (size 0: none fits)
 var lane_rot := 0
 var lane_r := 0.0 # fence radius the lane needs; 0: not picked yet
-var result := ""
 
 
 func _ready() -> void:
