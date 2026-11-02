@@ -80,6 +80,9 @@ func _ready() -> void:
 		_sys[k] = PackedFloat32Array()
 	log_on = OS.get_environment("PERF") == "1" or OS.has_feature("web") \
 		and str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('perf')")) == "1"
+	if log_on: # Q14: compare with tests/daily_test.gd WORLD_HASH (the daily promises the same world on every platform)
+		var cm: GDScript = load("res://scripts/chunk_manager.gd")
+		print("WORLDHASH seed %d: %d" % [cm.HASH_SEED, cm.world_hash(cm.HASH_SEED)])
 	_last = Time.get_ticks_usec()
 	get_tree().physics_frame.connect(_frame_start)
 	get_tree().process_frame.connect(_frame_start)
