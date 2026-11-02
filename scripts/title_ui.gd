@@ -26,6 +26,8 @@ var online_notice: Label # Online.title_notice(): "Offline - this run is not ran
 var confirm: ConfirmationDialog
 var badge: Button # active profile (portrait + name), opens PROFILES
 var profile_ui: ProfileUi
+var data_ui: SaveDataUi # BACKUP: export / import (Q3)
+var restore_btn: Button # RESTORE FROM CLOUD: no local run, but a cloud copy (Q3)
 var board_ui: LeaderboardUi
 # NEW RUN setup (P15): run modifiers and the start heli, read by main.gd when the run starts
 const Modifiers := preload("res://scripts/modifiers.gd")
@@ -108,6 +110,12 @@ func _ready() -> void:
 	cont_btn = _big_button()
 	cont_btn.pressed.connect(_continue)
 	v.add_child(cont_btn)
+	restore_btn = _big_button()
+	restore_btn.add_theme_font_size_override("font_size", 18)
+	restore_btn.tooltip_text = "Your saved run was backed up online. Needs the online login of this profile."
+	restore_btn.visible = false
+	restore_btn.pressed.connect(_restore)
+	v.add_child(restore_btn)
 	var btn := _big_button()
 	start_btn = btn
 	btn.pressed.connect(_start)
@@ -135,7 +143,7 @@ func _ready() -> void:
 	var row2 := HBoxContainer.new()
 	row2.add_theme_constant_override("separation", 12)
 	v.add_child(row2)
-	for def in [["PROFILES", _open_profiles], ["LEADERBOARD [L]", _open_board]]:
+	for def in [["PROFILES", _open_profiles], ["LEADERBOARD [L]", _open_board], ["BACKUP", _open_data]]:
 		var b := Button.new()
 		b.text = def[0]
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -160,6 +168,9 @@ func _ready() -> void:
 	add_child(profile_ui)
 	board_ui = LeaderboardUi.new()
 	add_child(board_ui)
+	data_ui = SaveDataUi.new()
+	data_ui.changed.connect(open)
+	add_child(data_ui)
 	confirm = ConfirmationDialog.new()
 	confirm.dialog_text = "Abandon the current run? It counts as lost."
 	confirm.ok_button_text = "ABANDON"
@@ -309,8 +320,36 @@ func _open_board() -> void:
 		board_ui.open()
 
 
+func _open_data() -> void:
+	if not _overlay_open():
+		data_ui.open()
+
+
 func _overlay_open() -> bool:
-	return profile_ui.visible or board_ui.visible
+	return profile_ui.visible or board_ui.visible or data_ui.visible
+
+
+## No local run but a cloud copy: offer RESTORE. Answers later (network), so it re-checks that the title is still as it was.
+func _refresh_cloud() -> void:
+	restore_btn.visible = false
+	if Save.has_run():
+		return
+	var meta := await CloudSave.peek()
+	if meta.is_empty() or Save.has_run() or not visible:
+		return
+	restore_btn.text = "RESTORE FROM CLOUD  -  SAVED %s" % str(meta.get("updated_at", "")).substr(0, 16).replace("T", " ")
+	restore_btn.visible = true
+
+
+func _restore() -> void:
+	restore_btn.disabled = true
+	var err := await CloudSave.restore()
+	restore_btn.disabled = false
+	if err != "":
+		notice.text = err
+		notice.visible = true
+		return
+	open() # the restored run shows as CONTINUE
 
 
 func _refresh_online_notice() -> void:
@@ -356,6 +395,8 @@ func open() -> void:
 	_refresh_online_notice()
 	_refresh_setup()
 	visible = true
+	CloudSave.flush_pending()
+	_refresh_cloud()
 
 
 func _process(delta: float) -> void:
@@ -369,11 +410,11 @@ func _process(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if _overlay_open():
 		return # typing a name must not trigger H / SPACE / ENTER here
-	if visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_L:
+	if visible and event.is_action_pressed("leaderboard"):
 		_open_board()
-	elif visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_H:
+	elif visible and event.is_action_pressed("hangar"):
 		_toggle_hangar()
-	elif visible and event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+	elif visible and event.is_action_pressed("start"):
 		get_viewport().set_input_as_handled()
 		_continue() if cont_btn.visible else _start()
 

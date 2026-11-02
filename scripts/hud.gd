@@ -10,10 +10,13 @@ var alert: Label
 var compass: Control
 var minimap: Control
 var log_lines: Array[String] = []
+var _map_at := Vector2.INF # heli position at the last minimap redraw
+var _map_ms := 0
 
 const MAP_SIZE := 200.0
 const MAP_SCALE := 16.0 # world px per minimap px
 const MAP_SEEN := 480.0 # POIs this close to the heli become known
+const MAP_REDRAW_MS := 100 # the minimap redraws when the heli moved a minimap px, else at 10 Hz (its ~1800 terrain samples are costly)
 const ARC_IN := 36.0 # door gun wedges around the heli, screen px (camera zoom 2)
 const ARC_OUT := 56.0
 # minimap terrain colours by chunk_manager tile index (see its T enum)
@@ -147,7 +150,10 @@ func _process(_delta: float) -> void:
 	if wear_alert != "":
 		alert.text = wear_alert # engine trouble outranks everything else
 	compass.queue_redraw()
-	minimap.queue_redraw()
+	if Game.heli and (Game.heli.global_position.distance_to(_map_at) >= MAP_SCALE or Time.get_ticks_msec() - _map_ms >= MAP_REDRAW_MS):
+		_map_at = Game.heli.global_position
+		_map_ms = Time.get_ticks_msec()
+		minimap.queue_redraw()
 
 
 func _on_radio(msg: String) -> void:
@@ -232,7 +238,7 @@ func _draw_minimap() -> void:
 	for p in Game.world.pois:
 		if not is_instance_valid(p) or p.done:
 			continue
-		if not p.discovered and heli_pos.distance_squared_to(p.global_position) < MAP_SEEN * MAP_SEEN and not Game.world.modifiers.on("blackout"):
+		if not p.discovered and heli_pos.distance_squared_to(p.global_position) < pow(MAP_SEEN * Buildings2.reach(), 2) and not Game.world.modifiers.on("blackout"):
 			p.discovered = true
 		if p.discovered:
 			minimap.draw_rect(Rect2(to_map.call(p.global_position) - Vector2(2, 2), Vector2(4, 4)), POI_COLORS.get(p.kind, Color.WHITE))

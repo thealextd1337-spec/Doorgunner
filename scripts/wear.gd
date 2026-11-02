@@ -80,6 +80,7 @@ func _flight(delta: float) -> void:
 				state = "auto"
 				t = randf_range(AUTO_MIN, AUTO_MAX)
 				auto_total = t
+				Sfx.play("autorot")
 				Game.radio("Pilot: engine's dead! Autorotation. Steer for open ground and put her down (SPACE).")
 		_:
 			_wear(delta)

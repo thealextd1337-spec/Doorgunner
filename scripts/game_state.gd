@@ -94,7 +94,7 @@ var base_fuel := 400.0
 var base_ammo := 800.0
 var base_fuel_cap := 600.0
 var base_ammo_cap := 1200.0
-var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0, "workshop": 0}
+var workers := {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0, "workshop": 0, "forge": 0}
 var sandbags := {} # Vector2i cell -> {"kind": "sandbag" or "wire", "hp": float, "built": bool, "rot": 0 along x / 1 along y}; nodes live in base.gd
 var base_food := 60.0
 var salvage := {"metal": 0.0, "parts": 0.0, "electronics": 0.0} # crates, wrecks, scrap yards, kills; the workshop job turns it into scrap
@@ -103,7 +103,9 @@ var workshop_progress := 0.0 # salvage units owed to the workshop, carried betwe
 # kind -> [name, scrap, build seconds, footprint cells]; "perimeter" costs scrap x next level and has no footprint
 const BUILDINGS := {"barracks": ["Barracks", 40, 90.0, 2], "clinic": ["Field Clinic", 50, 90.0, 2], "generator": ["Generator", 60, 60.0, 1],
 	"well": ["Well", 30, 60.0, 1], "watchtower": ["Watchtower", 35, 45.0, 1], "motor_pool": ["Motor Pool", 80, 90.0, 2], "perimeter": ["Perimeter", 60, 60.0, 0],
-	"radio": ["Radio Station", 90, 90.0, 2], "airstrip": ["Airstrip", 150, 120.0, 0]} # radio / airstrip: evac.gd (airstrip: 4x24 cells, stored with "rot")
+	"radio": ["Radio Station", 90, 90.0, 2], "airstrip": ["Airstrip", 150, 120.0, 0], # radio / airstrip: evac.gd (airstrip: 4x24 cells, stored with "rot")
+	"hospital": ["Field Hospital", 110, 120.0, 2], "greenhouse": ["Greenhouse", 70, 75.0, 2], "forge": ["Forge", 100, 100.0, 2],
+	"bunker": ["Bunker", 130, 120.0, 2], "relay": ["Radio Relay", 100, 90.0, 1]} # the last five: buildings2.gd (mouse / touch only in the build bar)
 const BASE_RADIUS := 160.0
 const PERIMETER_STEP := 60.0
 const PERIMETER_MAX := 5
@@ -201,7 +203,6 @@ const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kill
 	"tutorial_done": 0, "version": "", "start_helis": ""}
 var meta := META_DEFAULT.duplicate() # the active profile's meta.json; global options live in Settings (settings_registry.gd)
 var profiles := {"list": [], "last": ""}
-var radio_beep_ms := 0
 # run variables Save stores (stats, slots, seats, max_fuel/max_ammo and weight come from recompute)
 const SAVED := ["seed", "fuel", "ammo", "hp", "max_hp", "person_seq", "scrap", "xp", "level", "day", "time", "kills",
 	"base_hp", "max_base_hp", "attack_pending", "attack_active", "base_founded", "first_assault_day", "base_level", "weapon",
@@ -237,7 +238,7 @@ func new_run() -> void:
 	base_seats = 0; base_max_fuel = 75.0; base_max_ammo = 140; base_armor = 1.0
 	loadout = {"seats": 4, "fuel_tank": 1, "ammo_feed": 1, "armor": 0}; loadout_budget = 10
 	base_fuel = 400.0; base_ammo = 800.0; base_fuel_cap = 600.0; base_ammo_cap = 1200.0
-	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0, "workshop": 0}
+	workers = {"fuel": 0, "ammo": 0, "repair": 0, "militia": 0, "farm": 0, "build": 0, "medic": 0, "water": 0, "workshop": 0, "forge": 0}
 	sandbags = {}
 	base_food = 60.0; noise_level = 0.0
 	salvage = {"metal": 0.0, "parts": 0.0, "electronics": 0.0}; workshop_progress = 0.0
@@ -264,10 +265,10 @@ func _apply_meta_bonus() -> void:
 func recompute() -> void:
 	Progression.apply_all()
 	seats = maxi(1, base_seats + loadout["seats"] + stats["seats"]) # a Little Bird (2 seats) with the smallest loadout
-	max_fuel = base_max_fuel + 25.0 * loadout["fuel_tank"]
+	max_fuel = base_max_fuel + 25.0 * loadout["fuel_tank"] + stats["tank"]
 	max_ammo = base_max_ammo + 60 * loadout["ammo_feed"] + Weapons.TABLE[weapon]["max_ammo_bonus"] + stats["max_ammo"]
 	stats["armor"] *= base_armor * (1.0 + 0.15 * loadout["armor"])
-	weight_factor = 1.0 - 0.04 * maxi(0, loadout_points() - 8)
+	weight_factor = 1.0 - 0.04 * (maxi(0, loadout_points() - 8) + stats["weight"])
 	fuel = minf(fuel, max_fuel)
 	ammo = mini(ammo, max_ammo)
 
@@ -553,14 +554,19 @@ func days_to_assault() -> int:
 	return first_assault_day - day if day < first_assault_day else posmod(first_assault_day - day, ATTACK_EVERY_DAYS)
 
 
+## Patient beds: 2 per clinic, more in a Field Hospital (buildings2.gd).
+func clinic_beds() -> int:
+	return 2 * built("clinic") + Buildings2.HOSPITAL_BEDS * built("hospital")
+
+
 ## Field clinic: 2 beds per clinic, a patient takes a bed for 1 medicine, then heals in HEAL_DAYS
 ## (x2 speed with a medic for that bed pair, x2 again with power). `d` is the fraction of a day.
 func _treat(d: float) -> void:
-	while treating.size() < mini(2 * built("clinic"), injured) and base_medicine >= 1.0:
+	while treating.size() < mini(clinic_beds(), injured) and base_medicine >= 1.0:
 		base_medicine -= 1.0
 		treating.append(HEAL_DAYS)
 	for i in range(treating.size() - 1, -1, -1):
-		treating[i] -= d * (2.0 if i < 2 * crew("medic") else 1.0) * (2.0 if power else 1.0)
+		treating[i] -= d * (2.0 if i < 2 * crew("medic") else 1.0) * (2.0 if power else 1.0) * Buildings2.heal_speed()
 		if treating[i] <= 0.0:
 			treating.remove_at(i)
 			injured -= 1
@@ -608,7 +614,7 @@ func xp_needed() -> int:
 
 
 func radio(msg: String) -> void:
-	if Time.get_ticks_msec() >= radio_beep_ms: radio_beep_ms = Time.get_ticks_msec() + 500; Sfx.play("radio", null, -8.0)
+	Sfx.radio_beep(msg) # beep per sender + music ducking
 	radio_message.emit(msg)
 
 
@@ -616,7 +622,7 @@ func end_run(reason: String, victory := false) -> void:
 	if not running:
 		return
 	running = false
-	Save.delete_run() # Ironman: gone before the game-over screen shows
+	Save.delete_run(true) # Ironman: gone before the game-over screen shows (cloud copy first)
 	record_run(day, saved_count(), kills, victory or Evac.won()) # a death after STAY BEHIND still carries the victory
 	run_ended.emit(reason)
 
@@ -645,6 +651,9 @@ func load_state(d: Dictionary) -> void:
 	heli_weapons.assign(d["heli_weapons"]) # typed arrays come back untyped from bytes_to_var
 	treating.assign(d["treating"])
 	people.assign(d["people"])
+	for j in ["forge"]: # job added after 1.0.0-beta: older saves lack it
+		if not workers.has(j):
+			workers[j] = 0
 	recompute()
 	running = true
 
@@ -760,16 +769,30 @@ func _setup_input() -> void:
 		"move_up": [KEY_W, KEY_UP], "move_down": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R], "missions": [KEY_J], "outpost": [KEY_O], "protect": [KEY_P], "hook": [KEY_G],
+		"perf": [KEY_F3], # Q1 performance overlay
+		"system": [KEY_F], # loudspeaker
 	}
-	for action in keys:
+	# these were raw event.keycode checks before Q5: bound by keycode (layout key) so they behave exactly as before
+	var labels := {
+		"base_menu": [KEY_TAB], "mute": [KEY_M], "leaderboard": [KEY_L], "hangar": [KEY_H], "start": [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE],
+		"reroll": [KEY_R], "skip": [KEY_S], "banish": [KEY_B], # level-up cards
+	}
+	for i in 9: # build bar tools and level-up cards
+		labels["slot_%d" % (i + 1)] = [KEY_1 + i]
+	for action in keys.keys() + labels.keys():
 		if not InputMap.has_action(action):
 			InputMap.add_action(action)
-		for k in keys[action]:
+		for k in keys.get(action, labels.get(action)):
 			var ev := InputEventKey.new()
-			ev.physical_keycode = k
+			if keys.has(action):
+				ev.physical_keycode = k
+			else:
+				ev.keycode = k
 			InputMap.action_add_event(action, ev)
-	if not InputMap.has_action("fire"):
-		InputMap.add_action("fire")
-	var mb := InputEventMouseButton.new()
-	mb.button_index = MOUSE_BUTTON_LEFT
-	InputMap.action_add_event("fire", mb)
+	var buttons := {"fire": MOUSE_BUTTON_LEFT, "place": MOUSE_BUTTON_LEFT, "unplace": MOUSE_BUTTON_RIGHT} # place / unplace: build mode
+	for action in buttons:
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+		var mb := InputEventMouseButton.new()
+		mb.button_index = buttons[action]
+		InputMap.action_add_event(action, mb)

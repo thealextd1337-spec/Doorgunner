@@ -4,17 +4,19 @@ config_version=5
 [application]
 
 config/name="Doorgunner"
-config/version="1.0.0-beta"
+config/version="1.0.0-beta.2"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [autoload]
 
 Settings="*res://scripts/settings_registry.gd"
+Controls="*res://scripts/controls.gd"
 Game="*res://scripts/game_state.gd"
 Sfx="*res://scripts/sfx.gd"
 Save="*res://scripts/save.gd"
 Online="*res://scripts/online.gd"
+ErrorReport="*res://scripts/error_report.gd"
 
 [display]
 
@@ -22,6 +24,7 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="keep"
+window/handheld/orientation=4
 
 [rendering]
 

@@ -10,8 +10,8 @@ extends RefCounted
 const NAMES_PATH := "res://data/names.txt"
 const SKILL_WEIGHT := {"mechanic": 17, "farmer": 20, "medic": 13, "soldier": 17, "builder": 18, "driver": 10, "engineer": 5}
 # jobs a skill is good at; ammo and fuel have no own skill in the plan, soldier and driver/engineer take them
-const SKILL_JOBS := {"mechanic": ["repair", "workshop"], "farmer": ["farm", "water"], "medic": ["medic"], "soldier": ["militia", "ammo"],
-	"builder": ["build"], "driver": ["fuel"], "engineer": ["repair", "workshop", "fuel"]}
+const SKILL_JOBS := {"mechanic": ["repair", "workshop", "forge"], "farmer": ["farm", "water"], "medic": ["medic"], "soldier": ["militia", "ammo"],
+	"builder": ["build"], "driver": ["fuel"], "engineer": ["repair", "workshop", "fuel", "forge"]}
 const SKILL_TAG := {"mechanic": "MEC", "farmer": "FRM", "medic": "MED", "soldier": "SOL", "builder": "BLD", "driver": "DRV", "engineer": "ENG"}
 const SKILL_RATE := [1.0, 1.5, 1.75, 2.0] # work rate by skill level in a matching job, index 0 = not matching
 const LEVEL_DAYS := [5, 15] # days in a matching job for level 2 and 3

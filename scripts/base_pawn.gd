@@ -8,7 +8,7 @@ const OLIVE := Color(0.85, 1.0, 0.5)
 const HURT := Color(1.0, 0.45, 0.45)
 const DARK := Color(0.12, 0.1, 0.08)
 const GREY := Color(0.5, 0.52, 0.55)
-const TOOL_JOBS := ["fuel", "ammo", "repair", "workshop", "build"]
+const TOOL_JOBS := ["fuel", "ammo", "repair", "workshop", "build", "forge"]
 const WORK_JOBS := TOOL_JOBS + ["farm", "water", "medic"] # bob and swing while waiting at a work spot
 const DUST := Color(0.75, 0.66, 0.5)
 const FLASH := Color(1.0, 0.8, 0.35)
@@ -127,7 +127,7 @@ func _pick() -> void:
 	gear = "" if hurt else ("rifle" if job == "militia" else ("tool" if job in TOOL_JOBS else "pistol"))
 	var home: Vector2 = base.global_position
 	if hurt:
-		_go(base.door("clinic") + Vector2(slot % 4 * 6 - 9, -10), "lie")
+		_go(base.door("hospital" if slot >= 2 * Game.built("clinic") and Game.built("hospital") > 0 else "clinic") + Vector2(slot % 4 * 6 - 9, -10), "lie")
 	elif job == "militia":
 		var posts: Node2D = base.defenders
 		_go(posts.get_child(slot).global_position if base.on_alert and slot < posts.get_child_count() else _patrol())
@@ -135,6 +135,8 @@ func _pick() -> void:
 		_go(home + Vector2(Game.base_radius - 14, 0).rotated(fence_angle), "lie")
 	elif Game.is_night():
 		_go(base.door("barracks"), "inside")
+	elif job == "forge":
+		_go(_around(base.door("forge"), 14))
 	elif job in TOOL_JOBS:
 		_go(_work_spot())
 	elif job == "farm":

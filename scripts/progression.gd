@@ -28,15 +28,28 @@ const ITEMS := {
 	"veteran": {"name": "Veteran", "slot": "module", "desc": "Experienced crew.", "per_level": ["+10 % XP", "+20 % XP", "+30 % XP", "+40 % XP", "+50 % XP, level-ups offer 4 cards"], "unlock": {"kind": "runs", "value": 20}},
 	"scavenger": {"name": "Scavenger", "slot": "module", "desc": "Salvage crew picks the dead clean.", "per_level": ["+15 % scrap from kills", "+30 % scrap", "+45 % scrap", "+60 % scrap", "+75 %, zombie drops give ammo"], "unlock": {"kind": "runs", "value": 20}},
 	"optics": {"name": "Optics", "slot": "module", "desc": "Gun sights for long shots.", "per_level": ["+10 % range", "+20 % range", "+30 % range", "+40 % range", "+50 %, hits in the outer third +50 % damage"], "unlock": null},
+	# Q8 arsenal: four door guns, two more hardpoint guns, two systems, two modules
+	"scatter": {"name": "Scatter Gun", "slot": "hardpoint", "desc": "Ten wide pellets, deadly up close, weak at range.", "per_level": ["Mount the Scatter Gun", "+1 pellet", "+2 pellets", "+3 pellets", "Dragon's breath: pellets set zombies alight"], "unlock": {"kind": "runs", "value": 8}},
+	"flamer": {"name": "Flamethrower", "slot": "hardpoint", "desc": "11 m fire stream, burning zombies keep taking damage.", "per_level": ["Mount the Flamethrower", "+15 % burn damage", "+30 % burn damage", "+45 % burn damage", "Wildfire: burning zombies ignite their neighbours"], "unlock": {"kind": "rescued", "value": 150}},
+	"grenade": {"name": "Grenade Launcher", "slot": "hardpoint", "desc": "Lobbed shell bursts where you aim, over walls and zombies.", "per_level": ["Mount the Grenade Launcher", "+15 % blast radius", "+30 % blast radius", "+45 % blast radius", "Cluster: 3 shells per trigger"], "unlock": {"kind": "assaults", "value": 15}},
+	"marksman": {"name": "Precision Rifle", "slot": "hardpoint", "desc": "One slow, hard shot through two targets. Aims for the head.", "per_level": ["Mount the Precision Rifle", "+15 % damage", "+30 % damage", "+45 % damage", "Dead-eye: +2 pierce, half of all hits are headshots"], "unlock": {"kind": "day", "value": 12}},
+	"sonic": {"name": "Sonic Cannon", "slot": "hardpoint", "desc": "Shockwave stuns and shoves everything in a cone (not bandits).", "per_level": ["Mount the Sonic Cannon", "+25 % damage, +0.2 s stun", "+50 % damage, +0.4 s stun", "+75 % damage, +0.6 s stun", "Resonance: the wave hits 4x as hard"], "unlock": {"kind": "bosses", "value": 15}},
+	"net": {"name": "Net Launcher", "slot": "hardpoint", "desc": "Net shell roots zombies in its burst (2 s, then immune for 4 s). Bosses shrug it off.", "per_level": ["Mount the Net Launcher", "+0.5 s root", "+1 s root", "+1.5 s root", "Wide net: double radius"], "unlock": {"kind": "runs", "value": 12}},
+	"thermal": {"name": "Thermal Sight", "slot": "system", "desc": "At night, zombies and bandits near you glow in heat view.", "per_level": ["20 m heat view", "24 m", "28 m", "32 m", "45 m, also shows zombies hiding in forest"], "unlock": {"kind": "day", "value": 25}},
+	"smoke": {"name": "Smoke Launcher", "slot": "system", "desc": "Pops a smoke screen when you are shot at: rockets lose their lock, zombies inside slow down.", "per_level": ["Screen 6 s, ready every 24 s", "7 s, every 21 s", "8 s, every 18 s", "9 s, every 15 s", "Screen also stuns zombies for 2 s"], "unlock": {"kind": "assaults", "value": 10}},
+	"extratank": {"name": "Extra Tank", "slot": "module", "desc": "Auxiliary fuel cell in the cabin.", "per_level": ["+10 fuel", "+20 fuel", "+30 fuel", "+40 fuel", "+60 fuel, self-sealing: 10 % less burn"], "unlock": {"kind": "runs", "value": 5}},
+	"heavyplates": {"name": "Heavy Plates", "slot": "module", "desc": "Thick armour that weighs the heli down (-4 % speed per level).", "per_level": ["+20 % armour, -4 % speed", "+40 % armour, -8 % speed", "+60 % armour, -12 % speed", "+80 % armour, -16 % speed", "+150 % armour, -20 % speed"], "unlock": {"kind": "bosses", "value": 5}},
 }
 const SLOT_TYPES := ["hardpoint", "system", "module"]
 const META_KEYS := {"rescued": "total_rescued", "assaults": "assaults_held", "bosses": "boss_kills", "day": "best_day", "runs": "runs"}
 const BASE_STATS := {
 	"damage": 1.0, "fire_rate": 1.0, "speed": 1.0, "fuel_eff": 1.0, "armor": 1.0, "pierce": 0, "shots": 1,
 	"bullet_speed": 1.0, "xp_gain": 1.0, "range": 1.0, "seats": 0, "max_ammo": 0, "scrap_gain": 1.0, "spool": 1.0, "board": 1.0,
+	"tank": 0.0, "weight": 0, # Q8: Extra Tank fuel, Heavy Plates loadout points
 }
 const HeliTypes := preload("res://scripts/heli_types.gd")
 const CARD_SCRAP := 20 # value of one card; scrapping an item refunds half
+const MAX_ITEM_ARMOR := 3.5 # cap on the item armour factor (Armour Plating x Heavy Plates): either alone at lv5 stays below it (2.8 / 2.5), together max 71 % less damage instead of 86 %
 
 
 ## Level of an item, 0 if never taken (bay weapons keep theirs).
@@ -77,6 +90,7 @@ static func apply_all() -> void:
 	for id in Game.heli_items:
 		if owned(id):
 			apply(id, Game.heli_items[id])
+	Game.stats["armor"] = minf(Game.stats["armor"], MAX_ITEM_ARMOR)
 	var ws: int = Game.base_level.get("workshop", 0)
 	var m: Dictionary = Game.meta
 	var extra := {"hardpoint": ws >= 2 or m["best_day"] >= 10, "system": ws >= 3 or m["best_day"] >= 30, "module": ws >= 4 or m["total_rescued"] >= 600} # workshop 1 is the stock one
@@ -109,6 +123,12 @@ static func apply(id: String, lv: int) -> void:
 		"veteran": s["xp_gain"] *= 1.0 + 0.1 * lv
 		"scavenger": s["scrap_gain"] *= 1.0 + 0.15 * lv
 		"optics": s["range"] *= 1.0 + 0.1 * lv
+		"extratank":
+			s["tank"] += 10.0 * lv + (10.0 if lv >= 5 else 0.0)
+			s["fuel_eff"] *= 1.1 if lv >= 5 else 1.0
+		"heavyplates":
+			s["armor"] *= (1.0 + 0.2 * lv) * (1.25 if lv >= 5 else 1.0)
+			s["weight"] += lv
 
 
 ## Lv5 Lean Burn / Ammo Belts: every passenger delivery at base tops up a share of the tanks for free.

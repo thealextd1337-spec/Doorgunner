@@ -8,6 +8,7 @@ leaderboard views, with the same error codes. Test controls: POST /_test {"expir
 {"down": true} answers every request with 503, {"max_day": n} makes upsert_run answer `implausible` above day n;
 GET /_test returns {"players": ..., "runs": ...}. Not a security reference: it checks only what the client needs.
 """
+import base64
 import json
 import re
 import sys
@@ -16,7 +17,8 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-S = {"access": {}, "refresh": {}, "players": {}, "runs": {}, "n": 0, "down": False, "max_day": 100000}
+S = {"access": {}, "refresh": {}, "players": {}, "runs": {}, "n": 0, "down": False, "max_day": 100000,
+     "errors": {}, "err_rate": {}, "err_limit": 20}
 VIEWS = {"leaderboard_points": "points", "leaderboard_days": "day", "leaderboard_rescued": "rescued", "leaderboard_kills": "kills"}
 
 
@@ -86,6 +88,9 @@ def delete_me(uid, b):
         S["runs"].pop(k)
     S["access"] = {k: v for k, v in S["access"].items() if v != uid}
     S["refresh"] = {k: v for k, v in S["refresh"].items() if v != uid}
+    for e in S["errors"].values():
+        if e["player_id"] == uid:
+            e["player_id"] = None
     return None
 
 
@@ -107,9 +112,63 @@ def upsert_run(uid, b):
     r["day"], r["rescued"], r["kills"] = max(r["day"], b["p_day"]), max(r["rescued"], b["p_rescued"]), max(r["kills"], b["p_kills"])
     r["victory"] = r["victory"] or b["p_victory"]
     r["ended"] = b["p_ended"]
+    if r["ended"]:  # 009 trigger runs_ended_drop_cloud_save: an ended run's cloud copy goes too
+        SAVES.pop((uid, "run"), None)
     r["version"] = b.get("p_version")
     r["points"] = points(r)
     return r["points"]
+
+
+def report_error(uid, b):  # callable without a sign-in (uid None), like 008_errors.sql; err_limit = per-player calls, anon 200
+    msg = str(b.get("p_message") or "")[:500]
+    if not msg.strip():
+        raise Err("error_invalid")
+    bucket = uid or "anon"
+    if S["err_rate"].get(bucket, 0) >= (S["err_limit"] if uid else 200):
+        raise Err("rate_limit")
+    S["err_rate"][bucket] = S["err_rate"].get(bucket, 0) + 1
+    ver = str(b.get("p_version") or "")[:32]
+    e = S["errors"].get((ver, msg))
+    if e:
+        e["count"] += 1
+    else:
+        S["errors"][(ver, msg)] = {"player_id": uid, "version": ver, "platform": str(b.get("p_platform") or "")[:32],
+                                   "message": msg, "stack": str(b.get("p_stack") or "")[:4000], "count": 1}
+
+
+SAVES = {}  # (player id, slot) -> {updated_at, version, format, data (base64 text)}; unreachable once delete_me removed the player (FK cascade in 009)
+
+
+def put_save(uid, b):  # server/supabase/009_cloud_save.sql
+    player(uid)
+    if b.get("p_slot") not in ("run", "daily"):
+        raise Err("slot_invalid")
+    d = b.get("p_data")
+    if not isinstance(d, str) or not d or not isinstance(b.get("p_format"), int) or b["p_format"] < 0:
+        raise Err("save_invalid")
+    if len(d) > 2097152 * 4 // 3 + 16:
+        raise Err("save_too_large")
+    try:
+        raw = base64.b64decode(d, validate=True)
+    except Exception:
+        raise Err("save_invalid")
+    if len(raw) > 2097152:
+        raise Err("save_too_large")
+    SAVES[(uid, b["p_slot"])] = {"updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "version": str(b.get("p_version", ""))[:32],
+                                 "format": b["p_format"], "data": d}
+    return SAVES[(uid, b["p_slot"])]["updated_at"]
+
+
+def get_save(uid, b):
+    s = SAVES.get((uid, b.get("p_slot"))) if uid in S["players"] else None
+    if s is None:
+        return None
+    return {k: v for k, v in s.items() if k != "data" or not b.get("p_meta_only")}
+
+
+def delete_save(uid, b):
+    SAVES.pop((uid, b.get("p_slot")), None)
+    return None
 
 
 # One function per RPC: fn(uid, body) -> JSON result, raise Err(code) like the SQL. Packages append their own
@@ -120,11 +179,15 @@ RPCS = {
     "set_avatar": set_avatar,
     "delete_me": delete_me,
     "upsert_run": upsert_run,
+    "report_error": report_error,
+    "put_save": put_save,
+    "get_save": get_save,
+    "delete_save": delete_save,
 }
 
 
 def rpc(name, uid, b):
-    if uid is None:
+    if uid is None and name != "report_error":
         raise Err("permission denied", 401)
     if name not in RPCS:
         raise Err("unknown rpc", 404)
@@ -180,7 +243,8 @@ class H(BaseHTTPRequestHandler):
                         S["access"].clear()
                     S["down"] = b.get("down", S["down"])
                     S["max_day"] = b.get("max_day", S["max_day"])
-                return self.reply(200, {"players": S["players"], "runs": S["runs"]})
+                    S["err_limit"] = b.get("err_limit", S["err_limit"])
+                return self.reply(200, {"players": S["players"], "runs": S["runs"], "errors": list(S["errors"].values())})
             if S["down"]:
                 return self.reply(503, {"message": "down"})
             if not self.headers.get("apikey"):

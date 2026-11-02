@@ -17,6 +17,7 @@ const UI := preload("res://scripts/base_ui.gd")
 const SETTLE_REACH := 120.0 # settlements this close to the fence join the base on foot
 const PAWN_MAX := 60 # drawn people; beyond that the base only counts
 const DIRS := [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT] # neighbour bits 1 2 4 8 = sandbag / wire sprite frame
+const BUILD_SFX_RATE := 0.5 # hammer knocks per second while a building or demolition is being worked on
 # demolition target -> [seconds of one worker, scrap, metal, parts]
 const DEMOLISH := {"house": [40.0, 15, 4.0, 2.0], "hedge": [6.0, 2, 0.0, 0.0], "fence": [6.0, 3, 0.0, 0.0]}
 
@@ -131,6 +132,8 @@ func _process(delta: float) -> void:
 	var crew: float = Game.crew("build") * Game.work_eff() # campers build at half rate
 	if not site.is_empty():
 		site["progress"] += crew * delta
+		if randf() < delta * BUILD_SFX_RATE:
+			Sfx.play("build", cell_pos(site["cell"]), -10.0)
 		if site.has("cells"):
 			if site["progress"] >= DEMOLISH[site["kind"]][0]:
 				_finish_demolition(site)
@@ -175,6 +178,8 @@ func _draw_ghost() -> void:
 	var r := Rect2(_cell_rect(cell).position, (Vector2(Evac.strip_size(place_rot)) if place_kind == "airstrip" else Vector2(n, n)) * CELL)
 	var label := "%d scrap" % building_cost(place_kind) if Game.BUILDINGS.has(place_kind) else ""
 	var why: String = Game.world.evac.refusal(place_kind, cell, place_rot)
+	if why == "":
+		why = Buildings2.refusal(place_kind)
 	if why != "":
 		label = why # the evacuation buildings say what is missing
 	if place_kind in ["sandbag", "wire"]:
@@ -204,32 +209,42 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled() # back to the base menu, not into the settings
 	elif event.is_action_pressed("rotate"):
 		place_rot = 1 - place_rot
-	elif event is InputEventKey and event.pressed and not event.echo and event.keycode >= KEY_1 and event.keycode < KEY_1 + mini(UI.BUILD_INFO.size(), 9):
-		place_kind = UI.BUILD_INFO.keys()[event.keycode - KEY_1] # bottom bar hotkeys
-		ui.refresh()
+	else:
+		for i in mini(UI.BUILD_INFO.size(), 9): # bottom bar hotkeys
+			if event.is_action_pressed("slot_%d" % (i + 1)):
+				place_kind = UI.BUILD_INFO.keys()[i]
+				ui.refresh()
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not placing or not (event is InputEventMouseButton and event.pressed):
+	if not placing:
 		return
-	if event.button_index == MOUSE_BUTTON_LEFT:
+	if Controls.touch: # a tap on the map only moves the preview; the touch layer's PLACE / REMOVE buttons act on it
+		if event is InputEventScreenTouch and event.pressed:
+			Controls.tap(event.position)
+	elif event.is_action_pressed("place"):
 		place(place_kind, place_cell())
-	elif event.button_index == MOUSE_BUTTON_RIGHT:
-		var cell := mouse_cell()
-		remove_sandbag(cell)
-		remove_blueprint(cell)
-		cancel_demolition(cell)
+	elif event.is_action_pressed("unplace"):
+		remove_at(mouse_cell())
 
 
-## Grid cell under the mouse; for an n-cell footprint the top-left cell of the footprint centred on the mouse.
+## RMB / touch REMOVE: takes back a sandbag, blueprint or demolition order at `cell`.
+func remove_at(cell: Vector2i) -> void:
+	remove_sandbag(cell)
+	remove_blueprint(cell)
+	cancel_demolition(cell)
+
+
+## Grid cell under the pointer (Controls.point: mouse or last tap); for an n-cell footprint the top-left cell of the
+## footprint centred on it.
 func mouse_cell(n := 1) -> Vector2i:
-	return Vector2i(((get_global_mouse_position() - Vector2(n - 1, n - 1) * CELL / 2) / CELL).floor())
+	return Vector2i(((Controls.point() - Vector2(n - 1, n - 1) * CELL / 2) / CELL).floor())
 
 
-## Top-left cell of what the tool places under the mouse (an airstrip is centred on it).
+## Top-left cell of what the tool places under the pointer (an airstrip is centred on it).
 func place_cell() -> Vector2i:
 	if place_kind == "airstrip":
-		return Vector2i(((get_global_mouse_position() - Vector2(Evac.strip_size(place_rot)) * CELL / 2) / CELL).round())
+		return Vector2i(((Controls.point() - Vector2(Evac.strip_size(place_rot)) * CELL / 2) / CELL).round())
 	return mouse_cell(footprint(place_kind))
 
 
@@ -252,7 +267,7 @@ func can_place(kind: String, cell: Vector2i) -> bool:
 		return not demolish_target(cell).is_empty()
 	if kind in ["sandbag", "wire"]:
 		return Game.sandbags.size() < Game.SANDBAG_MAX and Game.scrap >= piece_cost(kind) and free_cell(cell)
-	if Game.scrap < building_cost(kind) or Game.world.evac.refusal(kind, cell, place_rot) != "":
+	if Game.scrap < building_cost(kind) or Game.world.evac.refusal(kind, cell, place_rot) != "" or Buildings2.refusal(kind) != "":
 		return false
 	var n := footprint(kind)
 	for x in n:
@@ -469,6 +484,8 @@ func _site_node(b: Dictionary) -> void:
 		pad.scale = Vector2.ONE * CELL / 192.0
 		node.add_child(pad)
 		node.add_child(Art.sprite("turret"))
+	elif b["kind"] in Buildings2.KINDS:
+		node.add_child(Art.sprite(b["kind"]))
 	else:
 		var s := Art.sprite("hangar")
 		s.scale = Vector2.ONE * n * CELL / 128.0
@@ -590,6 +607,7 @@ func _finish_site(b: Dictionary) -> void:
 		_fence()
 	else:
 		site_nodes[b["cell"]].modulate.a = 1.0
+	Sfx.play("build_done", null, -4.0)
 	Game.radio("Base: %s finished." % Game.BUILDINGS[b["kind"]][0])
 	if ui:
 		ui.refresh()
@@ -753,6 +771,8 @@ func take_damage(amount: float) -> void:
 	modulate = Color(1, 0.5, 0.5)
 	get_tree().create_timer(0.1).timeout.connect(func(): modulate = Color.WHITE)
 	if Game.base_hp <= 0.0:
+		if Buildings2.shelter():
+			return
 		Game.base_hp = 0.0
 		Game.end_run("The base has fallen.")
 
@@ -804,4 +824,4 @@ func _on_landed(landed: bool) -> void:
 		Game.add_xp(6 * n)
 		Progression.on_delivery()
 	ui.open()
-	Save.autosave()
+	Save.autosave(true) # landing at the base: also the cloud backup

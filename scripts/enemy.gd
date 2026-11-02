@@ -70,6 +70,7 @@ var ignored := {} # instance id -> msec until which that target is left alone
 var state := {} # ability state (infected.gd), saved with the enemy
 var spit_target := [] # spitter: [position, impact callable], runtime only
 var kick := Vector2.ZERO # knockback velocity, fades out
+var banked := 0.0 # seconds of skipped AI frames (Perf.skip), added to the next update
 
 
 func setup(kind_name: String, pos: Vector2, danger: float, base_target := false) -> void:
@@ -94,6 +95,11 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not Game.running or Game.heli == null:
 		return
+	if can_process() and Perf.skip(self): # staggered: off screen or in a crowd not every frame (hand-stepped never)
+		banked += delta
+		return
+	delta += banked
+	banked = 0.0
 	if kick != Vector2.ZERO:
 		position += Game.world.slide(position, kick * delta)
 		kick = kick.move_toward(Vector2.ZERO, KNOCK_DECAY * delta)

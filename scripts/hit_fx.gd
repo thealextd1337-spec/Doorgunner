@@ -1,7 +1,7 @@
 class_name HitFx
 ## Hit feedback: blood and spark bursts, corpses that stay for a while, camera shake for heavy guns.
 
-const MAX_PARTICLES := 60 # bursts alive at once; more are skipped
+const MAX_PARTICLES := 60 # bursts alive at once; more are skipped (both caps shrink while frames are slow, Perf.fx_cap)
 const MAX_CORPSES := 120 # the oldest go first
 const CORPSE_SECONDS := 60.0
 const CORPSE_FADE := 5.0
@@ -41,7 +41,7 @@ static func death(e: Node2D) -> void:
 	Game.world.add_child(c)
 	corpses.assign(corpses.filter(func(o) -> bool: return is_instance_valid(o))) # untyped: a freed corpse is no Node2D any more
 	corpses.append(c)
-	while corpses.size() > MAX_CORPSES:
+	while corpses.size() > Perf.fx_cap(MAX_CORPSES):
 		corpses.pop_front().queue_free()
 	var tw := c.create_tween()
 	tw.tween_property(c, "modulate:a", 0.0, CORPSE_FADE).set_delay(CORPSE_SECONDS - CORPSE_FADE)
@@ -50,7 +50,7 @@ static func death(e: Node2D) -> void:
 
 ## `n` one-shot droplets from `pos` thrown along `dir` (all round if zero).
 static func burst(pos: Vector2, dir: Vector2, color: Color, n: int, speed: float) -> void:
-	if Game.world.get_tree().get_nodes_in_group("hit_particles").size() >= MAX_PARTICLES:
+	if Game.world.get_tree().get_node_count_in_group("hit_particles") >= Perf.fx_cap(MAX_PARTICLES):
 		return
 	var p := CPUParticles2D.new()
 	p.position = pos

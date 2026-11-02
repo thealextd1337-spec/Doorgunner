@@ -26,7 +26,7 @@ const ROAD_NODE := 4 # cells per coarse A* node
 const ROAD_MARGIN := 6 # nodes of slack around an edge's A* box
 const ROAD_GROW := SITE_REACH + (ROAD_MARGIN + 1) * ROAD_NODE # cells: how far an edge's path may stray from its sites' box
 const FORD := 2 # water runs up to this long are forded, longer ones bridged
-const FRAME_BUDGET_MS := 4.0 # loading and prefetching beyond the 3x3 chunks under the heli
+const FRAME_BUDGET_MS := 4.0 # loading and prefetching beyond the heli's own chunk (one work item may overrun it)
 const BIOME_FREQ := 0.001 # region size (1.5x the old regions: a run's fuel range still crosses several)
 const PATCH_FREQ := 0.014 # patches inside regions, ~70 cells apart
 const PATCH_R := 0.26 # patch radius as a share of their spacing
@@ -104,6 +104,7 @@ var _cand := {} # chunk -> edges whose road may cross it
 var _roads_ok := {} # chunk -> true once every road that may cross it is in _road
 var _road := {} # cell -> Vector2i(tile, alt) of all roads computed so far
 var _lones := {} # chunk -> _lone() result
+var _plans := {} # chunk -> _plan() result, computed a frame or more before the chunk loads
 var _mode := M.GEN
 var _buf := {} # cell -> Vector2i(tile, alt) of the layout being built
 var _out := {} # the layout being built
@@ -175,8 +176,9 @@ func _ready() -> void:
 	patch_v.cellular_return_type = FastNoiseLite.RETURN_CELL_VALUE
 
 
-## The 3x3 chunks under the heli load at once (all 5x5 on the first frame or after a jump); the rest of the 5x5 and
-## the roads and sites one ring further out load within FRAME_BUDGET_MS per frame, so flying never hitches.
+## The heli's own chunk loads at once (all 5x5 on the first frame or after a jump); the rest of the 5x5 and the roads
+## and sites one ring further out load within FRAME_BUDGET_MS per frame, a chunk in two steps (_plan, then _ensure
+## in a later frame), so flying never hitches.
 func _process(_delta: float) -> void:
 	if Game.heli == null:
 		return
@@ -184,19 +186,32 @@ func _process(_delta: float) -> void:
 		_shot_jump()
 	var c := Vector2i((Game.heli.position / (CHUNK * TILE)).floor())
 	var all := _last == NONE or maxi(absi(c.x - _last.x), absi(c.y - _last.y)) > 1 # first frame or a jump
+	if c != _last: # plans of chunks the heli flew away from before they loaded would pile up
+		for p: Vector2i in _plans.keys():
+			if maxi(absi(p.x - c.x), absi(p.y - c.y)) > LOAD_RADIUS + 2:
+				_plans.erase(p)
 	_last = c
 	var t0 := Time.get_ticks_usec()
+	_load_around(c, all, t0)
+	Perf.add("chunk", t0)
+
+
+func _load_around(c: Vector2i, all: bool, t0: int) -> void:
 	for r in LOAD_RADIUS + 2:
 		for dx in range(-r, r + 1):
 			for dy in range(-r, r + 1):
 				if maxi(absi(dx), absi(dy)) != r:
 					continue
-				if r > 1 and not (all and r <= LOAD_RADIUS) and Time.get_ticks_usec() - t0 > FRAME_BUDGET_MS * 1000.0:
+				if r > 0 and not (all and r <= LOAD_RADIUS) and Time.get_ticks_usec() - t0 > FRAME_BUDGET_MS * 1000.0:
 					return
-				if r <= LOAD_RADIUS:
-					_ensure(c + Vector2i(dx, dy))
+				var cc := c + Vector2i(dx, dy)
+				if r > LOAD_RADIUS:
+					_prep(cc)
+				elif r > 0 and not all and not loaded.has(cc) and not _plans.has(cc):
+					if not _prep_around(cc):
+						_plan(cc) # loads in a later frame
 				else:
-					_prep(c + Vector2i(dx, dy))
+					_ensure(cc)
 
 
 func tile_at(world_pos: Vector2) -> int:
@@ -241,49 +256,21 @@ func _ensure(c: Vector2i) -> void:
 	_gen = NONE
 
 
-## Composes chunk c: terrain, then the site, road and lone layers, bends, saved edits, then its props and POIs.
+## Composes chunk c: its _plan (terrain, the site, road and lone layers, bends), saved edits, then props and POIs.
 func _generate(c: Vector2i) -> void:
+	var plan := _plan(c)
+	_plans.erase(c)
 	loaded[c] = true
 	var origin := c * CHUNK
 	var lay := _layout(_macro(origin))
 	var lone := _lone(c)
-	# terrain with a one-cell margin, so forest borders can see their neighbours in other chunks
-	var n := CHUNK + 2
-	var grid := PackedInt32Array()
-	grid.resize(n * n)
-	for y in range(1, n - 1):
-		for x in range(1, n - 1):
-			grid[y * n + x] = _terrain(origin + Vector2i(x - 1, y - 1))
-	for k in range(1, n - 1): # margin cells are only needed next to forest
-		for e: Vector4i in [Vector4i(k, 0, k, 1), Vector4i(k, n - 1, k, n - 2), Vector4i(0, k, 1, k), Vector4i(n - 1, k, n - 2, k)]:
-			if grid[e.w * n + e.z] == T.FOREST:
-				grid[e.y * n + e.x] = _terrain(origin + Vector2i(e.x - 1, e.y - 1))
+	var tiles: PackedInt32Array = plan[0]
+	for k in tiles.size():
+		set_cell(origin + Vector2i(k % CHUNK, k / CHUNK), 0, Vector2i(tiles[k] & 0xff, 0), tiles[k] >> 8)
 	var pend: Dictionary = _pending.get(c, {})
-	var roads := []
-	for y in range(1, n - 1):
-		for x in range(1, n - 1):
-			var i := y * n + x
-			var cell := origin + Vector2i(x - 1, y - 1)
-			var f := _final(cell)
-			if f.x >= 0:
-				set_cell(cell, 0, Vector2i(f.x, 0), f.y)
-				if f.x in ROADS:
-					roads.append(cell)
-				continue
-			var t := grid[i] & 0xff
-			if t == T.FOREST and (grid[i - 1] != T.FOREST or grid[i + 1] != T.FOREST or grid[i - n] != T.FOREST or grid[i + n] != T.FOREST):
-				t = T.TREE_EDGE
-			set_cell(cell, 0, Vector2i(t, 0), (grid[i] >> 8) & 0xff)
-			if t in ROADS:
-				roads.append(cell)
-			if grid[i] >= 65536 and not pend.has(cell):
-				var j := hash(cell)
-				var at := Vector2(cell * TILE) + Vector2(5 + j % 7, 5 + (j >> 4) % 7)
-				_prop("tree" if grid[i] >> 16 == PROP_TREE else "dead_tree", at, 0.0 if grid[i] >> 16 == PROP_TREE else j % 628 * 0.01)
-	for cell: Vector2i in roads:
-		var b := _bend(cell)
-		if b.x >= 0:
-			set_cell(cell, 0, Vector2i(b.x, 0), b.y)
+	for tree: Array in plan[1]:
+		if not pend.has(tree[0]):
+			_prop(tree[1], tree[2], tree[3])
 	for cell in pend:
 		set_cell(cell, 0, Vector2i(pend[cell].x, 0), pend[cell].y)
 	_pending.erase(c)
@@ -302,6 +289,54 @@ func _generate(c: Vector2i) -> void:
 			var rng := RandomNumberGenerator.new()
 			rng.seed = hash([Game.seed, p[1]])
 			Game.world.spawn_poi(p[0], p[1], rng, p[2])
+
+
+## What chunk c paints before edits, from bare terrain and the layers (pure, so it may run frames before the chunk
+## loads): [tile | alt << 8 per cell, row by row; terrain trees as [cell, name, pos, rotation]].
+func _plan(c: Vector2i) -> Array:
+	if _plans.has(c):
+		return _plans[c]
+	var origin := c * CHUNK
+	# terrain with a one-cell margin, so forest borders can see their neighbours in other chunks
+	var n := CHUNK + 2
+	var grid := PackedInt32Array()
+	grid.resize(n * n)
+	for y in range(1, n - 1):
+		for x in range(1, n - 1):
+			grid[y * n + x] = _terrain(origin + Vector2i(x - 1, y - 1))
+	for k in range(1, n - 1): # margin cells are only needed next to forest
+		for e: Vector4i in [Vector4i(k, 0, k, 1), Vector4i(k, n - 1, k, n - 2), Vector4i(0, k, 1, k), Vector4i(n - 1, k, n - 2, k)]:
+			if grid[e.w * n + e.z] == T.FOREST:
+				grid[e.y * n + e.x] = _terrain(origin + Vector2i(e.x - 1, e.y - 1))
+	var tiles := PackedInt32Array()
+	tiles.resize(CHUNK * CHUNK)
+	var trees := []
+	var roads := []
+	for y in range(1, n - 1):
+		for x in range(1, n - 1):
+			var i := y * n + x
+			var k := (y - 1) * CHUNK + x - 1
+			var cell := origin + Vector2i(x - 1, y - 1)
+			var f := _final(cell)
+			if f.x >= 0:
+				tiles[k] = f.x | f.y << 8
+			else:
+				var t := grid[i] & 0xff
+				if t == T.FOREST and (grid[i - 1] != T.FOREST or grid[i + 1] != T.FOREST or grid[i - n] != T.FOREST or grid[i + n] != T.FOREST):
+					t = T.TREE_EDGE
+				tiles[k] = t | grid[i] & 0xff00
+				if grid[i] >= 65536:
+					var j := hash(cell)
+					var at := Vector2(cell * TILE) + Vector2(5 + j % 7, 5 + (j >> 4) % 7)
+					trees.append([cell, "tree" if grid[i] >> 16 == PROP_TREE else "dead_tree", at, 0.0 if grid[i] >> 16 == PROP_TREE else j % 628 * 0.01])
+			if tiles[k] & 0xff in ROADS:
+				roads.append(k)
+	for k: int in roads:
+		var b := _bend(origin + Vector2i(k % CHUNK, k / CHUNK))
+		if b.x >= 0:
+			tiles[k] = b.x | b.y << 8
+	_plans[c] = [tiles, trees]
+	return _plans[c]
 
 
 ## Tile id, plus alternative << 8 and a scatter prop << 16.
@@ -619,6 +654,14 @@ func _prep(c: Vector2i) -> bool:
 			return true
 	_lone(c)
 	return true
+
+
+## One _prep piece for c or a neighbour (bends look across the border); false once all nine have it all.
+func _prep_around(c: Vector2i) -> bool:
+	for k in 9:
+		if _prep(c + Vector2i(k % 3 - 1, k / 3 - 1)):
+			return true
+	return false
 
 
 func _prep_roads(c: Vector2i) -> bool:

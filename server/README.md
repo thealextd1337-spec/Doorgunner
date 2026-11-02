@@ -13,6 +13,9 @@ All writes go through `security definer` RPCs, all tables have RLS on.
 | `supabase/005_leaderboards.sql` | views `leaderboard_points/_days/_rescued/_kills`, `best_run` |
 | `supabase/006_modifiers.sql` | the six run-modifier score factors (P15), idempotent upsert into `modifiers` |
 | `supabase/007_balance.sql` | balance pass 1.0.0-beta (P18): `run_points` (victory 5000) and the `upsert_run` bounds for the 900 s day, idempotent |
+| `supabase/008_errors.sql` | error reporting (Q2): tables `errors`, `error_rate`, RPC `report_error`, `delete_me` also clears the player's error rows |
+| `supabase/009_cloud_save.sql` | cloud backup of the saved run (Q3): table `cloud_saves` (PK `player_id, slot`, `data` bytea <= 2 MB, FK cascade from `players`, so `delete_me` removes it without being edited), RPCs `put_save`, `get_save`, `delete_save`; trigger `runs_ended_drop_cloud_save` deletes the `run` slot when `upsert_run` ends a run |
+| `test_009.sql` | tests for 009 (own transaction, rolled back), also shows that `upsert_run` ignores lower values |
 | `test.sql` | test cases, runs in one transaction that is rolled back |
 
 ### Migrations
@@ -23,8 +26,8 @@ All writes go through `security definer` RPCs, all tables have RLS on.
 | `zz_wordlists.sql` | P3 | applied |
 | `006_modifiers.sql` | P15 | **user must still run it** |
 | `007_balance.sql` | P18 | **user must still run it** |
-| `008_errors.sql` | Q2 error reporting | planned |
-| `009_cloud_save.sql` | Q3 cloud save | planned |
+| `008_errors.sql` | Q2 error reporting (test: `test_008.sql`) | **user must still run it** |
+| `009_cloud_save.sql` | Q3 cloud save | **written, not run on any project yet (no token); user must run it, then `test_009.sql`** |
 | `010_daily_season.sql` | Q14 daily + season | planned |
 
 Rules (ROADMAP2): every SQL change is a new idempotent `supabase/0NN_<name>.sql` (numbers above are fixed), the user
@@ -40,7 +43,7 @@ To set up a new project (or a second one for testing):
 1. https://supabase.com -> **New project** (free plan is enough). Pick the region closest to the players, set a database password and keep it in a password manager (the game never needs it).
 2. **Authentication -> Sign In / Providers -> Allow anonymous sign-ins: on.**
    Optionally enable CAPTCHA/Turnstile later (see the findings below).
-3. **SQL Editor**: run `001_schema.sql`, `002_names.sql`, `003_players.sql`, `004_runs.sql`, `005_leaderboards.sql`, `006_modifiers.sql`, `007_balance.sql` in that order (paste, Run). They can be re-run safely.
+3. **SQL Editor**: run `001_schema.sql`, `002_names.sql`, `003_players.sql`, `004_runs.sql`, `005_leaderboards.sql`, `006_modifiers.sql`, `007_balance.sql`, `008_errors.sql` in that order (paste, Run). They can be re-run safely.
 4. **Word list:** the name filter is empty until the list is loaded. Generate the INSERTs from `data/banned_words.txt` / `data/allowed_words.txt` with `tools/gen_wordlist_sql.py` (P3) and run the output in the SQL editor. Contract: words are lowercase `a-z` only, at least 3 letters (the tables have a check constraint, a wrong row fails loudly); use `insert ... on conflict do nothing`.
 5. **Test:** paste `test.sql` into the SQL editor and run. The last result must read `ALL TESTS PASSED`. If a test fails the message starts with `FAIL:`; then run `rollback;` once. The test seeds its own words/modifiers and rolls everything back, nothing stays in the database.
 6. **Project Settings -> API** (or the "Connect" dialog): copy the **Project URL** and the **anon / public key** into `scripts/online_config.gd` (`URL`, `ANON_KEY`).
@@ -60,15 +63,38 @@ Auth: `POST <URL>/auth/v1/signup` with body `{}` creates an anonymous user (retu
 | `POST /rpc/delete_me {}` | deletes player, runs and the auth user; the client must drop its tokens |
 | `POST /rpc/upsert_run {p_run_id, p_day, p_rescued, p_kills, p_ended, p_victory, p_modifiers, p_version}` | returns the server-side points. `p_run_id` is a client generated uuid |
 | `GET /leaderboard_points?order=rank&limit=100` | also `leaderboard_days`, `_rescued`, `_kills`, `best_run`; columns `rank, player_id, name, avatar, value` (`best_run`: + `day, victory, modifiers`). Own rank: `&player_id=eq.<uid>`. Readable without login. |
+| `POST /rpc/report_error {p_version, p_platform, p_message, p_stack}` | Q2, callable with the anon key or a player token, returns nothing; codes `error_invalid`, `rate_limit` |
 | `GET /modifiers` | `id, factor` |
+| `POST /rpc/put_save {p_slot, p_data, p_version, p_format}` | 009. `p_slot` `run` or `daily`, `p_data` base64 of the client's compressed save (<= 2 MB decoded), one put per slot per 30 s. Errors `slot_invalid`, `save_invalid`, `save_too_large`, `rate_limit`, `no_player` |
+| `POST /rpc/get_save {p_slot, p_meta_only}` | 009. `{updated_at, version, format, data}` (`data` left out with `p_meta_only`) or `null` |
+| `POST /rpc/delete_save {p_slot}` | 009. Own save only |
 
-RPC errors are HTTP 400 with `message` = code: `not_authenticated`, `no_player`, `already_registered`, `name_invalid`, `name_banned`, `name_taken`, `avatar_invalid`, `run_invalid`, `not_your_run`, `run_ended`, `rate_limit`, `rate_limit_new_runs`, `implausible`. Calling an RPC without being signed in gives HTTP 401 (`permission denied`).
+RPC errors are HTTP 400 with `message` = code: `not_authenticated`, `no_player`, `already_registered`, `name_invalid`, `name_banned`, `name_taken`, `avatar_invalid`, `run_invalid`, `not_your_run`, `run_ended`, `rate_limit`, `rate_limit_new_runs`, `implausible`, `error_invalid`. Calling an RPC without being signed in gives HTTP 401 (`permission denied`).
 
 Rules the client must respect:
 - Names: 3-16 chars `[A-Za-z0-9 _-]`, no double/leading/trailing spaces, case-insensitive unique, filtered. `name_filter.gd` (P3) must use the same normalization as `name_normalize`: lowercase, strip accents, `0->o 1->i 3->e 4->a 5->s 7->t @->a $->s`, drop everything but `a-z`; match as substring against the banned list after blanking out allowed words (longest first). Extra number rules in `name_ok`: `1488` anywhere (digits of the whole name), `88` as a whole word.
 - `upsert_run`: call it once at run start (day 1) and then every minute or so. Values only grow (lower values are ignored), modifiers are taken from the first call and then frozen, `ended = true` is final (later calls fail with `run_ended`). The `ended = true` call is exempt from the 30 s limit so a death right after a sync is not lost. A run that is played offline for many days and synced late fails with `implausible` until enough real time has passed.
 - Plausibility (constants at the top of `upsert_run`, 007): day 1 until 180 s (the tutorial may jump to the evening), then `day <= 2 + (elapsed - 180 s) / 810 s` (a game day is 900 s), `kills <= 300 * day`, `rescued <= 60 * day` (the 40-day bot runs of `tests/longrun_test.gd` reach about 90 kills and 19 rescued per day). Rate limits: 1 call per run per 30 s, 20 new runs per player per 24 h.
 - Points: `run_points(day, rescued, kills, victory, factor)` = `floor((day*100 + rescued*25 + kills + victory*5000) * factor)` (007; 2000 before); factor = product of the `modifiers.factor` of the run's ids (unknown id = 1.0), capped at 3. P15 only inserts rows into `modifiers`; P18 edits `run_points`.
+
+## Error reports (Q2, 008)
+
+`report_error` stores one row per (version, message) with `count`; the first reporter's player id is kept when the report
+came with a player token (`delete_me` sets it to null). Limits (constants at the top of the function): 20 calls per player
+and hour, 200 per hour for all callers without a sign-in together (PostgREST gives no trustworthy IP), message 500 /
+stack 4000 characters, at most 20000 distinct rows (beyond that only known errors are counted). Clients cannot read or
+write `errors` / `error_rate`. Tests: `test_008.sql` (run it after 001-008, last result `ALL TESTS PASSED`).
+
+Read them in the dashboard: **SQL Editor -> New query**, paste, **Save** as "Doorgunner errors":
+
+```sql
+select version, platform, count, last_seen, left(message, 120) as message, left(stack, 300) as stack
+from public.errors
+order by last_seen desc
+limit 100;
+```
+
+Per version: `... where version = '1.0.0' order by count desc`. Clean up: `delete from public.errors where last_seen < now() - interval '90 days';`.
 
 ## What the player must know
 

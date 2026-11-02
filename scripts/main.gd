@@ -21,12 +21,17 @@ var wrecks: Node2D # wrecks.gd: heli wrecks, sling hook, repairs, fleet (P15)
 var modifiers: Node # modifiers.gd: run modifiers (P15)
 var convoys: Node2D # convoys.gd: trucks on the road network (CONVOY tab)
 var evac: Node # evac.gd: radio contact, airstrip, final siege, optional victory
+var buildings2: Node # buildings2.gd: Field Hospital, Greenhouse, Forge, Bunker, Radio Relay
 var pois := []
-var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec built]
+var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec it expires]
+var _path_cache := {} # [from cell, to cell, max_cells] -> [nav_path result, ticks_msec it expires (its grid's)]
+var _grid_expires := 0 # expiry of the grid _nav_grid returned last
 
 var BASE_POS := Vector2(16 * 16 + 8, 16 * 16 + 8) # the heli's start (centre of chunk (0,0)) until found_base moves it
 const T := preload("res://scripts/chunk_manager.gd").T
 const SOLID := [T.WATER, T.BUILDING, T.ROCK, T.WAREHOUSE, T.HEDGE] # walkers (zombies, survivors) cannot enter
+const NAV_TTL_MS := Vector2i(1000, 1500) # a cached nav grid is rebuilt after a random time in this range (no rebuild storms)
+const PATH_CACHE_MAX := 1024 # cached paths (a horde from the same cells to the same goal shares them)
 
 
 func _ready() -> void:
@@ -77,6 +82,8 @@ func _ready() -> void:
 	add_child(convoys)
 	evac = preload("res://scripts/evac.gd").new() # registers its own save hook
 	add_child(evac)
+	buildings2 = preload("res://scripts/buildings2.gd").new() # registers its own save hook
+	add_child(buildings2)
 	night = CanvasModulate.new()
 	add_child(night)
 	spawner = preload("res://scripts/spawner.gd").new()
@@ -116,6 +123,8 @@ func _add_ui_layers() -> void:
 	add_child(preload("res://scripts/game_over_ui.gd").new())
 	add_child(preload("res://scripts/victory_ui.gd").new())
 	add_child(preload("res://scripts/settings_ui.gd").new())
+	add_child(preload("res://scripts/perf.gd").new()) # Q1: F3 performance overlay, ?perf=1 console log
+	add_child(preload("res://scripts/touch_ui.gd").new()) # Q5: sticks and buttons while Controls.touch is on
 
 
 func _show_title() -> void:
@@ -204,15 +213,28 @@ func is_walkable(pos: Vector2) -> bool:
 ## Blocking cells changed (house broken into, sandbag built or chewed, building finished): drop cached nav grids.
 func nav_dirty() -> void:
 	_nav_cache.clear()
+	_path_cache.clear()
 
 
 ## A* waypoints (cell centres, start cell excluded) from `from` towards `to` on the 16 px grid, searched in the
 ## bounding box of both padded by 8 cells and capped at max_cells per side. A solid `to` (a house) aims at the
 ## nearest walkable cell around it; a walled-off or out-of-box target gets the path to the closest reachable cell.
-## Empty when `from` is solid or nothing gets closer.
+## Empty when `from` is solid or nothing gets closer. Cached per (from cell, to cell) as long as the grid lives.
 func nav_path(from: Vector2, to: Vector2, max_cells := 48) -> PackedVector2Array:
 	var fc := Vector2i((from / 16.0).floor())
 	var tc := Vector2i((to / 16.0).floor())
+	var key := [fc, tc, max_cells]
+	var hit: Array = _path_cache.get(key, [])
+	if not hit.is_empty() and Time.get_ticks_msec() < hit[1]:
+		return hit[0]
+	var path := _nav_path(fc, tc, max_cells)
+	if _path_cache.size() >= PATH_CACHE_MAX:
+		_path_cache.clear()
+	_path_cache[key] = [path, _grid_expires] # a path lives as long as the grid it was found on
+	return path
+
+
+func _nav_path(fc: Vector2i, tc: Vector2i, max_cells: int) -> PackedVector2Array:
 	var lo := Vector2i.ZERO
 	var size := Vector2i.ZERO
 	for a in 2:
@@ -248,10 +270,11 @@ func nav_path(from: Vector2, to: Vector2, max_cells := 48) -> PackedVector2Array
 	return path
 
 
-## Cached AStarGrid2D for `region` (64 kept, rebuilt after 1 s or nav_dirty()).
+## Cached AStarGrid2D for `region` (64 kept, rebuilt after NAV_TTL_MS or nav_dirty()).
 func _nav_grid(region: Rect2i) -> AStarGrid2D:
 	var now := Time.get_ticks_msec()
-	if _nav_cache.has(region) and now - _nav_cache[region][1] < 1000:
+	if _nav_cache.has(region) and now < _nav_cache[region][1]:
+		_grid_expires = _nav_cache[region][1]
 		return _nav_cache[region][0]
 	var grid := AStarGrid2D.new()
 	grid.region = region
@@ -272,7 +295,8 @@ func _nav_grid(region: Rect2i) -> AStarGrid2D:
 		if b["built"] and n > 0:
 			grid.fill_solid_region(Rect2i(b["cell"], Vector2i(n, n)).intersection(region))
 	_nav_cache.erase(region)
-	_nav_cache[region] = [grid, now]
+	_grid_expires = now + randi_range(NAV_TTL_MS.x, NAV_TTL_MS.y)
+	_nav_cache[region] = [grid, _grid_expires]
 	if _nav_cache.size() > 64:
 		_nav_cache.erase(_nav_cache.keys()[0]) # oldest
 	return grid
@@ -303,7 +327,9 @@ func nav_move(node: Node2D, target: Vector2, speed: float, delta: float, state: 
 		state["t"] = randf_range(1.0, 2.0) # random phase keeps a horde's replans spread over frames
 		state["goal"] = target
 		state["i"] = 0
+		var t0 := Time.get_ticks_usec()
 		state["path"] = nav_path(pos, target) if _line_blocked(pos, target) else PackedVector2Array()
+		Perf.add("path", t0)
 		path = state["path"]
 	var wp: Vector2 = path[state["i"]] if state["i"] < path.size() else target
 	node.global_position += slide(pos, pos.move_toward(wp, speed * delta) - pos)

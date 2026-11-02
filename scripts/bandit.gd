@@ -209,6 +209,8 @@ func _shoot(delta: float) -> void:
 	if kind == "rpg" and not zombie:
 		if fire_cd > 0.0:
 			return
+		if aim_t == 0.0 and target == Game.heli:
+			Sfx.play("rpg_warn", null, -6.0)
 		if aim_t == 0.0 and target == Game.heli and Time.get_ticks_msec() - _warn_ms > 8000:
 			_warn_ms = Time.get_ticks_msec()
 			Game.radio("Pilot: RPG! Break hard or pop flares!")

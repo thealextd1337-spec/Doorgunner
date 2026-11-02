@@ -146,14 +146,19 @@ func _close() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if not visible or not event is InputEventKey or not event.pressed or event.echo:
+	if not visible:
 		return
-	match event.keycode:
-		KEY_1, KEY_2, KEY_3, KEY_4: pick(event.keycode - KEY_1)
-		KEY_R: reroll()
-		KEY_S: skip()
-		KEY_B: toggle_banish()
-		_: return
+	if event.is_action_pressed("reroll"):
+		reroll()
+	elif event.is_action_pressed("skip"):
+		skip()
+	elif event.is_action_pressed("banish"):
+		toggle_banish()
+	else:
+		var i := range(4).filter(func(n): return event.is_action_pressed("slot_%d" % (n + 1)))
+		if i.is_empty():
+			return
+		pick(i[0])
 	get_viewport().set_input_as_handled()
 
 
@@ -176,6 +181,13 @@ func _card(i: int, id: String) -> Control:
 	v.add_theme_constant_override("separation", 8)
 	panel.add_child(v)
 	_text(v, "%s   %s" % [it["slot"].to_upper(), "NEW" if lv == 0 else "LV %d > %d" % [lv, lv + 1]], 12, col)
+	if ResourceLoader.exists("res://assets/sprites/%s/icon_%s.png" % [Art.variant, id]): # Q8 items have a card icon
+		var icon := TextureRect.new()
+		icon.texture = Art.tex("icon_" + id)
+		icon.custom_minimum_size = Vector2(48, 48)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		v.add_child(icon)
 	_text(v, it["name"], 22, Color.WHITE)
 	var dots := RichTextLabel.new()
 	dots.bbcode_enabled = true

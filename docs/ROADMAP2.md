@@ -341,5 +341,8 @@ Höchstens 6 Agenten gleichzeitig.
 - **Daily-Fairness:** Gleiche Welt auf allen Geräten ist wahrscheinlich (kein `sin`/`cos` im Generator), aber
   zwischen Web und Desktop nicht belegt; Q14 prüft es per Tile-Hash.
 - **Export/Import vs. Ironman:** Importierte Runs sind immer ungewertet (Q3), sonst ist die Rangliste angreifbar.
+- **Chunks werden nie entladen:** jeder geladene Chunk kostet ~0,42 MB (Q1-Messung) und bleibt im Speicher; eine lange
+  Web-Sitzung mit viel Flugstrecke kann an die Heap-Grenze des Browsers stoßen. Gegenmittel (Entladen ferner Chunks,
+  Wiederaufbau aus Seed + `edits`) erst, wenn Q1-Logs oder Fehlerberichte (Q2) es zeigen.
 - **Rivalen-KI-Kosten:** Gedächtnis nur als Zähler/Flags, keine teure Simulation.
 - Später entscheiden: Gamepad (abgelehnt, kann zurückkommen), Melde-Knopf für Namen, KI-Pilot für den zweiten Heli.

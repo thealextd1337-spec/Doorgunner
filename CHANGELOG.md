@@ -4,6 +4,31 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## 1.0.0-beta.2 - 2026-11-02
+- Arsenal: six new door guns, each unlocked in the hangar and levelled 1-5 like the others: Scatter Gun (ten wide
+  pellets, weak at range), Flamethrower (short stream, zombies keep burning), Grenade Launcher (lobbed shell that
+  bursts where you aim, over walls and crowds), Precision Rifle (slow shot through two targets, favours the head),
+  Sonic Cannon (stuns and shoves everything in a cone) and Net Launcher (roots zombies in its burst). New systems:
+  Thermal Sight (heat view at night) and Smoke Launcher (a smoke screen when you are shot at; rockets lose their
+  lock). New modules: Extra Tank and Heavy Plates (armour that weighs the heli down). Weapons caches and wrecks only
+  hand out guns you have unlocked. Armour Plating and Heavy Plates together cut damage by at most 71 %.
+- Five new base buildings in the BUILD tab (which now scrolls): Field Hospital (more beds, faster healing next to a
+  Field Clinic), Greenhouse (food without farmland), Forge (scrap into metal and parts), Bunker (when the base is
+  breached the survivors hide there once and the wave breaks off) and Radio Relay (wider map reveal, raid warnings a
+  day early).
+- Touch controls: the first touch on a touchscreen brings up two sticks (fly / aim and fire) and buttons for landing,
+  guns, yaw, loudspeaker, hook, jobs and building; a mouse move or a key press switches back. The game always starts
+  in mouse and keyboard mode; "Touch controls" in the ESC menu shows and switches the mode.
+- Music now follows the action: calm, tension, combat, assault, blood moon and victory layers crossfade on the beat.
+  Radio messages lower the music and each sender has its own beep (ESC: "Radio beeps"). New sounds for RPG warnings,
+  autorotation, building, buttons, events and the smoke screen.
+- Cloud backup for online profiles: your run is backed up when you land at the base and can be restored from the
+  title screen (RESTORE FROM CLOUD) when the local save is gone. BACKUP on the title exports and imports a profile as a file; an
+  imported run is never ranked. A run that ends also removes its cloud copy.
+- Crash reports: script errors are reported automatically so they can be fixed (ESC: "Send crash reports" turns it off).
+- Smoother play in the browser: chunks load in small steps, distant zombies think less often, paths are cached and
+  the minimap redraws less. F3 shows a performance overlay.
+
 ## 1.0.0-beta - 2026-10-30
 Balance pass over long runs (P18): a bot played 40-day runs on several worlds before and after these changes.
 - Morale no longer gets stuck at 100 or slides to 0 for good: each day it moves a quarter of the way back towards 60,
