@@ -27,6 +27,7 @@ const ERRORS := {
 	"rate_limit_new_runs": "Too many new runs today.",
 }
 const NOTICE := "Offline - this run is not ranked"
+const IMPORTED_NOTICE := "Imported - not ranked"
 const BOARDS := ["points", "days", "rescued", "kills", "best_run"]
 const RETRY_SECONDS := 60.0 # outbox retry / reachability probe; the server allows one update per run per 30 s
 const TOKEN_MARGIN := 60 # renew the access token this many seconds before it expires
@@ -36,6 +37,7 @@ const PERMANENT := ["run_invalid", "not_your_run", "run_ended", "no_player"] # t
 var enabled := false ## false in headless tests (SMOKE): nothing is sent
 var url := OnlineConfig.URL ## env ONLINE_URL overrides it
 var ranked := false ## the running run counts for the leaderboard (false: offline at run start, never sent)
+var imported := false ## the running run was imported from a file (CloudSave.import_bytes): never ranked, saved with the run
 var _run := {} # {id, ranked, started, modifiers, ended}: the run this session plays; the first three are saved with it
 var _auth := {}
 var _outbox: Array = [] # [{run_id, day, rescued, kills, ended, victory, modifiers}]
@@ -107,6 +109,17 @@ func delete_me() -> void:
 		done.emit.call_deferred(true, "")
 		return
 	_account("delete_me", {}, _forget)
+
+
+## Cloud save RPC (009_cloud_save.sql: put_save / get_save / delete_save). {ok, error, data}; error "no_player" for a profile
+## that is not registered, "offline" when nothing is sent. A missing migration answers with a PostgREST error code.
+func cloud_call(rpc_name: String, body: Dictionary) -> Dictionary:
+	_sync_profile()
+	if not enabled:
+		return {"ok": false, "status": 0, "data": null, "error": "offline"}
+	if not is_registered():
+		return {"ok": false, "status": 0, "data": null, "error": "no_player"}
+	return await _call(HTTPClient.METHOD_POST, "/rest/v1/rpc/" + rpc_name, body)
 
 
 ## stats: {day, rescued, kills, ended, victory, modifiers}. Queued in the outbox; values only grow on the server.
@@ -205,6 +218,7 @@ func begin_run(modifiers := []) -> void:
 	_sync_profile()
 	_run = {"id": _uuid(), "ranked": false, "started": false, "ended": false, "modifiers": modifiers.duplicate()}
 	ranked = false
+	imported = false
 	if not enabled or not is_registered():
 		return
 	_run["ranked"] = true
@@ -236,6 +250,8 @@ func mark_victory() -> void:
 
 ## Title text: NOTICE for an unranked saved run or while offline, else "".
 func title_notice() -> String:
+	if Save.has_run() and Save.read().get("systems", {}).get("online", {}).get("imported", false):
+		return IMPORTED_NOTICE
 	if not enabled or not is_registered():
 		return ""
 	if Save.has_run():
@@ -250,12 +266,15 @@ func error_text(code: String) -> String:
 # --- run state -------------------------------------------------------------------------------------------
 
 func _save_state() -> Dictionary:
+	if imported:
+		return {"imported": true} # no run id: nothing of this run is ever sent
 	return {} if _run.is_empty() else {"id": _run["id"], "ranked": _run["ranked"], "started": _run["started"], "modifiers": _run["modifiers"]}
 
 
 func _load_state(d: Dictionary) -> void:
 	_sync_profile() # first, so a later profile check does not drop the run just loaded
-	if d.is_empty():
+	imported = d.get("imported", false)
+	if d.is_empty() or imported:
 		return
 	_run = {"id": d["id"], "ranked": d["ranked"], "started": d["started"], "ended": false, "modifiers": d["modifiers"]}
 	ranked = d["ranked"]
@@ -329,6 +348,7 @@ func _probe() -> void:
 	await _http(HTTPClient.METHOD_GET, "/rest/v1/modifiers?limit=1", null, "")
 	if _online:
 		_flush()
+		CloudSave.flush_pending()
 
 
 # --- account ---------------------------------------------------------------------------------------------
@@ -353,6 +373,7 @@ func _forget() -> void:
 	_outbox = []
 	_run = {}
 	ranked = false
+	imported = false
 	for f in ["auth.json", "outbox.json"]:
 		DirAccess.remove_absolute(_dir + f)
 
@@ -479,6 +500,7 @@ func _sync_profile() -> void:
 	if _dir != "": # another profile: its run is not ours (the save hook loads ours again)
 		_run = {}
 		ranked = false
+		imported = false
 	_dir = dir
 	_auth = _read(dir + "auth.json", {})
 	_outbox = _read(dir + "outbox.json", []).map(func(e): # JSON gives floats

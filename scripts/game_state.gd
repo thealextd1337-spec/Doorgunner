@@ -616,7 +616,7 @@ func end_run(reason: String, victory := false) -> void:
 	if not running:
 		return
 	running = false
-	Save.delete_run() # Ironman: gone before the game-over screen shows
+	Save.delete_run(true) # Ironman: gone before the game-over screen shows (cloud copy first)
 	record_run(day, saved_count(), kills, victory or Evac.won()) # a death after STAY BEHIND still carries the victory
 	run_ended.emit(reason)
 

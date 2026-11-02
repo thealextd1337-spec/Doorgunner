@@ -12,6 +12,7 @@ const SAVE_FORMAT := 2 # 2: P7 people, P8 world generator; bump when saved data 
 const AUTOSAVE_SECONDS := 120.0
 const OLD_NOTICE := "Your saved run is from an older version and cannot be continued."
 
+var slot := "run" # file <profile>/<slot>.sav and the cloud slot (Q14 switches it to "daily"); "run" keeps the old run.sav name
 var pending := false # CONTINUE pressed: main._ready loads the run instead of starting a new one
 var notice := "" # shown once on the title (discarded run)
 var _hooks := {} # key -> [save_fn, load_fn], in registration order
@@ -65,15 +66,16 @@ func register(key: String, save_fn: Callable, load_fn: Callable) -> void:
 
 
 func path() -> String:
-	return Game.profile_dir() + "run.sav"
+	return Game.profile_dir() + slot + ".sav"
 
 
 func has_run() -> bool:
 	return FileAccess.file_exists(path()) or FileAccess.file_exists(path() + ".bak")
 
 
-## Writes run.sav. False when nothing was written: no run or the tutorial running.
-func autosave() -> bool:
+## Writes run.sav. False when nothing was written: no run or the tutorial running. `cloud`: also offer it to the cloud
+## backup (CloudSave rate-limits to one upload per 5 minutes); base.gd passes true on landing.
+func autosave(cloud := false) -> bool:
 	if not Game.running or Game.world == null or not is_instance_valid(Game.world) or is_instance_valid(Game.world.tutorial):
 		return false
 	_t = AUTOSAVE_SECONDS
@@ -85,6 +87,8 @@ func autosave() -> bool:
 		"saved_at": Time.get_unix_time_from_system(), "head": {"day": Game.day, "time": Game.time, "rescued": Game.saved_count(), "kills": Game.kills},
 		"systems": systems}
 	_write(var_to_bytes(data))
+	if cloud:
+		CloudSave.upload()
 	Game._save_meta() # meta changes mid-run too (assaults held, boss kills)
 	return true
 
@@ -143,7 +147,11 @@ func load_run() -> bool:
 	return true
 
 
-func delete_run() -> void:
+## `cloud`: death / abandon, the cloud copy goes FIRST (CloudSave.forget writes its retry marker before this deletes
+## the local files), otherwise a restore could undo the death.
+func delete_run(cloud := false) -> void:
+	if cloud:
+		CloudSave.forget(slot)
 	for p in [path(), path() + ".bak", path() + ".tmp"]:
 		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(p)
@@ -154,4 +162,4 @@ func abandon() -> void:
 	var h := head()
 	if not h.is_empty():
 		Game.record_run(h["day"], h["rescued"], h["kills"])
-	delete_run()
+	delete_run(true)
