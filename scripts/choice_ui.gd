@@ -181,6 +181,13 @@ func _card(i: int, id: String) -> Control:
 	v.add_theme_constant_override("separation", 8)
 	panel.add_child(v)
 	_text(v, "%s   %s" % [it["slot"].to_upper(), "NEW" if lv == 0 else "LV %d > %d" % [lv, lv + 1]], 12, col)
+	if ResourceLoader.exists("res://assets/sprites/%s/icon_%s.png" % [Art.variant, id]): # Q8 items have a card icon
+		var icon := TextureRect.new()
+		icon.texture = Art.tex("icon_" + id)
+		icon.custom_minimum_size = Vector2(48, 48)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		v.add_child(icon)
 	_text(v, it["name"], 22, Color.WHITE)
 	var dots := RichTextLabel.new()
 	dots.bbcode_enabled = true
