@@ -6,7 +6,7 @@ extends Node
 
 const SFX := ["gun", "hit", "enemy_die", "boss_roar", "explosion", "pickup", "board", "levelup", "radio", "alarm", "land", "takeoff", "ui", "base_hit",
 	"weapon_swap", "survivor_lost", "town_alarm", "rotor", "hover", "wind", "night", "radio_base", "radio_pilot", "radio_tower", "radio_bandit",
-	"radio_convoy", "rpg_warn", "autorot", "build", "build_done", "ui_click", "event"]
+	"radio_convoy", "rpg_warn", "autorot", "build", "build_done", "ui_click", "event", "smoke"]
 
 var _bad: PackedStringArray = []
 

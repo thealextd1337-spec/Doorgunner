@@ -112,6 +112,8 @@ def upsert_run(uid, b):
     r["day"], r["rescued"], r["kills"] = max(r["day"], b["p_day"]), max(r["rescued"], b["p_rescued"]), max(r["kills"], b["p_kills"])
     r["victory"] = r["victory"] or b["p_victory"]
     r["ended"] = b["p_ended"]
+    if r["ended"]:  # 009 trigger runs_ended_drop_cloud_save: an ended run's cloud copy goes too
+        SAVES.pop((uid, "run"), None)
     r["version"] = b.get("p_version")
     r["points"] = points(r)
     return r["points"]

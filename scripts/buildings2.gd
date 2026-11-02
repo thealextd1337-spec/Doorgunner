@@ -141,6 +141,7 @@ static func shelter() -> bool:
 	if node:
 		node.queue_free()
 	world.base.site_nodes.erase(b["cell"])
+	world.nav_dirty() # the bunker footprint is walkable again
 	Game.base_hp = Game.max_base_hp * BUNKER_HULL
 	Game.injure(BUNKER_INJURED)
 	world.assault.abort()

@@ -183,6 +183,20 @@ func _tables() -> void:
 		Game.meta[key] = u["value"]
 		assert(Progression.unlocked(id), "%s open at its threshold" % id)
 		Game.meta[key] = meta0[key]
+	# caches and wrecks (poi.gd) draw from Weapons.unowned(): never a gun still locked by meta
+	for k in Progression.META_KEYS.values():
+		Game.meta[k] = 0
+	var owned0: Array = [Game.heli_weapons.duplicate(), Game.weapon_bay.duplicate()]
+	Game.heli_weapons.assign(["mg"])
+	Game.weapon_bay.clear()
+	var pool: Array = Weapons.unowned()
+	assert(not pool.is_empty() and pool.all(func(id): return Progression.unlocked(id)), "unowned() holds only unlocked guns: %s" % [pool])
+	assert(not pool.has("flamer"), "a locked Flamethrower never comes from a cache")
+	var fu: Dictionary = Progression.ITEMS["flamer"]["unlock"]
+	Game.meta[Progression.META_KEYS[fu["kind"]]] = fu["value"]
+	assert(Weapons.unowned().has("flamer"), "unlocked and unowned: the Flamethrower can come from a cache")
+	Game.heli_weapons.assign(owned0[0])
+	Game.weapon_bay.assign(owned0[1])
 	Game.meta = meta0
 
 
@@ -423,6 +437,11 @@ func _modules() -> void:
 	for i in 4:
 		Game.take_item("heavyplates")
 	assert(is_equal_approx(Game.stats["armor"], armor * 2.5) and is_equal_approx(Game.weight_factor, speed - 0.2), "Heavy Plates Lv5: x2.5 armour, -20 % speed")
+	Game.heli_items["plating"] = 5 # x2.8 alone; with Heavy Plates Lv5 the item factor is capped instead of x7
+	Game.recompute()
+	assert(is_equal_approx(Game.stats["armor"], armor * Progression.MAX_ITEM_ARMOR), "Plating + Heavy Plates capped at x%.1f: %.2f" % [Progression.MAX_ITEM_ARMOR, Game.stats["armor"] / armor])
+	Game.heli_items.erase("plating")
+	Game.recompute()
 	Game.scrap_item("extratank")
 	Game.scrap_item("heavyplates")
 	assert(is_equal_approx(Game.max_fuel, fuel) and is_equal_approx(Game.stats["armor"], armor), "scrapping takes the effect away")

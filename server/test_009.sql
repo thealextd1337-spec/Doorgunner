@@ -90,7 +90,12 @@ select public.upsert_run('11111111-1111-1111-1111-111111111111', 2, 1, 10, false
 reset role;
 select pg_temp.ok((select day = 3 and rescued = 5 and kills = 80 from public.runs where id = '11111111-1111-1111-1111-111111111111'), 'lower values are ignored');
 select pg_temp.act('00000000-0000-0000-0000-000000000002');
+select public.put_save('run', 'aGk=', 'x', 2);
+select public.put_save('daily', 'aGk=', 'x', 2);
+select pg_temp.ok(public.get_save('run') is not null, 'cloud run save kept while the run is open');
 select public.upsert_run('11111111-1111-1111-1111-111111111111', 3, 5, 80, true, false, '{}', 't'); -- ended = final
+select pg_temp.ok(public.get_save('run') is null, 'ended run: the server deleted the cloud run save');
+select pg_temp.ok(public.get_save('daily') is not null, 'ended run: other slots kept');
 select pg_temp.expect('run_ended', $q$select public.upsert_run('11111111-1111-1111-1111-111111111111', 1, 0, 0, false, false, '{}', 't')$q$);
 
 reset role;

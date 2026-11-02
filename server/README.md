@@ -14,7 +14,7 @@ All writes go through `security definer` RPCs, all tables have RLS on.
 | `supabase/006_modifiers.sql` | the six run-modifier score factors (P15), idempotent upsert into `modifiers` |
 | `supabase/007_balance.sql` | balance pass 1.0.0-beta (P18): `run_points` (victory 5000) and the `upsert_run` bounds for the 900 s day, idempotent |
 | `supabase/008_errors.sql` | error reporting (Q2): tables `errors`, `error_rate`, RPC `report_error`, `delete_me` also clears the player's error rows |
-| `supabase/009_cloud_save.sql` | cloud backup of the saved run (Q3): table `cloud_saves` (PK `player_id, slot`, `data` bytea <= 2 MB, FK cascade from `players`, so `delete_me` removes it without being edited), RPCs `put_save`, `get_save`, `delete_save` |
+| `supabase/009_cloud_save.sql` | cloud backup of the saved run (Q3): table `cloud_saves` (PK `player_id, slot`, `data` bytea <= 2 MB, FK cascade from `players`, so `delete_me` removes it without being edited), RPCs `put_save`, `get_save`, `delete_save`; trigger `runs_ended_drop_cloud_save` deletes the `run` slot when `upsert_run` ends a run |
 | `test_009.sql` | tests for 009 (own transaction, rolled back), also shows that `upsert_run` ignores lower values |
 | `test.sql` | test cases, runs in one transaction that is rolled back |
 

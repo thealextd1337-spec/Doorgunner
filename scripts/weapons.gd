@@ -21,9 +21,9 @@ const TABLE := {
 }
 
 
-## Weapon ids the player owns neither aboard nor in the bay.
+## Weapon ids the player owns neither aboard nor in the bay and has unlocked (meta), so caches and wrecks only hand out those.
 static func unowned() -> Array:
-	return TABLE.keys().filter(func(id: String) -> bool: return id not in Game.heli_weapons and id not in Game.weapon_bay)
+	return TABLE.keys().filter(func(id: String) -> bool: return id not in Game.heli_weapons and id not in Game.weapon_bay and Progression.unlocked(id))
 
 
 ## Per-level scaling of the Q8 guns (heli.gd multiplies/adds these). Level 5 specials are in tune().

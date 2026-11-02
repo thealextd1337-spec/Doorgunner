@@ -340,5 +340,8 @@ sec = 2.6
 gong = mix(fm(196, 1.41, lambda t: 3.0 * math.exp(-t * 0.9), sec), gain(fm(392, 2.76, lambda t: 2.0 * math.exp(-t * 1.5), sec), 0.4), gain(osc(98, sec), 0.5))
 write("event", fade(lp(decay(gong, 1.4), 2500), 10))
 
+# smoke (Q8 Smoke Launcher): pop + 0.9 s band-passed hiss. Appended last so the seeded noise of the sounds above is unchanged.
+write("smoke", fade(mix(gain(decay(osc(140, 0.08), 40), 0.8), gain(decay(norm(lp(hp(noise(0.9), 1500), 6000)), 4), 0.7)), 15))
+
 
 print("wrote %d wavs to %s" % (len([f for f in os.listdir(OUT) if f.endswith(".wav")]), os.path.normpath(OUT)))

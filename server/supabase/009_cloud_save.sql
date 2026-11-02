@@ -75,6 +75,21 @@ begin
   delete from public.cloud_saves where player_id = uid and slot = p_slot;
 end $$;
 
+-- A run that ended on the server (upsert_run with p_ended = true) can never be continued, so its cloud copy goes too,
+-- even when the client's own delete_save never arrives. A trigger, so upsert_run (007) stays untouched.
+create or replace function public.cloud_saves_drop_ended_run() returns trigger
+language plpgsql security definer set search_path = public, pg_temp as $$
+begin
+  if new.ended and (tg_op = 'INSERT' or not old.ended) then
+    delete from public.cloud_saves where player_id = new.player_id and slot = 'run';
+  end if;
+  return null;
+end $$;
+revoke execute on function public.cloud_saves_drop_ended_run() from public, anon, authenticated;
+drop trigger if exists runs_ended_drop_cloud_save on public.runs;
+create trigger runs_ended_drop_cloud_save after insert or update of ended on public.runs
+  for each row execute function public.cloud_saves_drop_ended_run();
+
 revoke execute on function public.put_save(text, text, text, int), public.get_save(text, boolean), public.delete_save(text)
   from public, anon, authenticated;
 grant execute on function public.put_save(text, text, text, int), public.get_save(text, boolean), public.delete_save(text)

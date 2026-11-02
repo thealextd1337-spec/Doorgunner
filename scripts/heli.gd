@@ -172,7 +172,7 @@ func weapon_range() -> float:
 
 ## How far a lobbed shell flies: to the mouse, clamped to LOB_MIN..weapon range (tests: 70 % of the range).
 func aim_dist() -> float:
-	var d := weapon_range() * 0.7 if aim_override != Vector2.ZERO else (get_global_mouse_position() - global_position).length()
+	var d := weapon_range() * 0.7 if aim_override != Vector2.ZERO else (Controls.aim() - global_position).length()
 	return clampf(d, LOB_MIN, weapon_range())
 
 

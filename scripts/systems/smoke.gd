@@ -40,7 +40,7 @@ func pop() -> Node2D:
 	c.life = DURATION_BASE + lv
 	c.stun = STUN_LV5 if lv >= 5 else 0.0
 	Game.world.add_child(c)
-	Sfx.play("land", c.position, -10.0) # placeholder hiss (Q16 swaps in a Q7 sound)
+	Sfx.play("smoke", c.position, -10.0)
 	return c
 
 

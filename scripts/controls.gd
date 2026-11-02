@@ -1,7 +1,9 @@
 extends Node
 ## Autoload `Controls`: the one place game code reads flight, aim and fire from (keyboard + mouse, or the touch layer
 ## touch_ui.gd). Every key is an Input action from Game._setup_input(); nothing else reads raw keys (controls_test.gd).
-## Touch mode ("touch" setting, on by default with a touchscreen): the sticks fill stick_move / stick_aim, the touch
+## Touch mode ("touch" setting): every boot starts in mouse/keyboard mode (a saved "touch" is ignored, so a touchscreen
+## laptop never boots into it); the first real touch switches to touch mode, a real mouse move/click or key press switches
+## back (_input). The ESC menu row shows the mode and can force it. In touch mode the sticks fill stick_move / stick_aim, the touch
 ## buttons send InputEventActions, and a tap on the world sets the build cursor instead of placing at once.
 
 const STICK_DEAD := 0.25 # aim stick deflection below which the door gun holds fire
@@ -15,13 +17,23 @@ var cursor := Vector2.ZERO # touch: world position of the last tap on the map (b
 
 
 func _ready() -> void:
-	Settings.register_toggle("touch", "Touch controls", DisplayServer.is_touchscreen_available())
-	touch = Settings.is_on("touch")
+	Settings.register_toggle("touch", "Touch controls", false)
+	Settings.values["touch"] = 0
 	Settings.changed.connect(func(key: String, v: Variant) -> void:
 		if key == "touch":
 			touch = v == 1
 			stick_move = Vector2.ZERO
 			stick_aim = Vector2.ZERO)
+
+
+## Switch mode on real input only: Godot's touch<->mouse emulation events carry DEVICE_ID_EMULATION and are ignored.
+func _input(ev: InputEvent) -> void:
+	if ev.device == InputEvent.DEVICE_ID_EMULATION:
+		return
+	if not touch and (ev is InputEventScreenTouch or ev is InputEventScreenDrag):
+		Settings.set_value("touch", 1)
+	elif touch and (ev is InputEventMouseMotion or (ev is InputEventMouseButton or ev is InputEventKey) and ev.pressed):
+		Settings.set_value("touch", 0)
 
 
 ## Flight input, each axis -1..1: WASD / arrows, else the left stick.

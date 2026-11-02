@@ -49,6 +49,7 @@ const BASE_STATS := {
 }
 const HeliTypes := preload("res://scripts/heli_types.gd")
 const CARD_SCRAP := 20 # value of one card; scrapping an item refunds half
+const MAX_ITEM_ARMOR := 3.5 # cap on the item armour factor (Armour Plating x Heavy Plates): either alone at lv5 stays below it (2.8 / 2.5), together max 71 % less damage instead of 86 %
 
 
 ## Level of an item, 0 if never taken (bay weapons keep theirs).
@@ -89,6 +90,7 @@ static func apply_all() -> void:
 	for id in Game.heli_items:
 		if owned(id):
 			apply(id, Game.heli_items[id])
+	Game.stats["armor"] = minf(Game.stats["armor"], MAX_ITEM_ARMOR)
 	var ws: int = Game.base_level.get("workshop", 0)
 	var m: Dictionary = Game.meta
 	var extra := {"hardpoint": ws >= 2 or m["best_day"] >= 10, "system": ws >= 3 or m["best_day"] >= 30, "module": ws >= 4 or m["total_rescued"] >= 600} # workshop 1 is the stock one

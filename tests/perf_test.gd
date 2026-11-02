@@ -214,4 +214,7 @@ func _long() -> void:
 	var chunks: int = main.chunks.loaded.size() - ch0
 	rows.append("  long flight: +%d chunks, memory %.0f -> %.0f MB (%.2f MB per chunk)" % [chunks, mem0, s["mem_mb"], (s["mem_mb"] - mem0) / maxi(1, chunks)])
 	assert(s["chunk_max"] < HITCH_MAX, "long flight: chunk hitch %.1f ms over %.0f" % [s["chunk_max"], HITCH_MAX])
+	var hc := Vector2i((heli.position / (main.chunks.CHUNK * main.chunks.TILE)).floor())
+	var far: Array = main.chunks._plans.keys().filter(func(p): return maxi(absi(p.x - hc.x), absi(p.y - hc.y)) > main.chunks.LOAD_RADIUS + 3) # +1: the heli may have moved after the last _process
+	assert(far.is_empty(), "long flight: planned chunks behind the heli are evicted: %s" % [far])
 	main.spawner.set_process(false)

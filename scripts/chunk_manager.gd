@@ -186,6 +186,10 @@ func _process(_delta: float) -> void:
 		_shot_jump()
 	var c := Vector2i((Game.heli.position / (CHUNK * TILE)).floor())
 	var all := _last == NONE or maxi(absi(c.x - _last.x), absi(c.y - _last.y)) > 1 # first frame or a jump
+	if c != _last: # plans of chunks the heli flew away from before they loaded would pile up
+		for p: Vector2i in _plans.keys():
+			if maxi(absi(p.x - c.x), absi(p.y - c.y)) > LOAD_RADIUS + 2:
+				_plans.erase(p)
 	_last = c
 	var t0 := Time.get_ticks_usec()
 	_load_around(c, all, t0)

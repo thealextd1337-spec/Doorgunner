@@ -51,6 +51,28 @@ func _run() -> void:
 	Input.action_release("move_right")
 	Input.action_release("yaw_left")
 	check(Controls.move() == Vector2.ZERO and not Controls.fire(), "idle")
+	# --- mode switch (user decision): boots in mouse mode, a real touch turns touch on, real mouse / keys turn it off,
+	# Godot's emulated events (DEVICE_ID_EMULATION) never switch. Releases far off-screen so nothing gets pressed.
+	check(not Settings.is_on("touch"), "boots in mouse/keyboard mode")
+	_send(InputEventScreenTouch.new(), InputEvent.DEVICE_ID_EMULATION)
+	check(not Controls.touch, "emulated touch (from the mouse) keeps mouse mode")
+	_send(InputEventScreenTouch.new(), 0)
+	check(Controls.touch and Settings.is_on("touch"), "first real touch: touch mode")
+	_send(InputEventMouseMotion.new(), InputEvent.DEVICE_ID_EMULATION)
+	_send(InputEventMouseButton.new(), InputEvent.DEVICE_ID_EMULATION, true)
+	_send(InputEventMouseButton.new(), InputEvent.DEVICE_ID_EMULATION)
+	check(Controls.touch, "emulated mouse (from the touch) keeps touch mode")
+	_send(InputEventMouseMotion.new(), 0)
+	check(not Controls.touch and not Settings.is_on("touch"), "real mouse move: back to mouse mode")
+	_send(InputEventScreenDrag.new(), 0)
+	check(Controls.touch, "real drag: touch mode")
+	var shift := _key(KEY_SHIFT)
+	shift.pressed = true
+	Input.parse_input_event(shift)
+	shift = _key(KEY_SHIFT)
+	Input.parse_input_event(shift)
+	Input.flush_buffered_events()
+	check(not Controls.touch, "key press: back to mouse mode")
 	# --- touch: take off with the LAND pad
 	Controls.touch = true
 	await frame
@@ -148,6 +170,19 @@ func _run() -> void:
 		for b in _bad:
 			push_error("CONTROLS FAIL: " + b)
 		get_tree().quit(1)
+
+
+## Parses `ev` from `device` at a far off-screen spot (a release unless `down`).
+func _send(ev: InputEvent, device: int, down := false) -> void:
+	ev.device = device
+	ev.position = Vector2(-5000, -5000)
+	if ev is InputEventMouseButton:
+		ev.button_index = MOUSE_BUTTON_RIGHT
+		ev.pressed = down
+	elif ev is InputEventMouseMotion:
+		ev.relative = Vector2(3, 0)
+	Input.parse_input_event(ev)
+	Input.flush_buffered_events()
 
 
 func _key(k: Key) -> InputEventKey:
