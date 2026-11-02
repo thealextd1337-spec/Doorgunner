@@ -51,6 +51,20 @@ func _run() -> void:
 	Input.action_release("move_right")
 	Input.action_release("yaw_left")
 	check(Controls.move() == Vector2.ZERO and not Controls.fire(), "idle")
+	# a click on a HUD button ([-] STATUS) is not a shot, a click on the world is
+	var fold: Button = main.hud.fold_btn
+	fold.visible = true
+	await frame
+	var folded: bool = main.hud.info_folded
+	_click(fold.get_global_transform_with_canvas() * (fold.size / 2.0), true)
+	check(not Controls.fire(), "a click on the HUD fold button does not fire")
+	_click(fold.get_global_transform_with_canvas() * (fold.size / 2.0), false)
+	check(main.hud.info_folded != folded, "...it folds the status block")
+	_click(main.get_viewport().get_visible_rect().get_center() + Vector2(0, 120), true)
+	check(Controls.fire(), "a click on the world fires")
+	_click(main.get_viewport().get_visible_rect().get_center() + Vector2(0, 120), false)
+	check(not Controls.fire(), "...until released")
+	main.hud.info_folded = folded
 	# --- mode switch (user decision): boots in mouse mode, a real touch turns touch on, real mouse / keys turn it off,
 	# Godot's emulated events (DEVICE_ID_EMULATION) never switch. Releases far off-screen so nothing gets pressed.
 	check(not Settings.is_on("touch"), "boots in mouse/keyboard mode")
@@ -226,7 +240,7 @@ func _raw_checks(dir: String) -> PackedStringArray:
 	var out: PackedStringArray = []
 	var key := RegEx.create_from_string("\\bKEY_([A-Z0-9]|F\\d+|TAB|ESCAPE|ENTER|KP_\\w+|SPACE|UP|DOWN|LEFT|RIGHT|BACKSPACE|DELETE|SHIFT|CTRL|ALT|META|HOME|END|INSERT|PAGE\\w+)\\b")
 	for f in DirAccess.get_files_at(dir):
-		if not f.ends_with(".gd") or f == "controls.gd":
+		if not f.ends_with(".gd") or f in ["controls.gd", "keymap.gd"]:
 			continue
 		var fn := ""
 		var lines := FileAccess.get_file_as_string(dir + f).split("\n")
@@ -240,3 +254,18 @@ func _raw_checks(dir: String) -> PackedStringArray:
 	for d in DirAccess.get_directories_at(dir):
 		out.append_array(_raw_checks(dir + d + "/"))
 	return out
+
+
+## A left click at viewport position `at` through the viewport (_input, GUI, _unhandled_input); headless has no window to
+## map window coordinates, so the event goes in in viewport coordinates and the action state is set alongside.
+func _click(at: Vector2, pressed: bool) -> void:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = pressed
+	e.position = at
+	e.global_position = at
+	if pressed:
+		Input.action_press("fire")
+	else:
+		Input.action_release("fire")
+	Game.world.get_viewport().push_input(e, true)

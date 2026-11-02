@@ -19,6 +19,7 @@ func _init() -> void:
 	register_slider("vol_music", "Music & ambience", 0, 100, 1, 70)
 	register_toggle("muted", "Mute all  (M)", true) # sound off by default for now; M or ESC menu turns it on
 	register_toggle("shake", "Screen shake (heavy guns)", true)
+	register_slider(UiTheme.SCALE_KEY, "UI scale  (90-150 %)", UiTheme.SCALE_MIN, UiTheme.SCALE_MAX, UiTheme.SCALE_STEP, UiTheme.SCALE_DEFAULT) # Q6a
 
 
 func register_toggle(key: String, label: String, default: bool) -> void:
@@ -62,6 +63,15 @@ func load_file() -> void:
 	_file = data if data is Dictionary else {}
 	for key in defs:
 		values[key] = _coerce(key, _file.get(key, defs[key]["default"]))
+
+
+## Free-form data that is neither toggle nor slider (the key bindings, keymap.gd): kept under `key` in settings.json.
+func get_extra(key: String, default: Variant) -> Variant:
+	return _file.get(key, default)
+
+
+func set_extra(key: String, value: Variant) -> void:
+	_file[key] = value
 
 
 func save() -> void:

@@ -3,13 +3,13 @@ extends CanvasLayer
 ## Base of the title's modal screens (profiles, leaderboard): dim background, centered panel in the title's style,
 ## label / button helpers, ESC closes. Subclasses fill `box`.
 
-const SAND := Color(0.91, 0.86, 0.71)
-const ACCENT := Color(0.96, 0.77, 0.18)
-const PANEL := Color(0.06, 0.08, 0.04, 0.96)
-const OLIVE := Color(0.33, 0.37, 0.2)
-const RED := Color(1, 0.45, 0.35)
+const SAND := UiTheme.SAND
+const ACCENT := UiTheme.ACCENT
+const PANEL := UiTheme.PANEL
+const OLIVE := UiTheme.OLIVE
+const RED := UiTheme.BAD
 
-var mono := SystemFont.new()
+var mono := UiTheme.mono()
 var box: VBoxContainer
 var closable := true
 
@@ -21,15 +21,15 @@ func _init() -> void:
 
 
 func _build(min_width: int) -> void:
-	mono.font_names = PackedStringArray(["Consolas", "DejaVu Sans Mono", "monospace"])
+	var root := UiTheme.attach(self) # scales as far as the panel fits (fit below)
 	var dim := ColorRect.new()
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.color = Color(0.02, 0.03, 0.01, 0.8)
-	add_child(dim)
+	root.add_child(dim)
 	var center := CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(center)
+	root.add_child(center)
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(min_width, 0)
 	var sb := StyleBoxFlat.new()
@@ -39,12 +39,13 @@ func _build(min_width: int) -> void:
 	sb.set_content_margin_all(24)
 	panel.add_theme_stylebox_override("panel", sb)
 	center.add_child(panel)
+	root.fit = panel
 	box = VBoxContainer.new()
 	box.add_theme_constant_override("separation", 10)
 	panel.add_child(box)
 
 
-func label(text: String, size := 14, color := SAND) -> Label:
+func label(text: String, size := UiTheme.FONT_M, color := SAND) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
@@ -58,7 +59,7 @@ func button(text: String, width := 0, accent := false) -> Button:
 	b.text = text
 	b.custom_minimum_size = Vector2(width, 40)
 	b.add_theme_font_override("font", mono)
-	b.add_theme_font_size_override("font_size", 16)
+	b.add_theme_font_size_override("font_size", UiTheme.FONT_L)
 	if accent:
 		for state in ["normal", "hover", "pressed", "focus", "disabled"]:
 			var s := StyleBoxFlat.new()

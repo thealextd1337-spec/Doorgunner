@@ -4,6 +4,24 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## 1.0.0-beta.3 - 2026-11-02
+- New regions: the coast (sea, beaches, cliffs, dunes, fishing villages with boats) and the winter highland (snow,
+  frosted woods, huts, frozen lakes you can land on; roads cross frozen rivers on bridges). New landmarks: hospital
+  (medicine, medics, many infected), harbour (fuel, boats, sometimes bandits), stadium (a huge horde, big supply
+  stash), power plant (a part that halves the generator's fuel; the HUD and base menu show the lower burn), ski lift ruin.
+- **Runs from older versions cannot be continued:** the world generator changed, so the same seed now makes a
+  different world and a run saved with an older version is discarded. Profiles, unlocks and the leaderboard stay.
+- UI scale (ESC menu, 90-150 %): the HUD, menus and dialogs grow or shrink together and keep out of each other's
+  way. The HUD status block folds with [-] STATUS, the base menu's status panel folds at its header (and by itself
+  when the screen is too narrow). Clicking a HUD or menu button no longer fires the door gun.
+- Key bindings (ESC menu > "Key bindings..."): rebind every action to a key or mouse button, add a second key, remove
+  one with a right-click; keys shared by accident show in red, "Reset to defaults" undoes everything. Bindings are
+  saved at once. The ESC menu and help keys always keep one key. The HUD key hints, the outpost hints and the base
+  menu toggle show your keys; other labels (tutorial, level-up cards, some menu rows) keep the default keys.
+- Help & codex (F1, or the ESC menu): all current controls (plus the touch controls in touch mode) and codex pages
+  for enemies, buildings, items and systems (still empty: entries arrive with later updates and unlock per profile). Buttons in the menus, jobs and
+  buildings now have hover tooltips.
+
 ## 1.0.0-beta.2 - 2026-11-02
 - Arsenal: six new door guns, each unlocked in the hangar and levelled 1-5 like the others: Scatter Gun (ten wide
   pellets, weak at range), Flamethrower (short stream, zombies keep burning), Grenade Launcher (lobbed shell that

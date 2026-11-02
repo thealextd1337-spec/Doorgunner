@@ -14,6 +14,7 @@ var stick_move := Vector2.ZERO # left stick, length 0..1 (touch_ui.gd)
 var stick_aim := Vector2.ZERO # right stick, length 0..1
 var _aim_dir := Vector2.RIGHT # touch: last aim stick direction, kept when the stick is let go
 var cursor := Vector2.ZERO # touch: world position of the last tap on the map (build preview)
+var _ui_click := false # the held fire mouse button went to a HUD / menu control (the [-] STATUS fold...): not a shot
 
 
 func _ready() -> void:
@@ -34,6 +35,13 @@ func _input(ev: InputEvent) -> void:
 		Settings.set_value("touch", 1)
 	elif touch and (ev is InputEventMouseMotion or (ev is InputEventMouseButton or ev is InputEventKey) and ev.is_pressed()):
 		Settings.set_value("touch", 0)
+	if ev is InputEventMouseButton and ev.is_action("fire"):
+		_ui_click = ev.pressed # a press counts as a UI click until _unhandled_input sees it (the GUI did not take it)
+
+
+func _unhandled_input(ev: InputEvent) -> void:
+	if ev is InputEventMouseButton and ev.is_action_pressed("fire"):
+		_ui_click = false
 
 
 ## Flight input, each axis -1..1: WASD / arrows, else the left stick.
@@ -56,9 +64,10 @@ func aim() -> Vector2:
 	return (Game.heli.global_position if Game.heli else Vector2.ZERO) + _aim_dir * AIM_REACH
 
 
-## Door gun trigger: LMB (the "fire" action), or in touch mode the aim stick held out (emulated touch clicks never fire).
+## Door gun trigger: LMB (the "fire" action) unless the click went to a HUD / menu button, or in touch mode the aim stick
+## held out (emulated touch clicks never fire).
 func fire() -> bool:
-	return stick_aim.length() > STICK_DEAD if touch else Input.is_action_pressed("fire")
+	return stick_aim.length() > STICK_DEAD if touch else Input.is_action_pressed("fire") and not _ui_click
 
 
 ## World position of the pointer: the mouse, or in touch mode the last tap on the map (build placement).

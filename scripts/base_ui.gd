@@ -6,14 +6,19 @@ extends CanvasLayer
 ## While placing (base.placing) both give way to a compact build bar along the bottom edge (hotkeys 1-9, base.gd).
 ## buy(id) applies effects to Game directly.
 
-const SAND := Color(0.91, 0.86, 0.71)
-const DIM := Color(0.64, 0.6, 0.5)
-const ACCENT := Color(0.96, 0.77, 0.18)
-const PANEL := Color(0.06, 0.08, 0.04, 0.97)
-const OLIVE := Color(0.33, 0.37, 0.2)
-const BAD := Color(1.0, 0.45, 0.38)
-const GOOD := Color(0.55, 0.85, 0.45)
-const DARK_TEXT := Color(0.06, 0.07, 0.03)
+## Layout (Q6a, UiTheme root): left column = the fold toggle over the status panel (its header folds it; it folds by
+## itself when the screen is too narrow for both panels), main panel anchored right from top to above the HUD hint row,
+## every tab in its own scroll box. Panels are HUD obstacles (hud.gd fits the radio log around them).
+const SAND := UiTheme.SAND
+const DIM := UiTheme.DIM
+const ACCENT := UiTheme.ACCENT
+const PANEL := UiTheme.PANEL
+const OLIVE := UiTheme.OLIVE
+const BAD := UiTheme.BAD
+const GOOD := UiTheme.GOOD
+const DARK_TEXT := UiTheme.DARK_TEXT
+const STATUS_W := 280.0
+const MAIN_W := 620.0
 
 # id -> [name, max level, scrap cost per level (x level+1), rescued required per level]
 const UPGRADES := {
@@ -50,9 +55,13 @@ const STOCKS := {"fuel": ["fuel", Color(0.9, 0.75, 0.2)], "ammo": ["ammo", Color
 const Weapons := preload("res://scripts/weapons.gd")
 const People := preload("res://scripts/people.gd")
 const Wear := preload("res://scripts/wear.gd")
-const MAP_CLEAR := preload("res://scripts/hud.gd").MAP_SIZE + 20.0 # px the build bar keeps off the right edge (minimap + margins)
+const HUD_STATUS_W := preload("res://scripts/hud.gd").STATUS_W # the folded menu's toggle sits right of the HUD status zone
 
-var mono := SystemFont.new()
+var mono := UiTheme.mono()
+var root: UiTheme.Root
+var left_col: VBoxContainer # toggle button over the status panel
+var status_body: Array[Control] = [] # status panel rows under the header, hidden while folded
+var status_folded := false # header click
 var pop_label: Label
 var morale_label: Label
 var stock_rows := {} # id -> [fill ColorRect, value Label, delta Label]
@@ -89,15 +98,29 @@ var person_sel := -1 # id of the person shown in person_info
 func _ready() -> void:
 	layer = 10
 	visible = false
-	mono.font_names = PackedStringArray(["Consolas", "DejaVu Sans Mono", "monospace"])
-	var root := Control.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.mouse_filter = Control.MOUSE_FILTER_IGNORE # clicks between the panels place blueprints (base.gd)
-	root.theme = _theme()
-	add_child(root)
+	add_to_group(UiTheme.OBSTACLES)
+	root = UiTheme.attach(self) # mouse ignored: clicks between the panels place blueprints (base.gd)
+	root.theme = UiTheme.theme()
+	left_col = VBoxContainer.new()
+	left_col.position = Vector2(UiTheme.MARGIN, UiTheme.MARGIN)
+	left_col.add_theme_constant_override("separation", UiTheme.GAP)
+	left_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(left_col)
 	# left status column
-	var status := _panel(root, Vector2(10, 10), 280)
-	status.add_child(_label("// FOB STATUS", 12, ACCENT, true))
+	var status := _panel(left_col, Vector2.ZERO, STATUS_W)
+	var head := Button.new() # folds the status panel to this header
+	head.flat = true
+	head.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	head.focus_mode = Control.FOCUS_NONE # SPACE takes off
+	head.tooltip_text = Tooltips.tip("status_fold")
+	head.add_theme_font_override("font", mono)
+	head.add_theme_font_size_override("font_size", UiTheme.FONT_S)
+	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color"]:
+		head.add_theme_color_override(c, ACCENT)
+	head.pressed.connect(func():
+		status_folded = not status_folded
+		_layout())
+	status.add_child(head)
 	status.add_child(_label("FORWARD OPERATING BASE", 17))
 	status.add_child(_label("POPULATION", 12, ACCENT, true))
 	pop_label = _label("", 13, SAND, true)
@@ -133,14 +156,16 @@ func _ready() -> void:
 	status.add_child(power_label)
 	assault_label = _label("", 13, SAND, true)
 	status.add_child(assault_label)
+	status_body.assign(status.get_children().slice(1))
 	# right main panel: tab bar, content, instruction bar
-	var main := _panel(root, Vector2(650, 10), 620)
+	var main := _panel(root, Vector2.ZERO, MAIN_W)
 	var tab_row := HBoxContainer.new()
 	tab_row.add_theme_constant_override("separation", 6)
 	main.add_child(tab_row)
 	for t in ["BUILD", "WORKERS", "HANGAR", "CONVOY"]:
 		var b := Button.new()
 		b.text = t
+		b.tooltip_text = Tooltips.tip("tab_" + t)
 		b.custom_minimum_size = Vector2(110, 34)
 		b.add_theme_font_override("font", mono)
 		b.add_theme_font_size_override("font_size", 16)
@@ -156,32 +181,37 @@ func _ready() -> void:
 	_workers_tab(main)
 	_hangar_tab(main)
 	tabs["CONVOY"] = VBoxContainer.new()
-	main.add_child(tabs["CONVOY"])
+	_scroll(main).add_child(tabs["CONVOY"])
 	status_panel = status.get_parent()
 	main_panel = main.get_parent()
+	main_panel.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+	main_panel.offset_left = -UiTheme.MARGIN - MAIN_W
+	main_panel.offset_right = -UiTheme.MARGIN
+	main_panel.offset_top = UiTheme.MARGIN
+	main_panel.offset_bottom = -UiTheme.MARGIN - UiTheme.BOTTOM_ROW
+	main_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	toggle_btn = Button.new()
 	toggle_btn.add_theme_font_override("font", mono)
+	toggle_btn.tooltip_text = Tooltips.tip("toggle")
 	toggle_btn.add_theme_font_size_override("font_size", 13)
-	toggle_btn.position = Vector2(300, 10) # in the gap between the status column (10-290) and the main panel (650+)
-	toggle_btn.size = Vector2(140, 26)
+	toggle_btn.custom_minimum_size = Vector2(140, 26)
+	toggle_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	toggle_btn.pressed.connect(toggle)
-	root.add_child(toggle_btn)
-	# bottom build bar: one button per tool, centred left of the minimap (hud.gd, bottom right), growing up from the bottom
-	# edge; the buttons wrap into a second row rather than run under the map
+	left_col.add_child(toggle_btn)
+	left_col.move_child(toggle_btn, 0)
+	# bottom build bar: one button per tool along the bottom edge, growing up; the buttons wrap into more rows
 	var bar := _panel(root, Vector2.ZERO, 0)
 	build_bar = bar.get_parent()
-	build_bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	build_bar.offset_left = -MAP_CLEAR / 2.0
-	build_bar.offset_right = -MAP_CLEAR / 2.0
-	build_bar.offset_top = -10
-	build_bar.offset_bottom = -10
-	build_bar.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	build_bar.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	build_bar.offset_left = UiTheme.MARGIN
+	build_bar.offset_right = -UiTheme.MARGIN
+	build_bar.offset_top = -UiTheme.MARGIN
+	build_bar.offset_bottom = -UiTheme.MARGIN
 	build_bar.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	build_bar.mouse_filter = Control.MOUSE_FILTER_STOP # clicks on the bar never place blueprints underneath
 	var row := HFlowContainer.new()
 	row.add_theme_constant_override("h_separation", 6)
 	row.add_theme_constant_override("v_separation", 6)
-	row.custom_minimum_size.x = 1280.0 - MAP_CLEAR - 48.0 # panel margins 2 x 14 and 10 px air each side
 	row.alignment = FlowContainer.ALIGNMENT_CENTER
 	bar.add_child(row)
 	for i in BUILD_INFO.size():
@@ -193,7 +223,7 @@ func _ready() -> void:
 		b.custom_minimum_size = Vector2(96, 40)
 		b.add_theme_font_override("font", mono)
 		b.text = "%s%s\n%s" % ["%d " % (i + 1) if i < 9 else "", t[0].to_upper(), "+scrap" if kind == "demolish" else "%d scrap" % t[1]]
-		b.tooltip_text = Buildings2.TIPS.get(kind, BUILD_INFO[kind])
+		b.tooltip_text = Tooltips.building(kind)
 		b.toggled.connect(func(_on: bool):
 			get_parent().place_kind = kind
 			refresh())
@@ -201,6 +231,36 @@ func _ready() -> void:
 		bar_btns[kind] = b
 	bar.add_child(_label("LMB place  ·  RMB remove  ·  R rotate  ·  ESC done", 12, DIM, true))
 	show_tab("BUILD")
+	root.resized.connect(_layout)
+	_layout()
+
+
+## Scale-dependent layout: the status panel folds when the main panel would not fit beside it; the toggle leaves the
+## HUD status zone free while the panels are away.
+func _layout() -> void:
+	var m := float(UiTheme.MARGIN)
+	var auto_fold := root.size.x - 3.0 * m - STATUS_W < maxf(MAIN_W, main_panel.get_combined_minimum_size().x)
+	var folded := status_folded or auto_fold
+	for c in status_body:
+		c.visible = not folded
+	status_panel.custom_minimum_size.x = 0.0 if folded else STATUS_W
+	status_panel.get_child(0).get_child(0).text = "// FOB STATUS  " + ("[+]" if folded else "[-]")
+	left_col.position.x = m if status_panel.visible else m + HUD_STATUS_W + UiTheme.GAP
+	left_col.reset_size()
+
+
+## Panels the HUD keeps its radio log and alert line away from.
+func obstacles() -> Array:
+	return [left_col, main_panel, build_bar]
+
+
+## Scroll box filling the rest of the main panel; one per tab (show_tab switches the box).
+func _scroll(main: VBoxContainer) -> ScrollContainer:
+	var sc := ScrollContainer.new()
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	main.add_child(sc)
+	return sc
 
 
 func _process(delta: float) -> void:
@@ -210,46 +270,8 @@ func _process(delta: float) -> void:
 		_refresh_status()
 
 
-## Shared look: olive buttons, yellow when pressed / toggled on, sand text.
-func _theme() -> Theme:
-	var th := Theme.new()
-	th.default_font_size = 13
-	th.set_color("font_color", "Label", SAND)
-	th.set_stylebox("normal", "Button", _box(OLIVE.darkened(0.35), 4))
-	th.set_stylebox("hover", "Button", _box(OLIVE.darkened(0.1), 4))
-	th.set_stylebox("pressed", "Button", _box(ACCENT, 4))
-	th.set_stylebox("hover_pressed", "Button", _box(ACCENT.lightened(0.15), 4))
-	th.set_stylebox("disabled", "Button", _box(Color(0.1, 0.11, 0.07), 4))
-	var focus := StyleBoxEmpty.new()
-	th.set_stylebox("focus", "Button", focus)
-	for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
-		th.set_stylebox(st, "OptionButton", th.get_stylebox(st, "Button"))
-	th.set_stylebox("panel", "PopupMenu", _box(PANEL, 4, ACCENT))
-	th.set_stylebox("hover", "PopupMenu", _box(ACCENT, 2))
-	for c in ["font_color", "font_hover_color", "font_focus_color", "font_pressed_color"]:
-		th.set_color(c, "OptionButton", SAND)
-	th.set_color("font_color", "PopupMenu", SAND)
-	th.set_color("font_hover_color", "PopupMenu", DARK_TEXT)
-	for c in ["font_color", "font_hover_color", "font_focus_color"]:
-		th.set_color(c, "Button", SAND)
-	th.set_color("font_pressed_color", "Button", DARK_TEXT)
-	th.set_color("font_hover_pressed_color", "Button", DARK_TEXT)
-	th.set_color("font_disabled_color", "Button", SAND.darkened(0.55))
-	th.set_stylebox("panel", "TooltipPanel", _box(Color(0.04, 0.05, 0.03, 0.95), 6, ACCENT))
-	th.set_color("font_color", "TooltipLabel", SAND)
-	return th
-
-
 func _box(bg: Color, margin: float, border := Color.TRANSPARENT) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = bg
-	sb.set_content_margin_all(margin)
-	sb.content_margin_left = margin + 4
-	sb.content_margin_right = margin + 4
-	if border.a > 0.0:
-		sb.border_width_left = 2
-		sb.border_color = border
-	return sb
+	return UiTheme.box(bg, margin, border)
 
 
 ## Panel with the title screen's yellow top bar; returns its VBox.
@@ -261,16 +283,16 @@ func _panel(root: Control, pos: Vector2, width: float) -> VBoxContainer:
 	sb.bg_color = PANEL
 	sb.border_width_top = 6
 	sb.border_color = ACCENT
-	sb.set_content_margin_all(14)
+	sb.set_content_margin_all(UiTheme.PAD)
 	p.add_theme_stylebox_override("panel", sb)
 	root.add_child(p)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 6)
+	v.add_theme_constant_override("separation", UiTheme.GAP)
 	p.add_child(v)
 	return v
 
 
-func _label(text: String, size := 13, color := SAND, is_mono := false) -> Label:
+func _label(text: String, size := UiTheme.FONT, color := SAND, is_mono := false) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
@@ -290,7 +312,8 @@ func _rule() -> ColorRect:
 func _build_tab(main: VBoxContainer) -> void:
 	var cols := HBoxContainer.new()
 	cols.add_theme_constant_override("separation", 14)
-	main.add_child(cols)
+	cols.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll(main).add_child(cols)
 	tabs["BUILD"] = cols
 	var up := VBoxContainer.new()
 	up.custom_minimum_size.x = 250
@@ -322,14 +345,9 @@ func _build_tab(main: VBoxContainer) -> void:
 		b.pressed.connect(buy.bind(id))
 		h.add_child(b)
 		rows[id] = [name, pips, b]
-	var scroll := ScrollContainer.new() # 14 building buttons no longer fit under the tabs: this column scrolls (mouse wheel, touch drag)
-	scroll.custom_minimum_size = Vector2(0, 540)
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	cols.add_child(scroll)
-	var site := VBoxContainer.new()
+	var site := VBoxContainer.new() # the tab's scroll box scrolls the 14+ building buttons (mouse wheel, touch drag)
 	site.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(site)
+	cols.add_child(site)
 	site.add_child(_label("BUILD ON THE MAP", 12, ACCENT, true))
 	for kind in BUILD_INFO:
 		var b := Button.new()
@@ -349,7 +367,8 @@ func _build_tab(main: VBoxContainer) -> void:
 
 func _workers_tab(main: VBoxContainer) -> void:
 	var v := VBoxContainer.new()
-	main.add_child(v)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll(main).add_child(v)
 	tabs["WORKERS"] = v
 	worker_info = _label("", 13, SAND, true)
 	v.add_child(worker_info)
@@ -362,7 +381,7 @@ func _workers_tab(main: VBoxContainer) -> void:
 	for j in JOBS:
 		var name := _label(JOBS[j][0], 14)
 		name.custom_minimum_size.x = 58
-		name.tooltip_text = JOBS[j][1]
+		name.tooltip_text = Tooltips.tip("job_" + j)
 		name.mouse_filter = Control.MOUSE_FILTER_STOP
 		grid.add_child(name)
 		var r := []
@@ -372,6 +391,7 @@ func _workers_tab(main: VBoxContainer) -> void:
 		for d in [-1, 1]:
 			var b := Button.new()
 			b.text = "-" if d < 0 else "+"
+			b.tooltip_text = Tooltips.tip("job_minus" if d < 0 else "job_plus")
 			b.custom_minimum_size = Vector2(26, 24)
 			b.pressed.connect(_adjust_worker.bind(j, d))
 			grid.add_child(b)
@@ -386,6 +406,7 @@ func _workers_tab(main: VBoxContainer) -> void:
 	v.add_child(bar)
 	var unassign := Button.new()
 	unassign.text = "Unassign all"
+	unassign.tooltip_text = Tooltips.tip("unassign")
 	unassign.pressed.connect(unassign_all)
 	bar.add_child(unassign)
 	worker_msg = _label("", 13, BAD)
@@ -399,9 +420,9 @@ func _workers_tab(main: VBoxContainer) -> void:
 	var filters := [["All", "all"], ["Idle", "idle"], ["Injured", "injured"], ["Pinned", "pinned"]]
 	filters += JOBS.keys().map(func(j): return ["Job: " + JOBS[j][0], "job:" + j])
 	filters += People.SKILL_JOBS.keys().map(func(k): return ["Skill: " + k.capitalize(), "skill:" + k])
-	ctl.add_child(_picker(filters, func(val: String): people_filter = val; _refresh_people()))
+	ctl.add_child(_picker(filters, func(val: String): people_filter = val; _refresh_people(), Tooltips.tip("pick_filter")))
 	ctl.add_child(_label("SORT", 12, ACCENT, true))
-	ctl.add_child(_picker([["Job", "job"], ["Name", "name"], ["Skill", "skill"], ["Level", "level"]], func(val: String): people_sort = val; _refresh_people()))
+	ctl.add_child(_picker([["Job", "job"], ["Name", "name"], ["Skill", "skill"], ["Level", "level"]], func(val: String): people_sort = val; _refresh_people(), Tooltips.tip("pick_sort")))
 	people_count = _label("", 12, DIM, true)
 	ctl.add_child(people_count)
 	person_info = _label("", 12, SAND, true)
@@ -413,19 +434,16 @@ func _workers_tab(main: VBoxContainer) -> void:
 		var h := _label(["", "NAME", "SKILL", "TRAIT", "WORKS AS", "RATE", "PIN TO"][i], 11, ACCENT, true)
 		h.custom_minimum_size.x = PERSON_COLS[i]
 		head.add_child(h)
-	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size.y = 300
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	v.add_child(scroll)
-	people_box = VBoxContainer.new()
+	people_box = VBoxContainer.new() # scrolls with the tab
 	people_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	people_box.add_theme_constant_override("separation", 2)
-	scroll.add_child(people_box)
+	v.add_child(people_box)
 
 
 ## OptionButton over [text, value] pairs; `on_pick` gets the value.
-func _picker(items: Array, on_pick: Callable) -> OptionButton:
+func _picker(items: Array, on_pick: Callable, tip := "") -> OptionButton:
 	var o := OptionButton.new()
+	o.tooltip_text = tip
 	o.focus_mode = Control.FOCUS_NONE # SPACE takes off
 	o.add_theme_font_size_override("font_size", 12)
 	for i in items.size():
@@ -437,7 +455,8 @@ func _picker(items: Array, on_pick: Callable) -> OptionButton:
 
 func _hangar_tab(main: VBoxContainer) -> void:
 	var v := VBoxContainer.new()
-	main.add_child(v)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll(main).add_child(v)
 	tabs["HANGAR"] = v
 	v.add_child(_label("LOADOUT", 12, ACCENT, true))
 	loadout_info = _label("", 13, SAND, true)
@@ -448,11 +467,14 @@ func _hangar_tab(main: VBoxContainer) -> void:
 	v.add_child(grid)
 	for k in LOADOUT:
 		var name := _label(LOADOUT[k][0], 13)
+		name.tooltip_text = Tooltips.tip("loadout_" + k)
+		name.mouse_filter = Control.MOUSE_FILTER_STOP
 		name.custom_minimum_size.x = 260
 		grid.add_child(name)
 		for d in [-1, 1]:
 			var b := Button.new()
 			b.text = "-" if d < 0 else "+"
+			b.tooltip_text = Tooltips.tip("loadout_minus" if d < 0 else "loadout_plus")
 			b.custom_minimum_size = Vector2(28, 26)
 			b.pressed.connect(_adjust_loadout.bind(k, d))
 			grid.add_child(b)
@@ -461,7 +483,10 @@ func _hangar_tab(main: VBoxContainer) -> void:
 				loadout_rows[k].custom_minimum_size.x = 26
 				loadout_rows[k].horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 				grid.add_child(loadout_rows[k])
-	v.add_child(_label("HELI CONDITION  (wear in flight and from hits; repairs run while the heli sits on the pad)", 12, ACCENT, true))
+	var cond := _label("HELI CONDITION  (wear in flight and from hits; repairs run while the heli sits on the pad)", 12, ACCENT, true)
+	cond.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cond.custom_minimum_size.x = 1 # wraps at the panel width instead of setting it
+	v.add_child(cond)
 	var wgrid := GridContainer.new()
 	wgrid.columns = 5
 	wgrid.add_theme_constant_override("h_separation", 8)
@@ -521,12 +546,12 @@ func _refresh_wear() -> void:
 		var on: bool = wear.orders.has(c)
 		r[3].text = "working... (cancel)" if on else ("Repair %d parts" % wear.repair_cost(c) if v < 100.0 else "like new")
 		r[3].disabled = v >= 100.0 and not on
-		r[3].tooltip_text = "~%d s with the repair crew; parts: %d" % [wear.repair_seconds(c), Game.salvage["parts"]] if v < 100.0 else ""
+		r[3].tooltip_text = "~%d s with the repair crew; parts: %d" % [wear.repair_seconds(c), Game.salvage["parts"]] if v < 100.0 else Tooltips.tip("wear_done")
 
 
 func show_tab(tab: String) -> void:
 	for t in tabs:
-		tabs[t].visible = t == tab
+		tabs[t].get_parent().visible = t == tab # the tab's scroll box
 		var sb := _box(OLIVE.darkened(0.2) if t == tab else Color(0.1, 0.12, 0.07), 4)
 		sb.border_width_bottom = 4 if t == tab else 0
 		sb.border_color = ACCENT
@@ -611,7 +636,7 @@ func _refresh_status() -> void:
 	var morale: Node = Game.world.morale
 	morale_label.text = "MORALE  " + morale.summary()
 	morale_label.add_theme_color_override("font_color", BAD if morale.value < morale.LOW_BELOW else (GOOD if morale.value > morale.HIGH_ABOVE else SAND))
-	var gen: float = Game.built("generator") * Game.GEN_FUEL
+	var gen: float = Game.world.landmarks.gen_fuel()
 	# id -> [value, bar full at, per day (null: unknown), show cap]
 	var s := {
 		"fuel": [Game.base_fuel, Game.base_fuel_cap, Game.crew("fuel") * rate["fuel"] * eff - gen, true],
@@ -667,7 +692,7 @@ func refresh() -> void:
 				r[1].get_child(i).color = ACCENT if i < lvl else Color(0.2, 0.22, 0.14)
 			r[2].text = "MAX" if lvl >= UPGRADES[id][1] else "Buy %d" % cost(id)
 		r[2].disabled = why != ""
-		r[2].tooltip_text = why
+		r[2].tooltip_text = why if why != "" else Tooltips.tip("buy_" + id)
 	for kind in place_btns:
 		var b: Button = place_btns[kind]
 		var on: bool = base.placing and base.place_kind == kind
@@ -680,7 +705,7 @@ func refresh() -> void:
 		if kind == "demolish":
 			b.text = "%sDEMOLISH  -  %s\n%d orders" % ["> " if on else "", BUILD_INFO[kind], base.demolitions.size()]
 		b.disabled = Game.scrap < t[1] and not on
-		b.tooltip_text = "needs %d scrap, you have %d" % [t[1], Game.scrap] if b.disabled else Buildings2.TIPS.get(kind, "click, then click inside the fence to place")
+		b.tooltip_text = "needs %d scrap, you have %d" % [t[1], Game.scrap] if b.disabled else Tooltips.building(kind)
 		var note: String = Game.world.evac.tool_note(kind)
 		if note == "":
 			note = Buildings2.refusal(kind)
@@ -696,11 +721,12 @@ func refresh() -> void:
 		Game.base_radius / 10.0, (Game.base_radius + Game.PERIMETER_STEP) / 10.0, base.building_cost("perimeter"), plvl, Game.PERIMETER_MAX, "   building..." if busy else ""]
 	perimeter_btn.disabled = plvl >= Game.PERIMETER_MAX or busy or Game.scrap < base.building_cost("perimeter")
 	perimeter_btn.tooltip_text = "maximum level" if plvl >= Game.PERIMETER_MAX else ("the current stage is still being built" if busy \
-		else ("needs %d scrap, you have %d" % [base.building_cost("perimeter"), Game.scrap] if perimeter_btn.disabled else "Build workers put up the next fence ring"))
+		else ("needs %d scrap, you have %d" % [base.building_cost("perimeter"), Game.scrap] if perimeter_btn.disabled else Tooltips.tip("perimeter")))
 	status_panel.visible = not base.placing and not collapsed
 	main_panel.visible = not base.placing and not collapsed
 	build_bar.visible = base.placing and not collapsed
-	toggle_btn.text = "BASE MENU [TAB]" if collapsed else "HIDE MENU [TAB]"
+	toggle_btn.text = ("BASE MENU " if collapsed else "HIDE MENU ") + KeyMap.tag("base_menu")
+	_layout()
 	# HANGAR
 	loadout_info.text = "weight %d/%d pts (over 8: -4 %% speed each)  speed x%.2f\nseats %d  fuel %d  ammo %d  armour x%.2f" % [
 		Game.loadout_points(), Game.loadout_budget, Game.weight_factor, Game.seats, Game.max_fuel, Game.max_ammo, Game.stats["armor"]]
@@ -714,10 +740,10 @@ func refresh() -> void:
 		var r: Array = job_rows[j]
 		r[0].text = str(Game.workers[j])
 		r[1].disabled = Game.workers[j] <= Game.pinned(j)
-		r[1].tooltip_text = "%d pinned here: unpin them first" % Game.pinned(j) if r[1].disabled and Game.pinned(j) > 0 else ""
+		r[1].tooltip_text = "%d pinned here: unpin them first" % Game.pinned(j) if r[1].disabled and Game.pinned(j) > 0 else Tooltips.tip("job_minus")
 		var why := worker_refusal(j, Game.workers[j] + 1)
 		r[2].modulate = Color(1, 1, 1, 0.35) if why != "" else Color.WHITE # greyed but clickable: a click shows why
-		r[2].tooltip_text = why
+		r[2].tooltip_text = why if why != "" else Tooltips.tip("job_plus")
 		var note := ""
 		var bad := false
 		match j:
@@ -778,6 +804,7 @@ func _person_row(p: Dictionary) -> HBoxContainer:
 			l.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			l.clip_text = true
 			l.focus_mode = Control.FOCUS_NONE
+			l.tooltip_text = Tooltips.tip("person")
 			l.pressed.connect(func(): person_sel = p["id"]; _show_person())
 		else:
 			l = Label.new()
@@ -790,12 +817,11 @@ func _person_row(p: Dictionary) -> HBoxContainer:
 		l.custom_minimum_size.x = PERSON_COLS[i]
 		row.add_child(l)
 	if pin != "":
-		row.get_child(0).tooltip_text = "pinned: stays on this job (injured: off duty until healed)"
+		row.get_child(0).tooltip_text = Tooltips.tip("pinned")
 		row.get_child(0).mouse_filter = Control.MOUSE_FILTER_STOP
-	var sel := _picker([["Auto", ""]] + JOBS.keys().map(func(j): return [JOBS[j][0], j]), func(val: String): pin_person(p["id"], val))
+	var sel := _picker([["Auto", ""]] + JOBS.keys().map(func(j): return [JOBS[j][0], j]), func(val: String): pin_person(p["id"], val), Tooltips.tip("pick_pin"))
 	sel.selected = 0 if pin == "" else 1 + JOBS.keys().find(pin)
 	sel.custom_minimum_size = Vector2(PERSON_COLS[6], 22)
-	sel.tooltip_text = "Pin to a job (Auto: assigned by skill)"
 	row.add_child(sel)
 	return row
 
@@ -813,9 +839,9 @@ func _refresh_weapons() -> void:
 	weapon_box.add_child(_rule())
 	weapon_box.add_child(_label("WEAPONS  hardpoints %d/%d  (X switches in flight)" % [Game.heli_weapons.size(), Game.slots["hardpoint"]], 12, ACCENT, true))
 	for id in Game.heli_weapons:
-		_weapon_row("HELI  %s Lv %d%s" % [Weapons.TABLE[id]["name"], Progression.level(id), "  (equipped)" if id == Game.weapon else ""], "Stow", "the heli needs one gun" if Game.heli_weapons.size() < 2 else "", stow.bind(id))
+		_weapon_row("HELI  %s Lv %d%s" % [Weapons.TABLE[id]["name"], Progression.level(id), "  (equipped)" if id == Game.weapon else ""], "Stow", "the heli needs one gun" if Game.heli_weapons.size() < 2 else "", stow.bind(id), "stow", id)
 	for id in Game.weapon_bay:
-		_weapon_row("BAY   %s Lv %d" % [Weapons.TABLE[id]["name"], Progression.level(id)], "Mount", "no free hardpoint" if Game.heli_weapons.size() >= Game.slots["hardpoint"] else "", mount.bind(id))
+		_weapon_row("BAY   %s Lv %d" % [Weapons.TABLE[id]["name"], Progression.level(id)], "Mount", "no free hardpoint" if Game.heli_weapons.size() >= Game.slots["hardpoint"] else "", mount.bind(id), "mount", id)
 	_refresh_items()
 
 
@@ -828,21 +854,23 @@ func _refresh_items() -> void:
 		if Progression.ITEMS[id]["slot"] != "hardpoint":
 			var lv: int = Game.heli_items[id]
 			_weapon_row("%s  %s Lv %d" % [Progression.ITEMS[id]["slot"].substr(0, 3).to_upper(), Progression.ITEMS[id]["name"], lv],
-				"Scrap +%d" % (lv * Progression.CARD_SCRAP / 2), "", func(): Game.scrap_item(id); refresh())
+				"Scrap +%d" % (lv * Progression.CARD_SCRAP / 2), "", func(): Game.scrap_item(id); refresh(), "scrap", id)
 
 
 ## Row with a button; `refusal` != "" disables it and is shown on hover.
-func _weapon_row(text: String, btn: String, refusal: String, cb: Callable) -> void:
+func _weapon_row(text: String, btn: String, refusal: String, cb: Callable, tip_id: String, item_id: String) -> void:
 	var h := HBoxContainer.new()
 	weapon_box.add_child(h)
 	var l := _label(text, 13, SAND, true)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.tooltip_text = Tooltips.item(item_id)
+	l.mouse_filter = Control.MOUSE_FILTER_STOP
 	h.add_child(l)
 	var b := Button.new()
 	b.text = btn
 	b.custom_minimum_size.x = 96
 	b.disabled = refusal != ""
-	b.tooltip_text = refusal
+	b.tooltip_text = refusal if refusal != "" else Tooltips.tip(tip_id)
 	b.pressed.connect(cb)
 	h.add_child(b)
 

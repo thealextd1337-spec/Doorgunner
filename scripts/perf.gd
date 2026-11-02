@@ -66,13 +66,16 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	process_priority = 1000 # after every other node, so its deferred call closes the frame's work time
 	label = Label.new()
-	label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	label.offset_right = -UiTheme.MARGIN
+	label.offset_bottom = -UiTheme.MARGIN
 	label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	label.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	label.add_theme_color_override("font_color", UiTheme.SAND)
 	label.add_theme_color_override("font_outline_color", UiTheme.DARK_TEXT)
 	label.add_theme_constant_override("outline_size", 4)
-	add_child(label)
+	UiTheme.attach(self).add_child(label)
 	for k in KEYS:
 		_sys[k] = PackedFloat32Array()
 	log_on = OS.get_environment("PERF") == "1" or OS.has_feature("web") \

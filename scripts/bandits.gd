@@ -18,9 +18,9 @@ extends Node
 signal camp_cleared(uid: String) # for missions (P13 "Clear the camp")
 signal intercepted(what: String, pos: Vector2) # "town" / "base" raid announced: hint for missions
 
-const CAMP_KINDS := ["prison", "checkpoint", "motel", "quarry"]
+const CAMP_KINDS := ["prison", "checkpoint", "motel", "quarry", "harbour"]
 const CAMP_DAY := 4
-const CAMP_ODDS := {"prison": 0.9, "checkpoint": 0.4, "motel": 0.35, "quarry": 0.3} # share held on CAMP_DAY near the start
+const CAMP_ODDS := {"prison": 0.9, "checkpoint": 0.4, "motel": 0.35, "quarry": 0.3, "harbour": 0.4} # share held on CAMP_DAY near the start
 const CAMP_PER_KM := 0.06 # more per 1000 px from the start
 const CAMP_PER_DAY := 0.03
 const CAMP_MAX := 0.95

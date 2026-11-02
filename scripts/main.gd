@@ -7,6 +7,7 @@ var base: Node2D
 var spawner: Node
 var hud: CanvasLayer
 var choice_ui: CanvasLayer
+var codex_ui: CanvasLayer # F1 help and codex
 var night: CanvasModulate
 var radio_target: Node2D # POI currently highlighted on the HUD compass
 var ui_open := false # overlays set this so clicks do not fire the gun
@@ -22,6 +23,7 @@ var modifiers: Node # modifiers.gd: run modifiers (P15)
 var convoys: Node2D # convoys.gd: trucks on the road network (CONVOY tab)
 var evac: Node # evac.gd: radio contact, airstrip, final siege, optional victory
 var buildings2: Node # buildings2.gd: Field Hospital, Greenhouse, Forge, Bunker, Radio Relay
+var landmarks: Node # landmarks.gd: what the Q10 hospital, stadium and power plant do
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec it expires]
 var _path_cache := {} # [from cell, to cell, max_cells] -> [nav_path result, ticks_msec it expires (its grid's)]
@@ -84,6 +86,8 @@ func _ready() -> void:
 	add_child(evac)
 	buildings2 = preload("res://scripts/buildings2.gd").new() # registers its own save hook
 	add_child(buildings2)
+	landmarks = preload("res://scripts/landmarks.gd").new() # registers its own save hook
+	add_child(landmarks)
 	night = CanvasModulate.new()
 	add_child(night)
 	spawner = preload("res://scripts/spawner.gd").new()
@@ -125,6 +129,8 @@ func _add_ui_layers() -> void:
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	add_child(preload("res://scripts/perf.gd").new()) # Q1: F3 performance overlay, ?perf=1 console log
 	add_child(preload("res://scripts/touch_ui.gd").new()) # Q5: sticks and buttons while Controls.touch is on
+	codex_ui = preload("res://scripts/codex_ui.gd").new() # Q6b: F1 help and codex
+	add_child(codex_ui)
 
 
 func _show_title() -> void:
