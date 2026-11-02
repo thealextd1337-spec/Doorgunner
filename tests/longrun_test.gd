@@ -127,7 +127,7 @@ func _run() -> void:
 			Game.meta[main.modifiers.UNLOCK[id][0]] = main.modifiers.UNLOCK[id][1]
 		main.modifiers.start(mods)
 		Game.meta = m0
-	main.outposts.fell.connect(func(_id, kind): n["outposts_fell" if kind == "outpost" else "villages_fell"] += 1)
+	main.outposts.fell.connect(_on_fell)
 	Game.radio_message.connect(_on_radio)
 	Game.run_ended.connect(func(reason): _finish("ended day %d: %s" % [Game.day, reason]))
 	if DEBUG:
@@ -842,6 +842,13 @@ func _evac() -> void:
 
 
 # ---------------------------------------------------------------- log
+
+func _on_fell(_id: String, kind: String) -> void:
+	n["outposts_fell" if kind == "outpost" else "villages_fell"] += 1
+	if kind == "outpost": # its site (and the others tried) may be held again
+		for k in visited.keys().filter(func(k): return k is String and k.begins_with("f")):
+			visited.erase(k)
+
 
 func _on_radio(m: String) -> void:
 	if m.begins_with("Base: villages sent "):
