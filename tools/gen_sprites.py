@@ -1215,6 +1215,7 @@ def main():
         images.update(buildings2_sprites())
         images.update(world2_sprites())
         images.update(bosses_sprites())
+        images.update(nemesis_sprites())
         for name, im in images.items():
             w, h = SIZES[name]
             assert im.size == (w * OUT, h * OUT), (name, im.size)
@@ -1933,6 +1934,34 @@ def bosses_sprites():
 
 
 SIZES.update({"matriarch": (32, 32), "juggernaut": (32, 32), "hive": (48, 48), "warlord": (14, 14)})
+
+
+# ---------------------------------------------------------------- Q15 rivals: the Warlord's gunship
+
+
+def gunship():
+    """The rival warlord's captured helicopter, facing up: rust-red hull, stub wings with rocket pods, a chin gun, a skull stripe."""
+    s = Spr(32, 32)
+    hull = mix(BANDIT_RAG, P["metal"], 0.35)
+    s.paint(s.m().rect(15, 19, 17, 29.5, 1.0), hull, sh=0.5)  # tail boom
+    s.paint(s.m().rect(12, 25, 20, 26.6, 0.8), hull, sh=0.5)  # stabiliser
+    s.paint(s.m().rect(17.2, 27, 18.4, 31, 0.5), P["metal"], sh=0.3)  # tail rotor
+    s.paint(s.m().rect(4.5, 13, 27.5, 15.2, 0.8), dk(hull, 0.75), sh=0.6)  # stub wings
+    s.paint(s.m().rect(4, 10.5, 7, 17.5, 1.4).rect(25, 10.5, 28, 17.5, 1.4), P["metal"], sh=0.8, light=0.5)  # rocket pods
+    s.paint(s.m().ell(5.5, 10.6, 0.9).ell(26.5, 10.6, 0.9), (40, 36, 34), sh=0, edge=False)
+    s.paint(s.m().rect(11.5, 4.5, 20.5, 22.5, 4.2), hull, sh=1.6, light=0.8)  # fuselage
+    s.paint(s.m().ell(16, 8.2, 3.8, 3.4), P["glass"], sh=0, light=0.9)
+    s.paint(s.m().line([(16, 4.6), (16, 1.2)], 0.9), dk(P["metal"], 0.7), sh=0.2)  # chin gun
+    s.paint(s.m().rect(12.2, 14.6, 19.8, 16.2, 0.3), (226, 214, 190), sh=0, edge=False)  # skull stripe
+    s.paint(s.m().ell(14.4, 15.4, 0.7).ell(17.6, 15.4, 0.7), (40, 30, 28), sh=0, edge=False)
+    return s
+
+
+def nemesis_sprites():
+    return {"gunship": gunship().out()}
+
+
+SIZES.update({"gunship": (32, 32)})
 
 
 if __name__ == "__main__":
