@@ -335,6 +335,7 @@ func _build_tab(main: VBoxContainer) -> void:
 		var b := Button.new()
 		b.toggle_mode = true
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART # long Q9 texts wrap instead of widening the panel past the screen
 		b.toggled.connect(func(on: bool):
 			get_parent().place_kind = kind
 			get_parent().placing = on)

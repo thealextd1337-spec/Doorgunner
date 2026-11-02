@@ -163,6 +163,12 @@ func _process(delta: float) -> void:
 				Game.world.base.placing = false
 				while get_tree().paused:
 					Game.world.choice_ui.pick(0) # a late level-up card would cover the menu
+				Game.world.base.ui.show_tab("BUILD") # Q9: the longer list scrolls
+				Game.world.base.ui.refresh()
+				step = 74
+		74:
+			if t > 8.5:
+				_save("shot_build.png")
 				Game.world.base.ui.show_tab("WORKERS")
 				Game.people[0]["trait"] = "lazy"
 				Game.world.base.ui.pin_person(Game.people[0]["id"], "repair") # a pinned person for the WORKERS shot
