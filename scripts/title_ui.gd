@@ -108,16 +108,18 @@ func _ready() -> void:
 	v.add_child(online_notice)
 	Online.online_changed.connect(_on_online_changed)
 	cont_btn = _big_button()
+	cont_btn.tooltip_text = Tooltips.tip("title_continue")
 	cont_btn.pressed.connect(_continue)
 	v.add_child(cont_btn)
 	restore_btn = _big_button()
 	restore_btn.add_theme_font_size_override("font_size", 18)
-	restore_btn.tooltip_text = "Your saved run was backed up online. Needs the online login of this profile."
+	restore_btn.tooltip_text = Tooltips.tip("title_restore")
 	restore_btn.visible = false
 	restore_btn.pressed.connect(_restore)
 	v.add_child(restore_btn)
 	var btn := _big_button()
 	start_btn = btn
+	btn.tooltip_text = Tooltips.tip("title_start")
 	btn.pressed.connect(_start)
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var btn_row := HBoxContainer.new()
@@ -126,6 +128,7 @@ func _ready() -> void:
 	btn_row.add_child(btn)
 	var hangar_btn := Button.new()
 	hangar_btn.text = "HANGAR [H]"
+	hangar_btn.tooltip_text = Tooltips.tip("title_hangar")
 	hangar_btn.custom_minimum_size = Vector2(150, 56)
 	hangar_btn.add_theme_font_override("font", mono)
 	hangar_btn.add_theme_font_size_override("font_size", 16)
@@ -133,6 +136,7 @@ func _ready() -> void:
 	btn_row.add_child(hangar_btn)
 	var tut := Button.new()
 	tut.text = "TUTORIAL"
+	tut.tooltip_text = Tooltips.tip("title_tutorial")
 	tut.custom_minimum_size = Vector2(140, 56)
 	tut.add_theme_font_override("font", mono)
 	tut.add_theme_font_size_override("font_size", 16)
@@ -143,9 +147,10 @@ func _ready() -> void:
 	var row2 := HBoxContainer.new()
 	row2.add_theme_constant_override("separation", 12)
 	v.add_child(row2)
-	for def in [["PROFILES", _open_profiles], ["LEADERBOARD [L]", _open_board], ["BACKUP", _open_data]]:
+	for def in [["PROFILES", _open_profiles, "title_profiles"], ["LEADERBOARD [L]", _open_board, "title_board"], ["BACKUP", _open_data, "title_backup"]]:
 		var b := Button.new()
 		b.text = def[0]
+		b.tooltip_text = Tooltips.tip(def[2])
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.custom_minimum_size = Vector2(0, 40)
 		b.add_theme_font_override("font", mono)
@@ -254,7 +259,7 @@ func _refresh_setup() -> void:
 		start_heli = "huey"
 	var t: Dictionary = HeliTypes.TYPES[start_heli]
 	heli_btn.text = "START HELI  < %s >  %s, %d seats" % [t["name"], t["role"], t["seats"]]
-	heli_btn.tooltip_text = "repair a wreck of another type in a run to fly it from the start"
+	heli_btn.tooltip_text = Tooltips.tip("title_heli")
 	for id in mod_btns:
 		var b: Button = mod_btns[id]
 		var m: Dictionary = Modifiers.TABLE[id]
@@ -265,7 +270,7 @@ func _refresh_setup() -> void:
 		b.set_pressed_no_signal(id in mods)
 		b.text = "%s x%.2f
 %s" % [m["name"], m["factor"], m["desc"]]
-		b.tooltip_text = m["desc"] if ok else "LOCKED  " + Modifiers.condition(id)
+		b.tooltip_text = Tooltips.modifier(id) if ok else "LOCKED  " + Modifiers.condition(id)
 	setup_title.text = "// NEW RUN  -  MODIFIERS  -  SCORE x%.2f" % Modifiers.factor(mods)
 
 
@@ -280,7 +285,10 @@ func _toggle_hangar() -> void:
 		var it: Dictionary = Progression.ITEMS[id]
 		var ok := Progression.unlocked(id)
 		var col := SAND if ok else SAND.darkened(0.55)
-		hangar_grid.add_child(_label(it["name"], 13, col, mono))
+		var nm := _label(it["name"], 13, col, mono)
+		nm.tooltip_text = Tooltips.item(id)
+		nm.mouse_filter = Control.MOUSE_FILTER_STOP
+		hangar_grid.add_child(nm)
 		hangar_grid.add_child(_label(it["slot"].to_upper(), 12, OLIVE.lightened(0.45) if ok else col, mono))
 		hangar_grid.add_child(_label("ready" if ok else "LOCKED  " + Progression.condition(id), 12, ACCENT if ok else col, mono))
 

@@ -77,6 +77,6 @@ func _row(text: String, action: String, why: String, on_press: Callable) -> void
 	b.custom_minimum_size = Vector2(120, 26)
 	b.add_theme_font_size_override("font_size", 12)
 	b.disabled = why != ""
-	b.tooltip_text = why
+	b.tooltip_text = why if why != "" else Tooltips.tip("fleet_repair" if action == "Start repair" else "fleet_switch")
 	b.pressed.connect(on_press)
 	h.add_child(b)

@@ -712,6 +712,7 @@ func _build_tab() -> void:
 	row.add_child(_ui["pool"])
 	_ui["truck"] = Button.new()
 	_ui["truck"].text = "BUILD TRUCK"
+	_ui["truck"].tooltip_text = Tooltips.tip("convoy_truck")
 	_ui["truck"].pressed.connect(func(): _say(build_truck()))
 	row.add_child(_ui["truck"])
 	v.add_child(ui._rule())
@@ -724,6 +725,7 @@ func _build_tab() -> void:
 		grid.add_child(ui._label({"dest": "Destination", "driver": "Driver"}[k], 13))
 		var o := OptionButton.new()
 		o.custom_minimum_size.x = 420
+		o.tooltip_text = Tooltips.tip("convoy_" + k)
 		o.item_selected.connect(func(i: int): sel[k] = o.get_item_metadata(i))
 		grid.add_child(o)
 		_ui[k] = o
@@ -733,6 +735,7 @@ func _build_tab() -> void:
 	for d in [-1, 1]:
 		var b := Button.new()
 		b.text = "-" if d < 0 else "+"
+		b.tooltip_text = Tooltips.tip("convoy_escort")
 		b.custom_minimum_size = Vector2(28, 26)
 		b.pressed.connect(func():
 			sel["escorts"] = clampi(sel["escorts"] + d, 0, ESCORTS_MAX)
@@ -743,6 +746,7 @@ func _build_tab() -> void:
 			er.add_child(_ui["escorts"])
 	_ui["send"] = Button.new()
 	_ui["send"].text = "SEND CONVOY"
+	_ui["send"].tooltip_text = Tooltips.tip("convoy_send")
 	_ui["send"].custom_minimum_size = Vector2(160, 32)
 	_ui["send"].pressed.connect(func(): _say(send(sel["dest"], sel["driver"], sel["escorts"])))
 	v.add_child(_ui["send"])

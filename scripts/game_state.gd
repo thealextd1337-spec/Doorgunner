@@ -200,7 +200,7 @@ func scrap_item(id: String) -> int:
 	return refund
 
 const META_DEFAULT := {"total_rescued": 0, "runs": 0, "best_day": 0, "total_kills": 0, "art": "b", "boss_kills": 0, "assaults_held": 0, "victories": 0,
-	"tutorial_done": 0, "version": "", "start_helis": ""}
+	"tutorial_done": 0, "version": "", "start_helis": "", "codex": ""}
 var meta := META_DEFAULT.duplicate() # the active profile's meta.json; global options live in Settings (settings_registry.gd)
 var profiles := {"list": [], "last": ""}
 # run variables Save stores (stats, slots, seats, max_fuel/max_ammo and weight come from recompute)
@@ -214,6 +214,8 @@ const SAVED := ["seed", "fuel", "ammo", "hp", "max_hp", "person_seq", "scrap", "
 
 func _ready() -> void:
 	_setup_input()
+	KeyMap.capture_defaults()
+	KeyMap.apply_saved()
 	_load_meta()
 	var art_env := OS.get_environment("ART") # dev override for screenshots, not saved
 	Art.variant = art_env if art_env in ART_VARIANTS else meta["art"]
@@ -770,6 +772,7 @@ func _setup_input() -> void:
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R], "missions": [KEY_J], "outpost": [KEY_O], "protect": [KEY_P], "hook": [KEY_G],
 		"perf": [KEY_F3], # Q1 performance overlay
+		"help": [KEY_F1], # Q6b help and codex (codex_ui.gd)
 		"system": [KEY_F], # loudspeaker
 	}
 	# these were raw event.keycode checks before Q5: bound by keycode (layout key) so they behave exactly as before
