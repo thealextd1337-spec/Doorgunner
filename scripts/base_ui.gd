@@ -636,7 +636,7 @@ func _refresh_status() -> void:
 	var morale: Node = Game.world.morale
 	morale_label.text = "MORALE  " + morale.summary()
 	morale_label.add_theme_color_override("font_color", BAD if morale.value < morale.LOW_BELOW else (GOOD if morale.value > morale.HIGH_ABOVE else SAND))
-	var gen: float = Game.built("generator") * Game.GEN_FUEL
+	var gen: float = Game.world.landmarks.gen_fuel()
 	# id -> [value, bar full at, per day (null: unknown), show cap]
 	var s := {
 		"fuel": [Game.base_fuel, Game.base_fuel_cap, Game.crew("fuel") * rate["fuel"] * eff - gen, true],

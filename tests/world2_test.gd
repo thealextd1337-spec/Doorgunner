@@ -113,10 +113,14 @@ func _run() -> void:
 		var props_b := _props(func(): for c in rev: b._ensure(c))
 		var bad := 0
 		var tiles := {}
+		var iced := 0 # straight road cells on ice wider than a ford: must have become bridges
 		for c: Vector2i in chunks:
 			for k in CM.CHUNK * CM.CHUNK:
 				var cell := c * CM.CHUNK + Vector2i(k % CM.CHUNK, k / CM.CHUNK)
 				tiles[a.get_cell_atlas_coords(cell).x] = true
+				var at: int = a.get_cell_atlas_coords(cell).x
+				if at in [T.ROAD, T.DIRT_ROAD] and a._terrain(cell) & 0xff == T.ICE and mini(a._wet(cell, Vector2i(1, 0)), a._wet(cell, Vector2i(0, 1))) > CM.FORD:
+					iced += 1
 				if a.get_cell_atlas_coords(cell) != b.get_cell_atlas_coords(cell) or a.get_cell_alternative_tile(cell) != b.get_cell_alternative_tile(cell):
 					bad += 1
 		var inside := func(p): return chunks.has(Vector2i((p[1] / (CM.CHUNK * CM.TILE)).floor()))
@@ -124,6 +128,7 @@ func _run() -> void:
 		props_b = props_b.filter(inside)
 		print("%s at %s px (seed %d, chunk %s): %d cells differ, %d props and POIs, tiles %s" % [area, a._mid(a.site(mc).center, a.site(mc).center), Game.seed, centre, bad, props_a.size(), tiles.keys()])
 		assert(bad == 0, "%s: same tiles in both orders" % area)
+		assert(iced == 0, "%s: %d road cells lie on wide ice without a bridge" % [area, iced])
 		assert(var_to_str(props_a) == var_to_str(props_b), "%s: same props and POIs in both orders" % area)
 		for ch: TileMapLayer in [a, b]:
 			ch.queue_free()
@@ -147,6 +152,11 @@ func _run() -> void:
 					ch._ensure(ch._chunk_of(c))
 					var at: Vector2 = ch._mid(c, c)
 					assert(ch.tile_at(at) == T.ICE and ch.is_landable(at) and not T.ICE in main.SOLID, "a frozen lake is landable and walkable")
+					var across := [] # a paved road straight over the ice: bridge cells wherever it is frozen
+					for k in range(-3, 4):
+						across.append(c + Vector2i(0, k))
+					for p: Array in ch._paved_path(across, true):
+						assert(ch._tile(p[0]) != T.ICE or p[1].x == T.BRIDGE, "a paved road crosses ice on a bridge")
 					ice_ok = true
 				if not sea_ok and t == T.WATER | CM.SEA << 8 and ch._ft(c) == T.WATER:
 					ch._ensure(ch._chunk_of(c))
@@ -200,6 +210,7 @@ func _run() -> void:
 	lm._process(Game.DAY_SECONDS * 0.1)
 	var paid: float = Game.base_fuel - 100.0
 	assert(absf(paid - Game.GEN_FUEL * lm.PART_SAVE * 0.1 * Game.built("generator")) < 0.01, "a power part pays back generator fuel (%.2f)" % paid)
+	assert(is_equal_approx(lm.gen_fuel(), Game.built("generator") * Game.GEN_FUEL * (1.0 - lm.PART_SAVE)), "the HUD's gen fuel/day counts the part")
 	var pp: Dictionary = {}
 	for r in SEARCH:
 		for x in range(-r, r + 1):

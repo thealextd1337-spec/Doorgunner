@@ -1,7 +1,7 @@
 extends CanvasLayer
 ## In-flight HUD: resource bars, clock, radio log, compass arrows to base and radio target.
 ## Zones (Q6a, logical px under the UiTheme root): top left status (bars, slots, foldable info block), top right minimap,
-## top centre alert line, bottom left radio log, bottom row key hints. Each frame _fit() gives the info block and the log
+## top centre alert line, bottom left radio log, bottom row key hints. When a label, the scale or an obstacle changes, _fit() gives the info block and the log
 ## only the lines that fit between the other zones and what other layers put on screen (touch pads, base menu panels):
 ## priority bars > alert > hints > info > log.
 
@@ -20,6 +20,7 @@ var minimap: Control
 var log_lines: Array[String] = []
 var _map_at := Vector2.INF # heli position at the last minimap redraw
 var _map_ms := 0
+var _fit_key := [] # what _fit() last laid out for; it only runs again when this changes
 
 const STATUS_W := 300.0 # top-left zone width
 const BAR_W := 200.0
@@ -142,6 +143,8 @@ func _set_bar(id: String, value: float, maxv: float, text: String, color: Color)
 
 
 func _process(_delta: float) -> void:
+	if not visible:
+		return
 	_set_bar("hp", Game.hp, Game.max_hp, "HULL %d/%d" % [Game.hp, Game.max_hp], Color(0.3, 0.8, 0.3).lerp(Color(0.9, 0.2, 0.2), 1.0 - Game.hp / Game.max_hp))
 	_set_bar("fuel", Game.fuel, Game.max_fuel, "FUEL %d/%d" % [Game.fuel, Game.max_fuel], Color(0.9, 0.75, 0.2))
 	_set_bar("ammo", Game.ammo, Game.max_ammo, "AMMO %d/%d" % [Game.ammo, Game.max_ammo], Color(0.7, 0.7, 0.7))
@@ -164,7 +167,7 @@ SALVAGE %d/%d/%d   INJURED %d
 POWER %s (gen fuel %d/day)
 Next assault: %s" % [
 		Game.base_hp, Game.max_base_hp, Game.noise_level * 100.0, Game.base_fuel, Game.base_ammo, Game.base_food, Game.base_water, Game.base_medicine, Game.base_rifles,
-		Game.salvage["metal"], Game.salvage["parts"], Game.salvage["electronics"], Game.injured, "on" if Game.power else "off", Game.built("generator") * Game.GEN_FUEL,
+		Game.salvage["metal"], Game.salvage["parts"], Game.salvage["electronics"], Game.injured, "on" if Game.power else "off", Game.world.landmarks.gen_fuel(),
 		"TONIGHT" if Game.attack_pending or Game.attack_active else "in %d day(s)" % (next_attack if next_attack > 0 else Game.ATTACK_EVERY_DAYS)]
 	info.text += Game.world.outposts.status() + Game.world.convoys.status() + Game.world.evac.status()
 	if Game.passengers >= Game.seats and Game.passengers > 0: # full cabin: who is aboard
@@ -173,7 +176,6 @@ ABOARD " + ", ".join(Game.people.filter(func(p): return p["aboard"]).map(preload
 	slots_label.text = Progression.slot_line() + "     " + Game.world.wear.status_line()
 	fold_btn.text = ("[+] " if info_folded else "[-] ") + "STATUS"
 	fold_btn.custom_minimum_size.y = UiTheme.TOUCH_MIN if Controls.touch else 0.0
-	hint.visible = not Controls.touch # key hints mean nothing on touch; the touch layer shows context buttons there
 	if Game.heli:
 		var k := KeyMap.tag # the hints follow a rebinding (keymap.gd)
 		hint.text = "spooling..." if Game.heli.pending != 0 else k.call("land") + " take off" + ("   %s found the base here" % k.call("found") if Game.heli.can_found() else "") + Game.world.outposts.hint() if Game.heli.landed 			else "%s land   %s fire   %s%s turn   %s weapon   %s sound" % [k.call("land"), k.call("fire"), k.call("yaw_left"), k.call("yaw_right"), k.call("weapon_swap"), k.call("menu")] 			+ ("   %s loudspeaker" % k.call("system") if Game.heli_items.has("loudspeaker") else "") + ("   %s hook the wreck" % k.call("hook") if Game.world.wrecks.wreck_below(Game.heli.position) != "" else "")
@@ -188,7 +190,11 @@ ABOARD " + ", ".join(Game.people.filter(func(p): return p["aboard"]).map(preload
 	var wear_alert: String = Game.world.wear.alert()
 	if wear_alert != "":
 		alert.text = wear_alert # engine trouble outranks everything else
-	_fit()
+	var obst := _obstacles()
+	var key := [Game.world.ui_open, Controls.touch, root.size, info_folded, info.text, slots_label.text, log_label.text, hint.text, alert.text, obst]
+	if key != _fit_key:
+		_fit_key = key
+		_fit(obst.duplicate()) # _fit appends the status zone to its copy
 	compass.queue_redraw()
 	if Game.heli and (Game.heli.global_position.distance_to(_map_at) >= MAP_SCALE or Time.get_ticks_msec() - _map_ms >= MAP_REDRAW_MS):
 		_map_at = Game.heli.global_position
@@ -198,13 +204,13 @@ ABOARD " + ", ".join(Game.people.filter(func(p): return p["aboard"]).map(preload
 
 ## Lays the zones out for this frame (root px): hints at the bottom, the log above them (or in the touch layer's free
 ## band), the info block down to what the log and other layers leave, the alert between the side zones.
-func _fit() -> void:
+func _fit(obst: Array[Rect2]) -> void:
 	var w := root.size.x
 	var h := root.size.y
 	var m := float(UiTheme.MARGIN)
 	var g := float(UiTheme.GAP)
-	var obst := _obstacles()
 	var bottom := h - m
+	hint.visible = not Controls.touch # key hints mean nothing on touch; the touch layer shows context buttons there
 	if hint.visible and hint.text != "":
 		_wrap(hint, w - 2.0 * m, 99)
 		hint.position = Vector2(m, bottom - hint.size.y)

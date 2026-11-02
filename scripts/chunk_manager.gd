@@ -83,6 +83,7 @@ const BUILDABLE := [T.GRASS, T.GRASS2, T.GRASS3, T.TREE_EDGE, T.SAND, T.ASH, T.M
 	T.SNOW, T.DUNE]
 const TOWNISH := [T.ROAD, T.BUILDING, T.RUIN, T.BASE_FLOOR, T.HOUSE_YARD, T.ASPHALT, T.WAREHOUSE, T.PARKING, T.PLAZA, T.PAD, T.ROAD_BEND, T.BRIDGE]
 const BLOCKED := [T.WATER, T.FOREST, T.BUILDING, T.ROCK, T.WAREHOUSE, T.HEDGE, T.PAD] # not landable
+const WET := [T.WATER, T.ICE] # what roads cross on bridges / fords (a frozen river gets the same bridge)
 const ROADS := [T.ROAD, T.DIRT_ROAD, T.ASPHALT, T.ROAD_BEND, T.DIRT_BEND, T.DIRT_X, T.BRIDGE]
 const LINES := [T.ROAD, T.DIRT_ROAD, T.ROAD_BEND, T.DIRT_BEND, T.DIRT_X, T.BRIDGE] # roads that lead somewhere (not asphalt lots)
 const SAME := {T.ROAD_BEND: T.ROAD, T.DIRT_BEND: T.DIRT_ROAD, T.DIRT_X: T.DIRT_ROAD} # tile_at reports bends as plain road
@@ -907,12 +908,12 @@ func _paved_path(path: Array, paved: bool) -> Array:
 	var out := []
 	var i := 0
 	while i < path.size():
-		if _tile(path[i]) != T.WATER:
+		if not _tile(path[i]) in WET:
 			out.append([path[i], Vector2i(T.ROAD if paved else T.DIRT_ROAD, 0)])
 			i += 1
 			continue
 		var j := i
-		while j < path.size() and _tile(path[j]) == T.WATER:
+		while j < path.size() and _tile(path[j]) in WET:
 			j += 1
 		for k in range(i, j):
 			var d: Vector2i = path[mini(k + 1, path.size() - 1)] - path[maxi(k - 1, 0)]
@@ -950,17 +951,17 @@ func _put(cell: Vector2i, t: int, alt := 0) -> void:
 		return # never paint over the start site
 	if _mode == M.LONE and not _clip.has_point(cell):
 		return
-	if t in [T.ROAD, T.DIRT_ROAD] and _terrain(cell) & 0xff == T.WATER and _wet(cell, Vector2i(1, 0) if alt & ACROSS else Vector2i(0, 1)) > FORD:
+	if t in [T.ROAD, T.DIRT_ROAD] and _terrain(cell) & 0xff in WET and _wet(cell, Vector2i(1, 0) if alt & ACROSS else Vector2i(0, 1)) > FORD:
 		t = T.BRIDGE # streets cross rivers on bridges, brooks at fords
 	_buf[cell] = Vector2i(t, alt)
 
 
-## Cells of bare-terrain water through c along d (c included), counted up to 6.
+## Cells of bare-terrain water (or ice) through c along d (c included), counted up to 6.
 func _wet(c: Vector2i, d: Vector2i) -> int:
 	var run := 1
 	for dir in [d, -d]:
 		var p: Vector2i = c + dir
-		while run <= 5 and _terrain(p) & 0xff == T.WATER:
+		while run <= 5 and _terrain(p) & 0xff in WET:
 			run += 1
 			p += dir
 	return run
@@ -2137,8 +2138,8 @@ func _landmark(s: Dictionary, rng: RandomNumberGenerator) -> void:
 				for v in range(-2, 4):
 					var cell := c + d * u + o * v
 					if v == 0 or v == 1:
-						_put(cell, T.BRIDGE if _terrain(cell) & 0xff == T.WATER else T.ROAD, dash)
-					elif _tile(cell) != T.WATER and not _tile(cell) in [T.FOREST, T.ROCK]:
+						_put(cell, T.BRIDGE if _terrain(cell) & 0xff in WET else T.ROAD, dash)
+					elif not _tile(cell) in WET and not _tile(cell) in [T.FOREST, T.ROCK]:
 						_put(cell, T.GRASS3)
 			_cars(c, d, o, L - 4, 1, rng.randi_range(10, 16), rng, BURNT, true)
 			_cars(c, d, o, L - 4, 1, rng.randi_range(2, 4), rng, Color.WHITE, true)

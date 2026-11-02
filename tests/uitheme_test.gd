@@ -1,7 +1,7 @@
 extends Node
 ## UI theme and scale test (Q6a): SMOKE=uitheme godot --headless --path . --quit-after 30000
 ## At 90, 100 and 150 % UI scale the HUD zones, the touch layer, the base menu (every tab, the build bar), the title
-## (with the hangar list) and the ESC menu keep their controls on screen and apart (control rects compared pairwise).
+## (with the hangar list), the ESC menu, the key bindings and the help / codex pages keep their controls on screen and apart (control rects compared pairwise).
 ## The scale is set in memory and Settings points at a file in the smoke profile: the player's settings.json is never written.
 
 const SCALES := [90, 100, 150]
@@ -79,6 +79,30 @@ func _run() -> void:
 		esc.visible = true
 		await _frames(2)
 		_apart("ESC menu %d %%" % pct, [["panel", esc.panel.get_global_rect()]])
+		# key bindings (one row with four keys, the widest it gets in play) and every page of help / codex (Q6b)
+		if pct != 100:
+			var keys: CanvasLayer = esc.keys_ui
+			for k in [KEY_KP_1, KEY_KP_2, KEY_KP_3]:
+				var e := InputEventKey.new()
+				e.keycode = k
+				keys.begin("weapon_swap", -1)
+				keys.bind(e)
+			keys.open()
+			keys.begin("found", 0) # "press a key..." is the widest button text
+			await _frames(2)
+			_apart("keys %d %%" % pct, [["keys.panel", keys.panel.get_global_rect()]])
+			_inside("keys %d %%" % pct, keys.panel, keys.list)
+			keys.reset_all()
+			keys.close()
+			esc.visible = false
+			var codex: CanvasLayer = main.codex_ui
+			codex.open()
+			for page in [codex.CONTROLS] + Codex.CATEGORIES:
+				codex.show_page(page)
+				await _frames(2)
+				_apart("codex %s %d %%" % [page, pct], [["codex.panel", codex.panel.get_global_rect()]])
+				_inside("codex %s %d %%" % [page, pct], codex.panel, codex.panel)
+			codex.close()
 		esc.visible = false
 		# title with the hangar list (laid out for the whole canvas: never above 100 %)
 		var title: CanvasLayer = preload("res://scripts/title_ui.gd").new()
@@ -150,3 +174,12 @@ func _apart(what: String, rects: Array) -> void:
 		for j in range(i + 1, rects.size()):
 			if rects[i][1].grow(-0.5).intersects(rects[j][1].grow(-0.5)):
 				check(false, "%s: %s %s overlaps %s %s" % [what, rects[i][0], rects[i][1], rects[j][0], rects[j][1]])
+
+
+## Every visible control under `under` lies inside `panel` across (the rows scroll up and down, never sideways).
+func _inside(what: String, panel: Control, under: Node) -> void:
+	var p := panel.get_global_rect().grow(0.5)
+	for c: Control in under.find_children("*", "Control", true, false):
+		var r := c.get_global_rect()
+		if c.is_visible_in_tree() and (r.position.x < p.position.x or r.end.x > p.end.x):
+			check(false, "%s: %s '%s' %s sticks out of the panel %s" % [what, c.get_class(), c.get("text"), r, p])

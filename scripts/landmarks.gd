@@ -47,6 +47,11 @@ func _process(delta: float) -> void:
 
 
 ## The landmark's dead pour out once.
+## Base generator fuel per day after what the power part pays back (HUD and base menu figures).
+func gen_fuel() -> float:
+	return Game.built("generator") * Game.GEN_FUEL * (1.0 - PART_SAVE * minf(parts, PARTS_MAX))
+
+
 func _horde(s: Dictionary) -> void:
 	woken.append(s.uid)
 	var n := 0
