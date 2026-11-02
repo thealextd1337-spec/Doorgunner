@@ -17,6 +17,7 @@ var assault: Node # assault.gd
 var bandits: Node # bandits.gd
 var wear: Node # wear.gd
 var missions: Node # missions.gd (radio missions, J)
+var events: Node # events.gd: radio events with choices (Q13)
 var outposts: Node2D # outposts.gd: outposts and allied villages
 var wrecks: Node2D # wrecks.gd: heli wrecks, sling hook, repairs, fleet (P15)
 var modifiers: Node # modifiers.gd: run modifiers (P15)
@@ -98,6 +99,8 @@ func _ready() -> void:
 	add_child(preload("res://scripts/radio.gd").new())
 	missions = preload("res://scripts/missions.gd").new() # registers its own save hook
 	add_child(missions)
+	events = preload("res://scripts/events.gd").new() # registers its own save hook
+	add_child(events)
 	_add_ui_layers()
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
 	Game.day_changed.connect(_settlements_decline)
