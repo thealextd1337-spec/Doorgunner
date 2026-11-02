@@ -80,3 +80,14 @@ static func bandits(rows: Dictionary, day: int) -> Dictionary:
 		var row: Dictionary = rows[kind]
 		out[kind] = 0 if day < row["min_day"] else mini(row["max"], floori(row["base"] + row.get("per_day", 0.0) * (day - row["min_day"])))
 	return out
+
+
+# Bosses (Q12, bosses.gd): the roamers (matriarch, juggernaut) are rolled once a day from min_day with `chance`; hive sits in
+# `pct` % of the power plants and stadiums and the warlord holds `pct` % of the big bandit camps, both from min_day.
+const BOSS_ROWS := {
+	"matriarch": {"min_day": 6, "chance": 0.5},
+	"juggernaut": {"min_day": 10, "chance": 0.4},
+	"hive": {"min_day": 8, "pct": 60},
+	"warlord": {"min_day": 10, "pct": 60},
+}
+const ROAMERS := ["matriarch", "juggernaut"]

@@ -19,6 +19,8 @@ const KINDS := {
 	"mg": {"hp": 150.0, "speed": 0.0, "range": 320.0, "interval": 3.0, "burst": 5, "dmg": 2.0, "zdmg": 10.0, "chance": 0.35, "xp": 30, "radius": 9.0, "sprite": "mg_nest"},
 	"rpg": {"hp": 70.0, "speed": 22.0, "range": 380.0, "interval": 10.0, "burst": 1, "dmg": 25.0, "zdmg": 10.0, "chance": 1.0, "xp": 25, "radius": 6.0, "sprite": "bandit_rpg"},
 	"technical": {"hp": 280.0, "speed": 55.0, "range": 340.0, "interval": 2.6, "burst": 6, "dmg": 2.0, "zdmg": 10.0, "chance": 0.35, "xp": 60, "radius": 12.0, "sprite": "technical"},
+	# Q12: the Warlord of a big camp (bosses.gd), a guard like the others: his death is part of clearing the camp
+	"warlord": {"hp": 900.0, "speed": 16.0, "range": 340.0, "interval": 2.2, "burst": 6, "dmg": 3.0, "zdmg": 14.0, "chance": 0.45, "xp": 250, "radius": 10.0, "sprite": "warlord", "boss_id": "warlord"},
 }
 const CHANCE_FALLOFF := 0.6 # at full range a round hits 40 % as often as point-blank
 const CHANCE_SPEED := 0.5 # a heli at top speed is hit half as often
@@ -80,6 +82,7 @@ var under_fire := 0.0
 var abduct_cd := ABDUCT_INTERVAL
 var raid_t := 0.0 # role "base": seconds since the raid set out (bandits.RAID_SECONDS); shortcut: not saved, a reload restarts it
 var nav := {} # main.gd nav_move state
+var state := {} # boss state (bosses.gd), the Warlord only
 var sprite: Sprite2D
 var tracer := Vector2.ZERO # local end of the last round's tracer
 var tracer_t := 0.0
@@ -120,6 +123,7 @@ func _process(delta: float) -> void:
 		_think()
 		if is_queued_for_deletion():
 			return
+	Bosses.tick(self, delta)
 	_move(delta)
 	_shoot(delta)
 	if tracer_t > -0.1 or aim_t > 0.0:
@@ -347,6 +351,7 @@ func _die() -> void:
 	HitFx.burst(global_position, Vector2.ZERO, HitFx.BLOOD, 10, 60.0)
 	Game.world.spawn_fx(global_position, 1.6 if kind == "technical" else 0.7)
 	Sfx.play("explosion" if kind == "technical" else "enemy_die", global_position)
+	Bosses.on_death(self)
 	Game.world.bandits.unit_died(self)
 	queue_free()
 

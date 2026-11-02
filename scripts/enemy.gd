@@ -18,6 +18,10 @@ const KINDS := {
 	"crawler": {"hp": 35.0, "speed": 26.0, "dmg": 7.0, "xp": 8, "radius": 5.0, "wire_proof": true}, # radius 5 = 40 % less to hit
 	"bloater": {"hp": 320.0, "speed": 7.0, "dmg": 12.0, "xp": 30, "radius": 12.0, "death": "gas", "blood": Color(0.6, 0.7, 0.2)},
 	"brute_armored": {"hp": 300.0, "speed": 10.0, "dmg": 32.0, "xp": 45, "radius": 11.0, "front_armor": 0.7},
+	# Q12 bosses (bosses.gd): "boss_id" marks them; "down" is the radio line when one dies
+	"matriarch": {"hp": 1500.0, "speed": 22.0, "dmg": 30.0, "xp": 250, "radius": 14.0, "boss": true, "boss_id": "matriarch", "blood": Color(0.6, 0.7, 0.2), "down": "Matriarch down! The brood is leaderless."},
+	"juggernaut": {"hp": 2400.0, "speed": 12.0, "dmg": 55.0, "xp": 350, "radius": 16.0, "boss": true, "boss_id": "juggernaut", "down": "Juggernaut down! Nothing left of that armour."},
+	"hive": {"hp": 1800.0, "speed": 0.0, "dmg": 0.0, "xp": 400, "radius": 20.0, "boss": true, "boss_id": "hive", "blood": Color(0.6, 0.7, 0.2), "down": "The Hive is destroyed! No more waves from there."},
 }
 const HEAD_MULT := 2.0 # headshots (bullet.gd)
 const KNOCK := 110.0 # px/s kick of a hit on a radius-8 enemy, lighter on big ones
@@ -119,13 +123,13 @@ func _process(delta: float) -> void:
 	if not target_base and to_heli.length() > DESPAWN_DIST:
 		queue_free()
 		return
-	if cfg.get("boss", false):
+	if cfg.get("boss", false) and not cfg.has("boss_id"):
 		spawn_cd -= delta
 		if spawn_cd <= 0.0:
 			spawn_cd = 10.0
 			for i in 2:
 				Game.world.spawn_enemy("runner", global_position + Vector2(30, 0).rotated(randf() * TAU), target_base)
-	if _system_hooks(delta) or Infected.tick(self, delta) or Assault.ram(self, delta):
+	if Bosses.tick(self, delta) or _system_hooks(delta) or Infected.tick(self, delta) or Assault.ram(self, delta):
 		return
 	# 1. base assault
 	if target_base:
@@ -303,7 +307,7 @@ func unflash() -> void:
 func hit(amount: float, dir := Vector2.ZERO, head := false) -> void:
 	if is_queued_for_deletion():
 		return # a second pellet in the frame it died
-	var armor := Infected.armor_mult(self, dir)
+	var armor := Infected.armor_mult(self, dir) * Bosses.armor_mult(self, dir)
 	hp -= amount * armor * (HEAD_MULT if head else 1.0)
 	kick = (kick + dir * KNOCK * clampf(amount / 14.0, 0.5, 2.0) * 8.0 / radius).limit_length(KNOCK * 2.0)
 	HitFx.hit(self, dir, head, armor < 1.0)
@@ -324,10 +328,11 @@ func _die() -> void:
 			Game.ammo = mini(Game.max_ammo, Game.ammo + 10)
 	HitFx.death(self)
 	Infected.on_death(self)
+	Bosses.on_death(self)
 	Game.world.spawn_fx(global_position, 2.0 if cfg.get("boss", false) else 0.7)
 	Sfx.play("explosion" if cfg.get("boss", false) else "enemy_die", global_position)
 	if cfg.get("boss", false):
-		Game.radio("Abomination down! Outstanding, gunner.")
+		Game.radio(cfg.get("down", "Abomination down! Outstanding, gunner."))
 		Game.meta["boss_kills"] += 1
 		Sfx.play("boss_roar", global_position)
 	queue_free()
