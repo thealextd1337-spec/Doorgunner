@@ -85,8 +85,11 @@ func _run() -> void:
 			for k in [KEY_KP_1, KEY_KP_2, KEY_KP_3]:
 				var e := InputEventKey.new()
 				e.keycode = k
+				e.physical_keycode = k
+				e.pressed = true
 				keys.begin("weapon_swap", -1)
 				keys.bind(e)
+			check(KeyMap.events_of("weapon_swap").size() == 4, "weapon_swap holds four keys (%d %%)" % pct)
 			keys.open()
 			keys.begin("found", 0) # "press a key..." is the widest button text
 			await _frames(2)
