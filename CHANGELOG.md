@@ -4,6 +4,13 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## Unreleased
+- New regions: the coast (sea, beaches, cliffs, dunes, fishing villages with boats) and the winter highland (snow,
+  frosted woods, huts, frozen lakes you can land on). New landmarks: hospital (medicine, medics, many infected),
+  harbour (fuel, boats, sometimes bandits), stadium (a huge horde, big supply stash), power plant (a part that halves
+  the generator's fuel), ski lift ruin.
+- Save format 3: the same seed now makes a different world, so runs saved with an older version are discarded.
+
 ## 1.0.0-beta.2 - 2026-11-02
 - Arsenal: six new door guns, each unlocked in the hangar and levelled 1-5 like the others: Scatter Gun (ten wide
   pellets, weak at range), Flamethrower (short stream, zombies keep burning), Grenade Launcher (lobbed shell that

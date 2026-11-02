@@ -39,6 +39,8 @@ const NIGHT_HORDE := 4 # zombies the screamer calls each night
 const MEDICINE_COST := 2.0
 const BLACKBOX_SALVAGE := {"parts": 6.0, "electronics": 3.0}
 const PERSON_SKILLS := ["engineer", "driver"]
+const ROOF_SITES := ["hospital"] # landmarks with roofs a family can be stuck on, besides towns
+const SCREAMER_SITES := ["hospital", "stadium"] # landmarks a screamer may call hordes at, besides towns
 const PROVIDERS := {"camp": "bandits", "medicine": "outposts"} # type -> the main.gd node it needs
 const TYPES := { # time: seconds range, person: chance of a rare-skill recruit
 	"rooftop": {"title": "Rooftop rescue", "tag": "ROOF", "time": Vector2(240, 360), "scrap": Vector2i(40, 70), "xp": 60, "morale": 3.0, "person": 0.5},
@@ -233,7 +235,7 @@ func _spawn_poi(m: Dictionary, pos: Vector2, n: int) -> Node2D:
 func _make_rooftop(_args: Dictionary) -> Dictionary:
 	var s := _site(["city"])
 	if s.is_empty():
-		s = _site(Chunks.TOWN_SIZE.keys())
+		s = _site(Chunks.TOWN_SIZE.keys() + ROOF_SITES)
 	if s.is_empty():
 		return {}
 	return {"pos": s["pos"], "text": "a family is stuck on a roof in a %s" % _town(s), "state": {"uid": s["uid"]}}
@@ -283,7 +285,7 @@ func _tick_blackbox(m: Dictionary, _delta: float) -> String:
 # --- silence the screamer
 
 func _make_screamer(_args: Dictionary) -> Dictionary:
-	var s := _site(Chunks.TOWN_SIZE.keys())
+	var s := _site(Chunks.TOWN_SIZE.keys() + SCREAMER_SITES)
 	if s.is_empty():
 		return {}
 	return {"pos": s["pos"] + Vector2(300, 0).rotated(randf() * TAU), "text": "a screamer is calling hordes at a %s" % _town(s), "state": {"uid": s["uid"]}}

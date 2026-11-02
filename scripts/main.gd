@@ -23,6 +23,7 @@ var modifiers: Node # modifiers.gd: run modifiers (P15)
 var convoys: Node2D # convoys.gd: trucks on the road network (CONVOY tab)
 var evac: Node # evac.gd: radio contact, airstrip, final siege, optional victory
 var buildings2: Node # buildings2.gd: Field Hospital, Greenhouse, Forge, Bunker, Radio Relay
+var landmarks: Node # landmarks.gd: what the Q10 hospital, stadium and power plant do
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec it expires]
 var _path_cache := {} # [from cell, to cell, max_cells] -> [nav_path result, ticks_msec it expires (its grid's)]
@@ -85,6 +86,8 @@ func _ready() -> void:
 	add_child(evac)
 	buildings2 = preload("res://scripts/buildings2.gd").new() # registers its own save hook
 	add_child(buildings2)
+	landmarks = preload("res://scripts/landmarks.gd").new() # registers its own save hook
+	add_child(landmarks)
 	night = CanvasModulate.new()
 	add_child(night)
 	spawner = preload("res://scripts/spawner.gd").new()

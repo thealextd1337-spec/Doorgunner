@@ -676,6 +676,7 @@ TILES = (  # index = chunk_manager.gd T enum
     t_field, t_dirt_road, t_rock, t_tree_edge, t_yard, t_asphalt,
     t_hedge, t_marsh, t_warehouse, t_ash, t_crater, t_parking, t_plaza, t_pad,
     lambda: t_bend(True), lambda: t_bend(False), lambda: t_dirt_road(False), t_bridge,
+    lambda: t_snow(), lambda: t_ice(), lambda: t_dune(),  # Q10: winter and coast (defined at the end)
 )
 
 
@@ -1212,6 +1213,7 @@ def main():
         images.update(convoy_sprites())
         images.update(arsenal_sprites())
         images.update(buildings2_sprites())
+        images.update(world2_sprites())
         for name, im in images.items():
             w, h = SIZES[name]
             assert im.size == (w * OUT, h * OUT), (name, im.size)
@@ -1744,6 +1746,101 @@ def buildings2_sprites():
 
 
 SIZES.update({"hospital": (32, 32), "greenhouse": (32, 32), "forge": (32, 32), "bunker": (32, 32), "relay": (16, 16)})
+
+
+# ---------------------------------------------------------------- Q10 regions and landmarks
+
+SNOW = ((226, 230, 228), (240, 242, 238))
+ICE = ((186, 210, 214), (204, 224, 226))
+
+
+def t_snow():
+    """Snow cover (winter region): pale drifts with a few blue-grey hollows."""
+    s = Spr(16, 16, True)
+    s.img = ground(SNOW, 61, 0.6)
+    hatch(s)
+    detail(s, 62, (196, 206, 212, 120), 14, 0.2, 0.5)
+    detail(s, 63, (255, 255, 255, 150), 18, 0.1, 0.25)
+    return s
+
+
+def t_ice():
+    """Frozen lake: walkable and landable, cracks and wind-swept snow streaks."""
+    s = Spr(16, 16, True)
+    s.img = ground(ICE, 64, 0.5, ((2, 0.5), (4, 0.35), (8, 0.15)))
+    rnd = random.Random(65)
+    cracks = s.m()
+    for _ in range(4):
+        x, y = rnd.uniform(0, 16), rnd.uniform(0, 16)
+        pts = [(x, y)]
+        for _ in range(3):
+            x, y = x + rnd.uniform(-2.2, 2.2), y + rnd.uniform(-2.2, 2.2)
+            pts.append((x, y))
+        cracks.line(pts, 0.18)
+    fill(s.img, cracks.im, (250, 254, 255, 170))
+    streaks = s.m()
+    for y in (3, 9, 14):
+        streaks.line([(k, y + 0.6 * math.sin(k / 16 * 6.283)) for k in range(-1, 18)], 0.5)
+    fill(s.img, streaks.im.filter(ImageFilter.GaussianBlur(0.5 * SS)), (240, 246, 248, 70))
+    return s
+
+
+def t_dune():
+    """Coastal dunes: sand ripples and tufts of marram grass."""
+    s = Spr(16, 16, True)
+    s.img = ground((dk(P["sand"][0], 0.92), P["sand"][0]), 67, 0.7)
+    hatch(s)
+    ripples = s.m()
+    for y0 in (2, 6, 10, 14):
+        ripples.line([(k, y0 + 0.7 * math.sin((k + y0) / 16 * 12.566)) for k in range(-1, 18)], 0.35)
+    fill(s.img, ripples.im, dk(P["sand"][0], 0.74) + (170,))
+    rnd = random.Random(66)
+    grass = s.m()
+    for _ in range(5):  # marram clumps, kept off the edges
+        x, y = rnd.uniform(3, 13), rnd.uniform(3, 13)
+        for a in (-0.9, -0.45, 0.0, 0.45, 0.9):
+            grass.line([(x, y), (x + a * 1.6, y - 1.8 + abs(a) * 0.6)], 0.3)
+    s.paint(grass, dk(P["reed"], 0.8), sh=0, edge=False)
+    return s
+
+
+def boat():
+    """Small fishing boat seen from above, bow to the right. Light hull: tinted in game."""
+    s = Spr(20, 8)
+    s.paint(s.m().poly([(1, 1.2), (14, 0.8), (19.4, 4), (14, 7.2), (1, 6.8)]), P["white"], sh=0.6)
+    s.paint(s.m().poly([(2.2, 2.2), (13.6, 2), (17.4, 4), (13.6, 6), (2.2, 5.8)]), P["wood"], sh=0.3, edge=False)
+    s.paint(s.m().rect(5, 2.6, 9, 5.4, 0.4), P["white"], sh=0.4)  # wheelhouse
+    s.paint(s.m().rect(7.6, 3.1, 8.6, 4.9, 0.2), P["glass"], sh=0, edge=False)
+    return s.drop(0.3)
+
+
+def cooling_tower():
+    """Power plant cooling tower from above: a wide concrete ring around the open top."""
+    s = Spr(48, 48)
+    s.paint(s.m().ell(24, 24, 22.5), P["stone"][1], sh=2.4, light=1.4)
+    s.paint(s.m().ell(24, 24, 17.5), dk(P["stone"][0], 0.62), sh=0, edge=False)
+    s.paint(s.m().ell(24, 24, 14), dk(P["stone"][0], 0.48), sh=0, edge=False)
+    fill(s.img, s.m().ell(21, 21, 9).im.filter(ImageFilter.GaussianBlur(3 * SS)), (240, 240, 236, 90))  # steam
+    return s.drop(1.6)
+
+
+def pylon():
+    """Lattice pylon (power lines, ski lift) from above: square foot, cross arm."""
+    s = Spr(16, 16)
+    m = s.m()
+    m.rect(4.6, 4.6, 11.4, 11.4, 0.2, v=255).rect(5.4, 5.4, 10.6, 10.6, v=0)
+    m.line([(4.8, 4.8), (11.2, 11.2)], 0.4).line([(11.2, 4.8), (4.8, 11.2)], 0.4)
+    m.line([(1, 8), (15, 8)], 0.7)
+    s.paint(m, P["metal"], sh=0)
+    s.paint(s.m().ell(1.6, 8, 0.8).ell(14.4, 8, 0.8), P["white"], sh=0)  # insulators
+    return s.drop(0.6)
+
+
+def world2_sprites():
+    return {n: f().out() for n, f in (("boat", boat), ("cooling_tower", cooling_tower), ("pylon", pylon))}
+
+
+SIZES.update({"boat": (20, 8), "cooling_tower": (48, 48), "pylon": (16, 16)})
 
 
 if __name__ == "__main__":

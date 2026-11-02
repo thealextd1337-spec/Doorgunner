@@ -31,7 +31,7 @@ const FOUND_COST := 40 # scrap
 const CREW := 2 # people loaded at the base for one outpost (or one reinforcement)
 const GARRISON_MAX := 6
 const MAX_BASE := 1 # outposts without a watchtower
-const SITE_KINDS := ["gas_station", "checkpoint", "radio_mast"]
+const SITE_KINDS := ["gas_station", "checkpoint", "radio_mast", "harbour"]
 const SITE_REACH := 220.0 # px from the landmark centre the heli may land to found
 const MIN_APART := 500.0 # px between outposts
 const MIN_FROM_BASE := 700.0
@@ -41,7 +41,7 @@ const FUEL_CAP := 80.0
 const FUEL_START := 20.0
 const AMMO_CAP := 200
 const AMMO_START := 60
-const SITE_YIELD := {"gas_station": {"fuel": 12.0}, "checkpoint": {"ammo": 8}, "radio_mast": {}} # per day
+const SITE_YIELD := {"gas_station": {"fuel": 12.0}, "checkpoint": {"ammo": 8}, "radio_mast": {}, "harbour": {"fuel": 10.0}} # per day
 const SPARE_SHARE := 0.4 # depositing keeps this share of the tank and the ammo feed
 const OUTPOST_HP := 100.0
 const REPAIR_DAY := 20.0 # hull per day with a garrison
@@ -246,7 +246,7 @@ func found() -> bool:
 	return true
 
 
-const SITE_NOTE := {"gas_station": "The pumps will fill its tank.", "checkpoint": "The armoury will fill its crate.", "radio_mast": "Bring it fuel and ammo."}
+const SITE_NOTE := {"gas_station": "The pumps will fill its tank.", "checkpoint": "The armoury will fill its crate.", "radio_mast": "Bring it fuel and ammo.", "harbour": "The harbour tanks will fill its tank."}
 
 
 func _post_crew(o: Dictionary) -> void:
