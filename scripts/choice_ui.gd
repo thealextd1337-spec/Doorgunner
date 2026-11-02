@@ -86,9 +86,9 @@ func open(t: String, n: int) -> void:
 	ev_panel.visible = false
 	options = Game.offer_cards(n)
 	if options.is_empty():
-		Game.scrap += 40
+		Game.scrap += SKIP_SCRAP # what skipping a card pays (was 40: 15 % of the late scrap)
 		Game.hp = minf(Game.max_hp, Game.hp + Game.max_hp * 0.1)
-		Game.radio("Crew: nothing left to fit. Mechanics salvage 40 scrap and patch the hull.")
+		Game.radio("Crew: nothing left to fit. Mechanics salvage %d scrap and patch the hull." % SKIP_SCRAP)
 		return
 	title = t
 	count = n

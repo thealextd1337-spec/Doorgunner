@@ -642,6 +642,8 @@ func _manage() -> void:
 	for b in [["greenhouse", 4, 8], ["forge", 8, 12], ["bunker", 10, 12]]: # Q9 buildings: [kind, from day, from people]
 		if Game.day >= b[1] and pop >= b[2] and Game.built(b[0]) + _queued(b[0]) == 0:
 			plans.append(b[0])
+	if Game.scrap >= 1000 and Game.built("forge") + _queued("forge") == 1: # scrap piling up: a second forge turns it into metal and parts
+		plans.append("forge")
 	for kind in plans:
 		if Game.scrap >= Game.BUILDINGS[kind][1] + keep and base.next_site().is_empty():
 			_place(kind)

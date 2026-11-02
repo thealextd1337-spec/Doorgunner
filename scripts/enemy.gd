@@ -317,7 +317,8 @@ func hit(amount: float, dir := Vector2.ZERO, head := false) -> void:
 
 func _die() -> void:
 	Game.kills += 1
-	Game.scrap += KILL_SCRAP
+	if not (target_base and Game.day >= Assault.LATE_FROM): # 1.1.0: the late waves fed ~170 scrap a day with nothing left to buy
+		Game.scrap += KILL_SCRAP
 	Game.add_xp(cfg["xp"] * Assault.xp_mult(self))
 	if randf() < 0.02:
 		Game.base_rifles += 1.0 # a rifle off the body, goes to the base armory
