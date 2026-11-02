@@ -651,28 +651,31 @@ func _place(kind: String) -> bool:
 	return false
 
 
-## Evac mode: on the first call, the airstrip lane kept free from day 1. Of the straight lanes beside the pad (either way round,
+## Evac mode: on the first call, the airstrip lane kept free from day 1. Of the straight lanes around the pad (either way round,
 ## off the pad and the hangar) whose ground holds a strip once houses and hedges are torn down, the one needing the smallest
-## fence; the perimeter grows until it fits.
+## fence (up to the last perimeter stage); the perimeter grows until it fits.
 func _pick_lane() -> void:
 	var base: Node2D = main.base
 	var c0 := Vector2i((base.global_position / 16.0).floor())
 	lane_r = INF
 	for rot in [0, 1]:
-		for off in range(-14, 11):
-			var r := Rect2i(c0 + (Vector2i(-12, off) if rot == 0 else Vector2i(off, -12)), Evac.strip_size(rot))
-			var need := 0.0
-			for x in r.size.x:
-				for y in r.size.y:
-					var pos: Vector2 = base.cell_pos(r.position + Vector2i(x, y))
-					var t: int = main.chunks.get_cell_atlas_coords(r.position + Vector2i(x, y)).x
-					var d: float = pos.distance_to(base.global_position)
-					need = maxf(need, d if d >= base.PAD_CLEAR and not base.HANGAR.has_point(pos - base.global_position) and (not t in main.evac.BLOCKED or t in DEMOLISH) else INF)
-			if need < lane_r:
-				lane_r = need
-				lane = r
-				lane_rot = rot
-	if lane_r == INF:
+		for off in range(-26, 23):
+			for along in range(-32, 9):
+				var r := Rect2i(c0 + (Vector2i(along, off) if rot == 0 else Vector2i(off, along)), Evac.strip_size(rot))
+				var need := 0.0
+				for x in r.size.x:
+					for y in r.size.y:
+						if need >= lane_r:
+							break
+						var pos: Vector2 = base.cell_pos(r.position + Vector2i(x, y))
+						var t: int = main.chunks.get_cell_atlas_coords(r.position + Vector2i(x, y)).x
+						var d: float = pos.distance_to(base.global_position)
+						need = maxf(need, d if d >= base.PAD_CLEAR and not base.HANGAR.has_point(pos - base.global_position) and (not t in main.evac.BLOCKED or t in DEMOLISH) else INF)
+				if need < lane_r:
+					lane_r = need
+					lane = r
+					lane_rot = rot
+	if lane_r > Game.BASE_RADIUS + Game.PERIMETER_MAX * Game.PERIMETER_STEP:
 		lane = Rect2i()
 	print("LONGRUN airstrip lane %s rot %d needs radius %.0f" % [lane, lane_rot, lane_r])
 
