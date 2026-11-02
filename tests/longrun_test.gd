@@ -43,7 +43,7 @@ const CONVOY_REACH := 5000.0
 const VILLAGES_MAX := 3
 const VILLAGE_KEEP := 3 # survivors left behind that make a settlement worth protecting
 const T := preload("res://scripts/chunk_manager.gd").T
-const STRIP_AT := Vector2i(-12, 3) # evac mode: top-left of the airstrip lane, cells from the pad
+const LANES := [Vector2i(-12, 3), Vector2i(3, -12)] # evac mode: top-left of the airstrip lanes (rot 0 south, rot 1 east), cells from the pad
 const HOOK_WAIT := 30.0 # game s of hovering for the hook before giving up
 const MOD_ALIAS := {"dense": "dense_horde", "warlords": "warlords", "scarcity": "scarcity", "dry": "dry_season", "glass": "glass_cockpit", "blackout": "blackout"}
 
@@ -648,13 +648,14 @@ func _place(kind: String) -> bool:
 	return false
 
 
-## Evac mode: the lane south of the pad kept free for the airstrip from day 1 (fits perimeter level 1, misses pad and hangar).
-func _lane() -> Rect2i:
-	return Rect2i(Vector2i((main.base.global_position / 16.0).floor()) + STRIP_AT, main.evac.STRIP_CELLS)
+## Evac mode: two lanes south and east of the pad kept free for the airstrip from day 1 (each fits perimeter level 1 and misses
+## the pad and the hangar; two in case one has water or rock).
+func _lane(rot: int) -> Rect2i:
+	return Rect2i(Vector2i((main.base.global_position / 16.0).floor()) + LANES[rot], Evac.strip_size(rot))
 
 
 func _on_lane(cell: Vector2i, size := 1) -> bool:
-	return evac_mode and _lane().intersects(Rect2i(cell, Vector2i(size, size)))
+	return evac_mode and (_lane(0).intersects(Rect2i(cell, Vector2i(size, size))) or _lane(1).intersects(Rect2i(cell, Vector2i(size, size))))
 
 
 ## Jobs from what the stocks need: water and food first, builders while there is work, militia, workshop, the rest on fuel/ammo/repair.
@@ -782,16 +783,23 @@ func _evac() -> void:
 			base.expand_perimeter()
 		return
 	if strip_day != Game.day and Game.scrap >= Game.BUILDINGS["airstrip"][1] + KEEP:
-		var why: String = e.strip_problem(_lane().position, 0)
-		if why == "":
-			base.place_building("airstrip", _lane().position)
-			return
-		if "house" in why: # houses on the lane: the builders tear them down first
-			for x in _lane().size.x:
-				for y in _lane().size.y:
-					if main.chunks.get_cell_atlas_coords(_lane().position + Vector2i(x, y)).x in [T.BUILDING, T.RUIN]:
-						base.mark_demolition(_lane().position + Vector2i(x, y))
-			return
+		var why := ""
+		for rot in [0, 1]:
+			var lane := _lane(rot)
+			why = e.strip_problem(lane.position, rot)
+			if why == "":
+				base.place_rot = rot
+				base.place_building("airstrip", lane.position)
+				base.place_rot = 0
+				return
+			var houses := 0 # houses on the lane: the builders tear them down first (water or rock there: the other lane)
+			for x in lane.size.x:
+				for y in lane.size.y:
+					if main.chunks.get_cell_atlas_coords(lane.position + Vector2i(x, y)).x in [T.BUILDING, T.RUIN]:
+						houses += 1
+						base.mark_demolition(lane.position + Vector2i(x, y))
+			if houses > 0:
+				return
 		for rot in [0, 1]:
 			var cell: Vector2i = e.find_spot(rot)
 			if cell.x != -99999:
@@ -800,7 +808,7 @@ func _evac() -> void:
 				base.place_rot = 0
 				return
 		strip_day = Game.day # no room today
-		print("LONGRUN day %d: no room for the airstrip" % Game.day)
+		print("LONGRUN day %d: no room for the airstrip (lane: %s)" % [Game.day, why])
 
 
 # ---------------------------------------------------------------- log
