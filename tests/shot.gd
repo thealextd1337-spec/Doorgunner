@@ -30,6 +30,12 @@ func _process(delta: float) -> void:
 			if t > 5.0: # 1.5 s spool + ~3 s flight
 				Input.action_release("move_right")
 				_save("shot_flight.png")
+				Controls.touch = true # the touch layer (Q5) for one frame; never saved to settings.json
+				step = 20
+		20:
+			if t > 5.2:
+				_save("shot_touch.png")
+				Controls.touch = false
 				var ms: Node = Game.world.missions # the J list with three missions
 				ms._add("rooftop", {"pos": Game.heli.position + Vector2(300, -200), "text": "a family is stuck on a roof in a city", "state": {}})
 				ms._add("screamer", {"pos": Game.heli.position + Vector2(-600, 500), "text": "a screamer is calling hordes at a village", "state": {}})
@@ -141,6 +147,19 @@ func _process(delta: float) -> void:
 		71:
 			if t > 8.1:
 				_save("shot_base.png")
+				while get_tree().paused:
+					Game.world.choice_ui.pick(0) # the touch pads hide under a level-up card
+				Controls.touch = true
+				step = 72
+		72:
+			if t > 8.3:
+				while get_tree().paused:
+					Game.world.choice_ui.pick(0)
+				step = 73
+		73:
+			if t > 8.4:
+				_save("shot_touch_build.png")
+				Controls.touch = false
 				Game.world.base.placing = false
 				while get_tree().paused:
 					Game.world.choice_ui.pick(0) # a late level-up card would cover the menu

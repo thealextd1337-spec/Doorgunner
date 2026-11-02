@@ -410,11 +410,11 @@ func _process(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if _overlay_open():
 		return # typing a name must not trigger H / SPACE / ENTER here
-	if visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_L:
+	if visible and event.is_action_pressed("leaderboard"):
 		_open_board()
-	elif visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_H:
+	elif visible and event.is_action_pressed("hangar"):
 		_toggle_hangar()
-	elif visible and event is InputEventKey and event.pressed and not event.echo and event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+	elif visible and event.is_action_pressed("start"):
 		get_viewport().set_input_as_handled()
 		_continue() if cont_btn.visible else _start()
 

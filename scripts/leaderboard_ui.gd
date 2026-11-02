@@ -63,7 +63,7 @@ func open() -> void:
 
 func _input(event: InputEvent) -> void:
 	super(event)
-	if visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_L:
+	if visible and event.is_action_pressed("leaderboard"):
 		get_viewport().set_input_as_handled()
 		close()
 

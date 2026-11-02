@@ -546,7 +546,7 @@ func toggle() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if visible and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_TAB:
+	if visible and event.is_action_pressed("base_menu"):
 		toggle()
 		get_viewport().set_input_as_handled()
 

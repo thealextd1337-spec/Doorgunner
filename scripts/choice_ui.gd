@@ -146,14 +146,19 @@ func _close() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if not visible or not event is InputEventKey or not event.pressed or event.echo:
+	if not visible:
 		return
-	match event.keycode:
-		KEY_1, KEY_2, KEY_3, KEY_4: pick(event.keycode - KEY_1)
-		KEY_R: reroll()
-		KEY_S: skip()
-		KEY_B: toggle_banish()
-		_: return
+	if event.is_action_pressed("reroll"):
+		reroll()
+	elif event.is_action_pressed("skip"):
+		skip()
+	elif event.is_action_pressed("banish"):
+		toggle_banish()
+	else:
+		var i := range(4).filter(func(n): return event.is_action_pressed("slot_%d" % (n + 1)))
+		if i.is_empty():
+			return
+		pick(i[0])
 	get_viewport().set_input_as_handled()
 
 

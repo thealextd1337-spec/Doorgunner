@@ -761,16 +761,29 @@ func _setup_input() -> void:
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R], "missions": [KEY_J], "outpost": [KEY_O], "protect": [KEY_P], "hook": [KEY_G],
 		"perf": [KEY_F3], # Q1 performance overlay
+		"system": [KEY_F], # loudspeaker
 	}
-	for action in keys:
+	# these were raw event.keycode checks before Q5: bound by keycode (layout key) so they behave exactly as before
+	var labels := {
+		"base_menu": [KEY_TAB], "mute": [KEY_M], "leaderboard": [KEY_L], "hangar": [KEY_H], "start": [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE],
+		"reroll": [KEY_R], "skip": [KEY_S], "banish": [KEY_B], # level-up cards
+	}
+	for i in 9: # build bar tools and level-up cards
+		labels["slot_%d" % (i + 1)] = [KEY_1 + i]
+	for action in keys.keys() + labels.keys():
 		if not InputMap.has_action(action):
 			InputMap.add_action(action)
-		for k in keys[action]:
+		for k in keys.get(action, labels.get(action)):
 			var ev := InputEventKey.new()
-			ev.physical_keycode = k
+			if keys.has(action):
+				ev.physical_keycode = k
+			else:
+				ev.keycode = k
 			InputMap.action_add_event(action, ev)
-	if not InputMap.has_action("fire"):
-		InputMap.add_action("fire")
-	var mb := InputEventMouseButton.new()
-	mb.button_index = MOUSE_BUTTON_LEFT
-	InputMap.action_add_event("fire", mb)
+	var buttons := {"fire": MOUSE_BUTTON_LEFT, "place": MOUSE_BUTTON_LEFT, "unplace": MOUSE_BUTTON_RIGHT} # place / unplace: build mode
+	for action in buttons:
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+		var mb := InputEventMouseButton.new()
+		mb.button_index = buttons[action]
+		InputMap.action_add_event(action, mb)
