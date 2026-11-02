@@ -84,6 +84,7 @@ var strip_day := -1 # last day find_spot found nothing
 var lane := Rect2i() # evac mode: the airstrip lane kept free (size 0: none fits)
 var lane_rot := 0
 var lane_r := 0.0 # fence radius the lane needs; 0: not picked yet
+var reach_extra := 0.0 # px added to _reach() each minute the bot idles at the base with nothing to fly to
 
 
 func _ready() -> void:
@@ -195,12 +196,17 @@ func _bot(delta: float) -> void:
 				_manage()
 			if not heli.landed:
 				return
+			if DEBUG and int(t_state / 60.0) != int((t_state - delta) / 60.0):
+				print("BOT idle t%.0f hp %.0f grounded %s orders %s fuel %.0f pick %s" % [t_state, Game.hp, main.wear.grounded(), main.wear.orders, Game.fuel, _pick_target(heli.global_position)])
 			if defend:
 				_take_off("defend")
 			elif t_state > 8.0 and Game.hp > Game.max_hp * 0.6 and not main.wear.grounded() and main.wear.orders.is_empty():
 				target = _errand()
 				if target == null:
 					target = _pick_target(heli.global_position)
+				if target == null and t_state > 60.0: # nothing left in reach (a coast, or all of it visited): look farther, as a player would
+					reach_extra += 500.0
+					t_state = 8.0
 				if target != null:
 					sorties += 1
 					t_sortie = 0.0
@@ -211,11 +217,13 @@ func _bot(delta: float) -> void:
 					print("BOT stuck? %s %s hp %.0f tile %d state %s nav %s" % [e.kind, e.global_position.round(), e.hp, main.chunks.tile_at(e.global_position), e.state, e.nav.get("stuck", -1)])
 			if DEBUG and int(t_state / 3.0) != int((t_state - delta) / 3.0):
 				print("BOT defend t%.0f base_hp %.0f kills %d ammo %d foes %d heli %s nearest %s militia %d rifles %d defenders %d" % [t_state, Game.base_hp, Game.kills, Game.ammo,
-					main.assault.attackers(), heli.global_position.round(), _nearest_enemy(heli.global_position, 2000.0).global_position.round() if _nearest_enemy(heli.global_position, 2000.0) else null,
+					main.assault.attackers(), heli.global_position.round(), [_nearest_enemy(heli.global_position, 2000.0).get("kind"), _nearest_enemy(heli.global_position, 2000.0).global_position.round()] if _nearest_enemy(heli.global_position, 2000.0) else null,
 					Game.workers["militia"], int(Game.base_rifles), base.defenders.get_child_count()])
 			var aim: Vector2 = base.global_position
 			var f := _nearest_enemy(base.global_position, Game.base_radius + 420.0)
-			if f != null:
+			if f != null and not Game.attack_active and t_state > 10.0: # a slow one creeping about outside the fence: go and get it
+				aim = f.global_position + (heli.global_position - f.global_position).limit_length(200.0)
+			elif f != null:
 				aim = base.global_position + (f.global_position - base.global_position).limit_length(Game.base_radius * 0.9)
 			elif Game.attack_active:
 				f = _nearest_attacker()
@@ -488,7 +496,7 @@ func _act(t: Variant) -> void:
 
 ## How far out the bot goes: farther each day, as a player learns the map (danger grows with distance, Game.danger_at).
 func _reach() -> float:
-	return REACH_START + REACH_PER_DAY * Game.day
+	return REACH_START + REACH_PER_DAY * Game.day + reach_extra
 
 
 func _poi_ok(p: Variant) -> bool:
