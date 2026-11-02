@@ -159,10 +159,15 @@ func _warlord() -> void:
 	# hurt: he escapes, the camp stays
 	heli.global_position = w.global_position + Vector2(300, 0)
 	w.hp = w.max_hp * 0.2
+	c["garrison"]["rifle"] = 0 # he was the last man there: leaving still does not count as the heli clearing the camp
+	var camps0: int = sys.memory["camps"]
+	var xp0: int = Game.xp
 	radio.clear()
 	sys.tick()
 	assert(w.is_queued_for_deletion() and r["escapes"] == 1 and r["away"] == Game.day + sys.return_days(), "escaped: %s" % [r])
 	assert(c["garrison"]["warlord"] == 0 and not c["cleared"] and _said("I will be back"), "his camp stays without him")
+	assert(sys.memory["camps"] == camps0 and Game.xp == xp0 and not _said("That was my camp"), "no clear, grudge or reward from his escape")
+	c["garrison"]["rifle"] = 1
 	await frame
 	# he returns stronger; the contact days are over: stage 2 and the ransom card (Q13)
 	Game.day = r["away"]
@@ -214,6 +219,10 @@ func _gunship() -> void:
 	sys.tick()
 	assert(sys.gunship == null, "not before %.2f" % Nemesis.ATTACK_AT)
 	Game.time = Nemesis.ATTACK_AT + 0.01
+	heli.landed = true
+	sys.tick()
+	assert(sys.gunship == null and r["attack_day"] == Game.day, "he waits while the heli is parked")
+	heli.landed = false
 	var bandits0: int = get_tree().get_nodes_in_group("bandits").size()
 	sys.tick()
 	var g: Node2D = sys.gunship
@@ -276,6 +285,8 @@ func _gunship() -> void:
 	g.hp = g.max_hp * 0.2
 	sys.tick()
 	assert(g.fleeing and r["escapes"] == 2 and r["away"] > Game.day, "the gunship flees: %s" % [r])
+	sys.tick()
+	assert(r["hp"] == 1.0, "the escape's reset sticks while it flies off: %.2f" % r["hp"])
 	_step(g, 40.0)
 	assert(g.is_queued_for_deletion(), "gone at %.0f px" % Nemesis.GS_LEAVE)
 	await frame
@@ -283,6 +294,18 @@ func _gunship() -> void:
 	Game.day = r["away"]
 	sys._on_day(Game.day)
 	assert(r["away"] == -1 and r["stage"] == 3, "back")
+	# a night without a kill: at dawn he gives up, no escape counted, his damage kept
+	g = sys.big_attack(r)
+	g.process_mode = Node.PROCESS_MODE_DISABLED
+	g.hp = g.max_hp * 0.6
+	sys.tick()
+	Game.day += 1
+	Game.time = Assault.DAWN + 0.01
+	radio.clear()
+	sys.tick()
+	assert(g.fleeing and r["escapes"] == 2 and is_equal_approx(r["hp"], 0.6) and _said("Next time"), "gives up at dawn: %s" % [r])
+	g.free()
+	Game.time = Nemesis.ATTACK_AT + 0.01
 	g = sys.big_attack(r)
 	for u in get_tree().get_nodes_in_group("bandits"):
 		u.free()

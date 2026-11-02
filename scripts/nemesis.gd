@@ -115,6 +115,7 @@ const LINES := {
 		"attack_warn": "Intercepted - {name}: \"{when} I come for your base. Look up.\"",
 		"attack": "ALERT: {name}'s gunship inbound! It holds its distance and fires rockets: flares pull them off.",
 		"coward": "Intercepted - {name}: \"Run, bird, run! I saw your tail.\"",
+		"dawn": "Intercepted - {name}: \"Sun's coming up. Next time, bird.\"",
 		"camp": "Intercepted - {name}: \"That was my camp. You will pay for every man.\"",
 		"fast": "Intercepted - {name}: \"Fast flyer, eh? Rockets are faster. Boys, bring the tubes.\"",
 		"gun": "Intercepted - {name}: \"I know your {gun}. My pilot stays just out of its reach.\"",
@@ -334,7 +335,8 @@ func _watch(r: Dictionary, body: Node2D) -> void:
 			if r["kind"] == "warlord" and fast_flyer():
 				for i in RPG_EXTRA:
 					Bosses._escort(body, "rpg")
-	r["hp"] = clampf(body.hp / body.max_hp, 0.0, 1.0)
+	if not body.get("fleeing"): # an escaped gunship keeps the hp _escape reset; one giving up at dawn keeps its last share
+		r["hp"] = clampf(body.hp / body.max_hp, 0.0, 1.0)
 	var d: float = body.global_position.distance_to(Game.heli.global_position)
 	if d < SEE_DIST and not r["met"]:
 		r["met"] = true
@@ -368,7 +370,8 @@ func _escape(r: Dictionary, body: Node2D) -> void:
 	body.queue_free()
 
 
-## The Warlord leaves his camp (escape, or he takes to the air): his bodyguards scatter, the camp may be cleared without him.
+## The Warlord leaves his camp (escape, or he takes to the air): his bodyguards scatter. The heli did not clear the camp: an empty
+## one stays uncleared and restocks (bandits.gd), no camp_cleared grudge, taunt or reward.
 func _unseat(r: Dictionary) -> void:
 	var c: Dictionary = Game.world.bandits.camps.get(r["camp"], {})
 	if c.is_empty():
@@ -379,8 +382,6 @@ func _unseat(r: Dictionary) -> void:
 		if e.kind == "warlord" and e.camp_uid == c["uid"] and not e.is_queued_for_deletion():
 			e.set_meta("dead", true) # bosses.gd: the bodyguards walk home instead of vanishing
 			e.queue_free()
-	if not c["cleared"] and c["garrison"].values().all(func(n): return n <= 0):
-		Game.world.bandits._clear(c)
 
 
 ## The Alpha comes for the heli: a roaming matriarch near it, away from the base.
@@ -500,8 +501,13 @@ func _plan_attack(r: Dictionary) -> void:
 
 func _attack_due() -> void:
 	var r: Dictionary = rivals.get("warlord", {})
+	if not r.is_empty() and is_instance_valid(gunship) and not gunship.fleeing and gunship.day < Game.day and Game.time >= Assault.DAWN and Game.time < ATTACK_AT:
+		gunship.fleeing = true # daylight: he gives up (no escape counted, he keeps his damage)
+		say(r, "dawn")
 	if r.is_empty() or r["stage"] < 3 or r["away"] >= 0 or r["attack_day"] != Game.day or Game.time < ATTACK_AT or body_of(r) != null:
 		return
+	if Game.heli.landed:
+		return # never on a parked heli: he waits (every TICK) for take-off; past midnight _on_day moves the attack to a free night
 	if Assault.night_taken(Game.day):
 		r["attack_day"] = free_night(Game.day + 1)
 		return
@@ -620,7 +626,7 @@ func met() -> bool:
 func save_state() -> Dictionary:
 	var g := []
 	if is_instance_valid(gunship) and not gunship.is_queued_for_deletion():
-		g = [gunship.position, gunship.vel, gunship.hp, gunship.max_hp, gunship.fleeing]
+		g = [gunship.position, gunship.vel, gunship.hp, gunship.max_hp, gunship.fleeing, gunship.day]
 	return {"rivals": rivals.duplicate(true), "memory": memory.duplicate(true), "next_day": next_day.duplicate(), "gens": gens.duplicate(), "gunship": g}
 
 
@@ -638,6 +644,7 @@ func load_state(d: Dictionary) -> void:
 		gunship.hp = g[2]
 		gunship.max_hp = g[3]
 		gunship.fleeing = g[4]
+		gunship.day = g[5] if g.size() > 5 else Game.day
 
 
 ## The Warlord's captured helicopter. Flies like heli.gd (thrust, drag, top speed), holds keep_band() from the heli while it circles,
@@ -653,6 +660,7 @@ class Gunship extends Node2D:
 	var concealed := false
 	var vel := Vector2.ZERO
 	var fleeing := false
+	var day := Game.day # the night it came: it gives up at the next dawn
 	var orbit := 1.0
 	var gun_cd := 1.5
 	var burst := 0
