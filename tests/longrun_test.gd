@@ -713,7 +713,7 @@ func _salvage_goal() -> Dictionary:
 
 
 func _radio_due() -> bool:
-	return evac_mode and main.evac.phase == "" and Game.day >= main.evac.FIRST_DAY - 3 and Game.built("radio") + _queued("radio") == 0
+	return evac_mode and main.evac.phase == "" and Game.built("radio") + _queued("radio") == 0 # from day 1: electronics are rare
 
 
 ## HANGAR: start the repair of a wreck in the fence once it is paid for (the radio's electronics first), fly the repaired heli
