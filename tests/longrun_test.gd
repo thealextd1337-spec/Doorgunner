@@ -47,6 +47,7 @@ const VILLAGES_MAX := 3
 const VILLAGE_KEEP := 3 # survivors left behind that make a settlement worth protecting
 const T := preload("res://scripts/chunk_manager.gd").T
 const DEMOLISH := [T.BUILDING, T.RUIN, T.HEDGE] # what the builders can clear off an airstrip lane
+const GUNSHIP_SHARE := 0.95 # of the gun's range: the Warlord's gunship keeps to the edge of it (nemesis.gd keep_band)
 const HOOK_WAIT := 30.0 # game s of hovering for the hook before giving up
 const MOD_ALIAS := {"dense": "dense_horde", "warlords": "warlords", "scarcity": "scarcity", "dry": "dry_season", "glass": "glass_cockpit", "blackout": "blackout"}
 
@@ -176,10 +177,13 @@ func _bot(delta: float) -> void:
 	var base: Node2D = main.base
 	t_state += delta
 	var foe := _nearest_enemy(heli.global_position, HOT_RANGE)
+	var gs: Variant = main.nemesis.gunship # untyped: it may be freed
+	if is_instance_valid(gs) and not gs.is_queued_for_deletion() and gs.global_position.distance_to(heli.global_position) < heli.weapon_range() * GUNSHIP_SHARE:
+		foe = gs # it holds just inside the gun's reach: shoot back whatever the bot is doing
 	var base_foe := _nearest_enemy(base.global_position, Game.base_radius + BASE_HOT)
 	hot = foe != null or base_foe != null or Game.attack_active
 	var near_lz: bool = state == "out" and target != null and target["land"] and heli.global_position.distance_to(target["pos"]) < 350.0
-	_shoot(foe if state in ["defend", "loading", "landing", "landing_home", "takeoff", "base", "hook", "tow"] or near_lz or foe != null and (foe.global_position.distance_to(heli.global_position) < 140.0 or foe.is_in_group("bandits")) else null) # cruising past a horde: save the ammo
+	_shoot(foe if state in ["defend", "loading", "landing", "landing_home", "takeoff", "base", "hook", "tow"] or near_lz or foe != null and (foe.global_position.distance_to(heli.global_position) < 140.0 or foe.is_in_group("bandits") or foe.get("kind") == "gunship") else null) # cruising past a horde: save the ammo
 	var defend: bool = Game.attack_active or base_foe != null and base_foe.global_position.distance_to(base.global_position) < Game.base_radius + 160.0 \
 		or (Game.attack_pending and Game.time > 0.75)
 	if state in ["out", "home", "defend", "hook", "tow"] and heli.landed and heli.pending == 0: # put down by an engine failure (wear.gd)
@@ -576,7 +580,8 @@ func _nearest_enemy(pos: Vector2, r: float) -> Node2D:
 ## Door gun: turns the heli so the nearest enemy in range is out of the side door, and fires.
 func _shoot(foe: Node2D) -> void:
 	var heli: Node2D = Game.heli
-	if foe == null or foe.global_position.distance_to(heli.global_position) > heli.weapon_range() * 0.7: # closer in: fewer misses
+	var share := GUNSHIP_SHARE if foe != null and foe.get("kind") == "gunship" else 0.7
+	if foe == null or foe.global_position.distance_to(heli.global_position) > heli.weapon_range() * share: # closer in: fewer misses
 		Input.action_release("fire")
 		heli.aim_override = Vector2.ZERO
 		return

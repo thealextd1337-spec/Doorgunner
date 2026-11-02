@@ -496,7 +496,7 @@ func free_night(from: int) -> int:
 
 func _plan_attack(r: Dictionary) -> void:
 	r["attack_day"] = free_night(Game.day)
-	say(r, "attack_warn", {"when": "Tonight" if r["attack_day"] == Game.day else "In %d nights" % (r["attack_day"] - Game.day)})
+	say(r, "attack_warn", {"when": "Tonight" if r["attack_day"] == Game.day else ("Tomorrow night" if r["attack_day"] == Game.day + 1 else "In %d nights" % (r["attack_day"] - Game.day))})
 
 
 func _attack_due() -> void:
