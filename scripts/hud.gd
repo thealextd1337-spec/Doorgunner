@@ -55,6 +55,7 @@ const POI_COLORS := {
 
 func _ready() -> void:
 	layer = 5
+	process_mode = PROCESS_MODE_ALWAYS # keeps fitting under a paused ESC menu (the UI scale changes there) or level-up card
 	compass = Control.new() # world-attached arrows and door arcs: unscaled, straight on the layer
 	compass.set_anchors_preset(Control.PRESET_FULL_RECT)
 	compass.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -221,8 +222,15 @@ func _fit() -> void:
 		if r.end.y > h - m - UiTheme.BOTTOM_ROW and r.position.y > h / 2.0 and r.position.x < right and r.end.x > left:
 			bottom = minf(bottom, r.position.y - g)
 	var lh := _lh(log_label)
-	# panels of other layers win over the status zone and the minimap (the base menu shows the same numbers)
-	var fixed := Rect2(status_zone.position, Vector2(STATUS_W, fold_btn.position.y + fold_btn.size.y)) # bars to the fold button
+	# panels of other layers win over the status zone and the minimap (the base menu shows the same numbers).
+	# Heights from minimum sizes, not child rects: the VBox sorts deferred, its rows would lag a frame behind.
+	var head_h := 0.0 # bars to the fold button
+	for c: Control in status_zone.get_children():
+		if c == info:
+			break
+		if c.visible:
+			head_h += c.get_combined_minimum_size().y + UiTheme.GAP
+	var fixed := Rect2(status_zone.position, Vector2(STATUS_W, head_h - UiTheme.GAP))
 	status_zone.visible = not obst.any(func(r: Rect2): return r.intersects(fixed))
 	minimap.visible = not obst.any(func(r: Rect2): return r.intersects(minimap.get_rect()))
 	if status_zone.visible:
@@ -230,13 +238,13 @@ func _fit() -> void:
 		for r in obst:
 			if r.position.x < m + STATUS_W and r.end.x > m and r.position.y > m:
 				limit = minf(limit, r.position.y - g)
-		var top := status_zone.position.y + info.position.y # VBox layout of the last frame
+		var top := status_zone.position.y + head_h
 		var n := clampi(floori((limit - top + _spacing(info)) / _lh(info)), 0, info.get_line_count())
 		info.max_lines_visible = mini(n, INFO_MIN_LINES) if info_folded else n
-		info.update_minimum_size() # a Label does not tell its VBox when max_lines_visible shrinks it
+		info.update_minimum_size() # see _wrap: a Label does not tell its VBox when max_lines_visible shrinks it
 		info.visible = info.max_lines_visible > 0
 		status_zone.reset_size()
-		obst.append(Rect2(status_zone.position, status_zone.size))
+		obst.append(Rect2(status_zone.position, Vector2(STATUS_W, status_zone.get_combined_minimum_size().y)))
 	# side obstacles narrow the log, the ones above it push its top down
 	for r in obst:
 		if r.position.y < bottom and r.end.y > bottom - LOG_LINES * lh and r.position.x > left + LOG_MIN_W and r.position.x < right:
@@ -282,10 +290,13 @@ func _obstacles() -> Array[Rect2]:
 
 
 ## Width-bound label, height from its (at most max_lines) wrapped lines. Twice: the first call applies the width, the
-## minimum height of a wrapping label depends on it.
+## minimum height of a wrapping label depends on it. update_minimum_size(): a Label keeps its cached minimum (which
+## set_size clamps to) when max_lines_visible / lines_skipped change.
 func _wrap(l: Label, width: float, max_lines: int) -> void:
 	l.max_lines_visible = max_lines
+	l.update_minimum_size()
 	l.size = Vector2(width, 0)
+	l.update_minimum_size()
 	l.size = Vector2(width, l.get_minimum_size().y)
 
 

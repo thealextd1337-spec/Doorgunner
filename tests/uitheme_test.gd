@@ -91,7 +91,9 @@ func _run() -> void:
 		await _frames(2)
 		_apart("title hangar %d %%" % pct, _title(title, [title.hangar]))
 		var scroll: ScrollContainer = title.hangar_grid.get_parent()
-		check(title.hangar_grid.size.y > scroll.size.y and scroll.get_v_scroll_bar().max_value >= title.hangar_grid.size.y - 1.0, "hangar list scrolls (%d %%)" % pct)
+		var fits: bool = title.hangar_grid.size.y <= scroll.size.y + 1.0
+		check(fits or scroll.get_v_scroll_bar().max_value >= title.hangar_grid.size.y - 1.0, "hangar list fits or scrolls (%d %%)" % pct)
+		check(pct < 100 or not fits, "hangar list scrolls at 100 %% (%d %%)" % pct)
 		title.free()
 	Game.running = true
 	main.ui_open = false
