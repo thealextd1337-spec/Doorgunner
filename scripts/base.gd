@@ -17,6 +17,7 @@ const UI := preload("res://scripts/base_ui.gd")
 const SETTLE_REACH := 120.0 # settlements this close to the fence join the base on foot
 const PAWN_MAX := 60 # drawn people; beyond that the base only counts
 const DIRS := [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT] # neighbour bits 1 2 4 8 = sandbag / wire sprite frame
+const BUILD_SFX_RATE := 0.5 # hammer knocks per second while a building or demolition is being worked on
 # demolition target -> [seconds of one worker, scrap, metal, parts]
 const DEMOLISH := {"house": [40.0, 15, 4.0, 2.0], "hedge": [6.0, 2, 0.0, 0.0], "fence": [6.0, 3, 0.0, 0.0]}
 
@@ -131,6 +132,8 @@ func _process(delta: float) -> void:
 	var crew: float = Game.crew("build") * Game.work_eff() # campers build at half rate
 	if not site.is_empty():
 		site["progress"] += crew * delta
+		if randf() < delta * BUILD_SFX_RATE:
+			Sfx.play("build", cell_pos(site["cell"]), -10.0)
 		if site.has("cells"):
 			if site["progress"] >= DEMOLISH[site["kind"]][0]:
 				_finish_demolition(site)
@@ -600,6 +603,7 @@ func _finish_site(b: Dictionary) -> void:
 		_fence()
 	else:
 		site_nodes[b["cell"]].modulate.a = 1.0
+	Sfx.play("build_done", null, -4.0)
 	Game.radio("Base: %s finished." % Game.BUILDINGS[b["kind"]][0])
 	if ui:
 		ui.refresh()
