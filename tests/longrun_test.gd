@@ -738,7 +738,7 @@ func _jobs() -> void:
 		w["medic"] = 1
 	w["militia"] = maxi(1, free / 4)
 	var goal := _salvage_goal()
-	if Game.salvage.keys().any(func(k): return Game.salvage[k] >= goal.get(k, 0.0) + 1.0):
+	if Game.scrap < 500 and Game.salvage.keys().any(func(k): return Game.salvage[k] >= goal.get(k, 0.0) + 1.0): # a player with scrap to spare keeps the salvage
 		w["workshop"] = 1 if free < 10 else 2
 	if Game.base_hp < Game.max_base_hp:
 		w["repair"] = 1
