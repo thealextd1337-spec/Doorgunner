@@ -25,6 +25,7 @@ const SITES := {
 	"airfield": {"odds": 1.0, "types": {"huey": 40, "little_bird": 35, "black_hawk": 15, "chinook": 10}},
 	"checkpoint": {"odds": 0.5, "types": {"huey": 25, "black_hawk": 40, "chinook": 20, "hind": 15}}, # the Hind only at military landmarks
 	"airliner": {"odds": 0.6, "types": {"huey": 40, "little_bird": 30, "chinook": 20, "black_hawk": 10}},
+	"hospital": {"odds": 0.4, "types": {"huey": 50, "little_bird": 30, "black_hawk": 20}}, # air ambulances
 }
 const KEY_PARTS := {"rotor_head": "rotor head", "turbine": "turbine", "avionics": "avionics"}
 

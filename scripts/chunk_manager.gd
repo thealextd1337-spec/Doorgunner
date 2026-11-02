@@ -1,8 +1,10 @@
 extends TileMapLayer
 ## Endless procedural terrain in 32x32-tile chunks. Every layer is a pure function of Game.seed and the cell, so a chunk
 ## comes out the same whatever order chunks load in (tests/world_test.gd):
-## 1. _terrain(): a large cellular region noise picks one of seven regions, each bending the height, moisture and river
-##    layers its own way, with patches inside (clearings, forest ponds, orchards, burned ground, copses).
+## 1. _terrain(): a large cellular region noise picks one of nine regions, each bending the height, moisture and river
+##    layers its own way, with patches inside (clearings, forest ponds, orchards, burned ground, copses). The coast has
+##    a sea (deep WATER, alternative SEA) behind beaches, dunes and cliffs that fades out towards the region's border;
+##    the winter highland freezes everything (_freeze: snow, frosted woods and rock, frozen lakes of landable ICE).
 ## 2. Sites: a macro grid of MACRO x MACRO chunks holds one jittered site per macro cell (site()): a town (one of seven
 ##    templates per region, rarely a city), a landmark (gas station, airfield, prison...) or nothing. A site is laid out
 ##    once into its own buffer (_layout) that sees bare terrain only and stays inside its macro cell.
@@ -30,36 +32,55 @@ const FRAME_BUDGET_MS := 4.0 # loading and prefetching beyond the heli's own chu
 const BIOME_FREQ := 0.001 # region size (1.5x the old regions: a run's fuel range still crosses several)
 const PATCH_FREQ := 0.014 # patches inside regions, ~70 cells apart
 const PATCH_R := 0.26 # patch radius as a share of their spacing
+# Q10 coast: sea where the shore noise (+ height) is below SEA_LEVEL, then a beach (cliffs where the land is high) and dunes
+const SHORE_FREQ := 0.003 # bays and headlands ~300 cells across
+const SHORE_H := 0.3 # height noise share in the coastline (ragged shores)
+const SEA_LEVEL := 0.0
+const BEACH := 0.03 # shore units of beach above the sea (~4 cells)
+const DUNES := 0.08 # and of dunes above that
+const CLIFF_H := 0.12 # height above which the beach is a cliff
+const SEA_EDGE := 0.14 # region-cell spacings from the region border where the sea starts to recede
+const SEA_FADE := 6.0 # how fast it recedes towards the border (no sea at the border itself)
+const SEA_COST := 25.0 # A* weight of a sea node: roads go round bays rather than bridge them
+const HARBOUR_REACH := 12 # cells from a harbour's centre to the water
+const HARBOUR_SEA := 10 # settling score for a harbour spot by the sea (out of 25 for dry ground)
 enum T { GRASS, FOREST, WATER, SAND, ROAD, BUILDING, RUIN, BASE_FLOOR, GRASS2, GRASS3, FIELD, DIRT_ROAD, ROCK, TREE_EDGE,
-	HOUSE_YARD, ASPHALT, HEDGE, MARSH, WAREHOUSE, ASH, CRATER, PARKING, PLAZA, PAD, ROAD_BEND, DIRT_BEND, DIRT_X, BRIDGE }
-enum R { FARM, FOREST, LAKE, SUBURB, WASTE, HIGHLAND, RIVER }
-const REGIONS := ["farm", "forest", "lake", "suburb", "waste", "highland", "river"]
-const SITE_ODDS := [[0.6, 0.3], [0.35, 0.5], [0.5, 0.35], [0.7, 0.25], [0.4, 0.45], [0.3, 0.55], [0.55, 0.35]] # town, landmark share
+	HOUSE_YARD, ASPHALT, HEDGE, MARSH, WAREHOUSE, ASH, CRATER, PARKING, PLAZA, PAD, ROAD_BEND, DIRT_BEND, DIRT_X, BRIDGE,
+	SNOW, ICE, DUNE }
+enum R { FARM, FOREST, LAKE, SUBURB, WASTE, HIGHLAND, RIVER, COAST, WINTER }
+const REGIONS := ["farm", "forest", "lake", "suburb", "waste", "highland", "river", "coast", "winter"]
+const SITE_ODDS := [[0.6, 0.3], [0.35, 0.5], [0.5, 0.35], [0.7, 0.25], [0.4, 0.45], [0.3, 0.55], [0.55, 0.35], [0.5, 0.4],
+	[0.35, 0.5]] # town, landmark share
 const TOWN_KINDS := [["village", "village", "farm", "farm", "hamlet"], ["hamlet", "hamlet", "hamlet", "village"],
 	["fishing", "fishing", "village"], ["suburb", "suburb", "industrial"], ["ruined"], ["hamlet", "hamlet", "village"],
-	["fishing", "village", "farm", "hamlet"]]
+	["fishing", "village", "farm", "hamlet"], ["fishing", "fishing", "fishing", "village", "hamlet"], ["hamlet", "hamlet", "village"]]
 const TOWN_SIZE := {"village": Vector2i(3, 7), "hamlet": Vector2i(3, 6), "fishing": Vector2i(3, 6), "farm": Vector2i(4, 8),
 	"suburb": Vector2i(8, 14), "industrial": Vector2i(5, 10), "ruined": Vector2i(3, 10), "city": Vector2i(4, 5)} # city: blocks a side
-const CITY_CHANCE := [0.08, 0.0, 0.0, 0.3, 0.0, 0.0, 0.05] # share of a region's towns that are cities instead
-const LANDMARKS := { # weight per region (farm, forest, lake, suburb, waste, highland, river)
-	"gas_station": [3, 1, 2, 3, 2, 1, 2], "checkpoint": [2, 1, 1, 2, 3, 2, 2], "campground": [0, 3, 3, 0, 0, 2, 2],
-	"quarry": [1, 1, 0, 0, 1, 4, 0], "airfield": [3, 0, 1, 2, 2, 0, 2], "radio_mast": [2, 2, 1, 1, 2, 3, 1],
-	"dam": [0, 0, 2, 0, 0, 2, 4], "airliner": [1, 1, 1, 1, 2, 1, 1], "prison": [1, 0, 0, 2, 2, 1, 1],
-	"motel": [2, 0, 1, 3, 1, 0, 1], "lumber_camp": [0, 4, 1, 0, 0, 3, 1], "church_ruin": [2, 1, 1, 1, 3, 1, 1],
-	"highway": [2, 1, 1, 3, 2, 0, 2]}
+const CITY_CHANCE := [0.08, 0.0, 0.0, 0.3, 0.0, 0.0, 0.05, 0.05, 0.0] # share of a region's towns that are cities instead
+const LANDMARKS := { # weight per region (farm, forest, lake, suburb, waste, highland, river, coast, winter)
+	"gas_station": [3, 1, 2, 3, 2, 1, 2, 2, 1], "checkpoint": [2, 1, 1, 2, 3, 2, 2, 1, 2], "campground": [0, 3, 3, 0, 0, 2, 2, 2, 1],
+	"quarry": [1, 1, 0, 0, 1, 4, 0, 0, 2], "airfield": [3, 0, 1, 2, 2, 0, 2, 1, 0], "radio_mast": [2, 2, 1, 1, 2, 3, 1, 1, 3],
+	"dam": [0, 0, 2, 0, 0, 2, 4, 0, 1], "airliner": [1, 1, 1, 1, 2, 1, 1, 1, 1], "prison": [1, 0, 0, 2, 2, 1, 1, 1, 1],
+	"motel": [2, 0, 1, 3, 1, 0, 1, 2, 0], "lumber_camp": [0, 4, 1, 0, 0, 3, 1, 0, 2], "church_ruin": [2, 1, 1, 1, 3, 1, 1, 1, 1],
+	"highway": [2, 1, 1, 3, 2, 0, 2, 1, 0],
+	# Q10: four landmarks other systems pick by kind (sites_near), and the ski lift of the winter highland
+	"hospital": [2, 0, 1, 3, 2, 0, 2, 1, 1], "harbour": [0, 0, 2, 0, 0, 0, 2, 6, 0], "stadium": [1, 0, 0, 3, 2, 0, 1, 1, 0],
+	"power_plant": [1, 0, 1, 2, 2, 2, 2, 1, 2], "ski_lift": [0, 0, 0, 0, 0, 1, 0, 0, 5]}
 const PATCHES := [["orchard", "burned", "copse"], ["clearing", "pond", "clearing", "burned"], ["copse", "meadow"],
-	["copse"], ["meadow", "pond"], ["clearing", "pond", "scree"], ["copse", "meadow", "pond"]] # by region, half the patches stay plain
-const LONE_CHANCE := [0.5, 0.3, 0.4, 0.6, 0.35, 0.25, 0.4] # a lone house in a wild chunk, by region
+	["copse"], ["meadow", "pond"], ["clearing", "pond", "scree"], ["copse", "meadow", "pond"], ["meadow", "copse"],
+	["pond", "scree", "copse", "pond"]] # by region, half the patches stay plain
+const LONE_CHANCE := [0.5, 0.3, 0.4, 0.6, 0.35, 0.25, 0.4, 0.35, 0.3] # a lone house in a wild chunk, by region
 const BLOCK := 11 # city street pitch: 10 cells of lots between streets
 # region terrain: water below WATER_H (a shore band above it), forest above FOREST_M moisture, rock above ROCK_H
-const WATER_H := [-0.42, -0.4, -0.16, -0.42, -0.4, -0.55, -0.45]
-const FOREST_M := [0.36, -0.36, 0.12, 0.42, 0.22, -0.12, 0.3]
-const ROCK_H := [0.55, 0.38, 0.46, 0.6, 0.46, 0.3, 0.7]
-const RIVER_W := [0.016, 0.016, 0.016, 0.016, 0.016, 0.012, 0.05] # river half width in river-noise units
-const BANK := [T.SAND, T.SAND, T.MARSH, T.SAND, T.ASH, T.ROCK, T.MARSH]
+const WATER_H := [-0.42, -0.4, -0.16, -0.42, -0.4, -0.55, -0.45, -0.5, -0.3]
+const FOREST_M := [0.36, -0.36, 0.12, 0.42, 0.22, -0.12, 0.3, 0.4, 0.0]
+const ROCK_H := [0.55, 0.38, 0.46, 0.6, 0.46, 0.3, 0.7, 0.5, 0.42]
+const RIVER_W := [0.016, 0.016, 0.016, 0.016, 0.016, 0.012, 0.05, 0.016, 0.012] # river half width in river-noise units
+const BANK := [T.SAND, T.SAND, T.MARSH, T.SAND, T.ASH, T.ROCK, T.MARSH, T.SAND, T.ROCK] # winter: frosted by _freeze
 const GRASSY := [T.GRASS, T.GRASS2, T.GRASS3, T.TREE_EDGE]
-const OPEN := [T.GRASS, T.GRASS2, T.GRASS3, T.TREE_EDGE, T.SAND, T.ASH, T.MARSH, T.FIELD] # where wild POIs may sit
-const BUILDABLE := [T.GRASS, T.GRASS2, T.GRASS3, T.TREE_EDGE, T.SAND, T.ASH, T.MARSH, T.FIELD, T.HEDGE, T.FOREST, T.CRATER]
+const OPEN := [T.GRASS, T.GRASS2, T.GRASS3, T.TREE_EDGE, T.SAND, T.ASH, T.MARSH, T.FIELD, T.SNOW, T.DUNE] # where wild POIs may sit
+const BUILDABLE := [T.GRASS, T.GRASS2, T.GRASS3, T.TREE_EDGE, T.SAND, T.ASH, T.MARSH, T.FIELD, T.HEDGE, T.FOREST, T.CRATER,
+	T.SNOW, T.DUNE]
 const TOWNISH := [T.ROAD, T.BUILDING, T.RUIN, T.BASE_FLOOR, T.HOUSE_YARD, T.ASPHALT, T.WAREHOUSE, T.PARKING, T.PLAZA, T.PAD, T.ROAD_BEND, T.BRIDGE]
 const BLOCKED := [T.WATER, T.FOREST, T.BUILDING, T.ROCK, T.WAREHOUSE, T.HEDGE, T.PAD] # not landable
 const ROADS := [T.ROAD, T.DIRT_ROAD, T.ASPHALT, T.ROAD_BEND, T.DIRT_BEND, T.DIRT_X, T.BRIDGE]
@@ -76,6 +97,8 @@ const FLIP := 2 # extra PARKING alternatives (+ACROSS): bays open the other way
 const ROOF_ALT := 2 # BUILDING alternatives ROOF_ALT + i are tinted with ROOFS[i]
 const BEND_W := 2 # bend alternatives (+ BEND_N): the art turns south-east, flip_h turns it west, flip_v north
 const BEND_N := 4
+const SEA := 2 # WATER alternative: the deep sea of the coast (water like any other: no landing, no walking)
+const FROST := 2 # FOREST, TREE_EDGE and ROCK alternative: frosted (winter)
 const ROOFS := [Color(1, 1, 1), Color(1.0, 0.62, 0.5), Color(0.74, 0.8, 0.96), Color(0.94, 0.8, 0.6), Color(0.62, 0.62, 0.66), Color(0.82, 0.92, 0.74)]
 const CARS := [Color(1, 0.42, 0.36), Color(0.5, 0.62, 1), Color(1, 1, 1), Color(0.38, 0.38, 0.4), Color(0.92, 0.86, 0.5)]
 const TENTS := [Color(1, 0.55, 0.3), Color(0.45, 0.75, 0.5), Color(0.5, 0.65, 1), Color(1, 0.9, 0.45)]
@@ -93,6 +116,8 @@ var river := FastNoiseLite.new()
 var biome := FastNoiseLite.new() # regions
 var patch_d := FastNoiseLite.new() # distance to the nearest patch centre
 var patch_v := FastNoiseLite.new() # a value per patch
+var shore := FastNoiseLite.new() # the coastline
+var edge := FastNoiseLite.new() # distance to the nearest region border (the region cells' Distance2Sub)
 var loaded := {}
 var town_centers := [] # world positions, used by the spawner
 var _pending := {} # chunk -> {cell: Vector2i(tile, alt)}: edits to chunks not loaded yet
@@ -146,6 +171,11 @@ func _ready() -> void:
 			src.create_alternative_tile(Vector2i(t, 0), alt)
 			src.get_tile_data(Vector2i(t, 0), alt).flip_h = alt & BEND_W != 0
 			src.get_tile_data(Vector2i(t, 0), alt).flip_v = alt & BEND_N != 0
+	src.create_alternative_tile(Vector2i(T.WATER, 0), SEA)
+	src.get_tile_data(Vector2i(T.WATER, 0), SEA).modulate = Color(0.62, 0.78, 0.92)
+	for t in [T.FOREST, T.TREE_EDGE, T.ROCK]:
+		src.create_alternative_tile(Vector2i(t, 0), FROST)
+		src.get_tile_data(Vector2i(t, 0), FROST).modulate = Color(1.1, 1.14, 1.24) if t == T.ROCK else Color(1.15, 1.2, 1.45)
 	for i in ROOFS.size():
 		src.create_alternative_tile(Vector2i(T.BUILDING, 0), ROOF_ALT + i)
 		src.get_tile_data(Vector2i(T.BUILDING, 0), ROOF_ALT + i).modulate = ROOFS[i]
@@ -165,6 +195,14 @@ func _ready() -> void:
 	biome.cellular_return_type = FastNoiseLite.RETURN_CELL_VALUE
 	biome.fractal_type = FastNoiseLite.FRACTAL_NONE
 	biome.frequency = BIOME_FREQ
+	edge.seed = biome.seed # the same cells as the regions
+	edge.noise_type = FastNoiseLite.TYPE_CELLULAR
+	edge.cellular_return_type = FastNoiseLite.RETURN_DISTANCE2_SUB
+	edge.fractal_type = FastNoiseLite.FRACTAL_NONE
+	edge.frequency = BIOME_FREQ
+	shore.seed = Game.seed + 5
+	shore.frequency = SHORE_FREQ
+	shore.fractal_octaves = 2
 	for p: FastNoiseLite in [patch_d, patch_v]:
 		p.seed = Game.seed + 4
 		p.noise_type = FastNoiseLite.TYPE_CELLULAR
@@ -233,8 +271,8 @@ func _region(cell: Vector2i, h: float, j: int) -> int:
 	var x := cell.x + h * 120.0 + float(j % 7 - 3)
 	var y := cell.y - h * 120.0 + float((j >> 3) % 7 - 3)
 	var r := mini(int((biome.get_noise_2d(x, y) + 1.0) * 0.5 * R.size()), R.size() - 1)
-	if r == R.WASTE and Vector2(x - START.x, y - START.y).length() < 3.5 * CHUNK:
-		return R.FARM # the burned lands start a few chunks out
+	if (r == R.WASTE or r == R.COAST or r == R.WINTER) and Vector2(x - START.x, y - START.y).length() < 3.5 * CHUNK:
+		return R.FARM # the burned lands, the sea and the snow start a few chunks out
 	return r
 
 
@@ -306,7 +344,7 @@ func _plan(c: Vector2i) -> Array:
 			grid[y * n + x] = _terrain(origin + Vector2i(x - 1, y - 1))
 	for k in range(1, n - 1): # margin cells are only needed next to forest
 		for e: Vector4i in [Vector4i(k, 0, k, 1), Vector4i(k, n - 1, k, n - 2), Vector4i(0, k, 1, k), Vector4i(n - 1, k, n - 2, k)]:
-			if grid[e.w * n + e.z] == T.FOREST:
+			if grid[e.w * n + e.z] & 0xff == T.FOREST:
 				grid[e.y * n + e.x] = _terrain(origin + Vector2i(e.x - 1, e.y - 1))
 	var tiles := PackedInt32Array()
 	tiles.resize(CHUNK * CHUNK)
@@ -322,7 +360,7 @@ func _plan(c: Vector2i) -> Array:
 				tiles[k] = f.x | f.y << 8
 			else:
 				var t := grid[i] & 0xff
-				if t == T.FOREST and (grid[i - 1] != T.FOREST or grid[i + 1] != T.FOREST or grid[i - n] != T.FOREST or grid[i + n] != T.FOREST):
+				if t == T.FOREST and (grid[i - 1] & 0xff != T.FOREST or grid[i + 1] & 0xff != T.FOREST or grid[i - n] & 0xff != T.FOREST or grid[i + n] & 0xff != T.FOREST):
 					t = T.TREE_EDGE
 				tiles[k] = t | grid[i] & 0xff00
 				if grid[i] >= 65536:
@@ -344,6 +382,49 @@ func _terrain(cell: Vector2i) -> int:
 	var h := noise.get_noise_2d(cell.x, cell.y)
 	var j := hash(cell)
 	var reg := _region(cell, h, j)
+	if reg == R.COAST:
+		var t := _coast(cell, h, j)
+		if t >= 0:
+			return t
+	elif reg == R.WINTER:
+		return _freeze(_ground(cell, h * 1.2 + 0.03, j, reg), j) # hilly
+	return _ground(cell, h, j, reg)
+
+
+## Sea, beach (cliffs where the land is high) and dunes of a coast cell, or -1 further inland. Near the region border
+## (edge noise at the spot _region looked at) the sea recedes, so it never stops in a line along the next region.
+func _coast(cell: Vector2i, h: float, j: int) -> int:
+	var e := edge.get_noise_2d(cell.x + h * 120.0, cell.y - h * 120.0) + 1.0
+	var s := shore.get_noise_2d(cell.x, cell.y) + h * SHORE_H + maxf(0.0, SEA_EDGE - e) * SEA_FADE - SEA_LEVEL
+	if s < 0.0:
+		return T.WATER | SEA << 8
+	if s < BEACH:
+		return T.ROCK if h > CLIFF_H else T.SAND
+	if s < DUNES:
+		if h > CLIFF_H:
+			return T.GRASS3 # the cliff top
+		return T.DUNE if s < DUNES - 0.02 or j % 3 != 0 else T.GRASS3
+	return -1
+
+
+## Winter: the same ground under snow. Water freezes to ICE (walkable, landable), woods and rock are frosted, open
+## ground is SNOW with a few wind-swept spots of dry grass; scatter props stay.
+func _freeze(t: int, j: int) -> int:
+	var prop := t & ~0xffff
+	match t & 0xff:
+		T.WATER:
+			return T.ICE
+		T.MARSH, T.SAND, T.GRASS, T.GRASS2:
+			return T.SNOW | prop
+		T.GRASS3:
+			return (T.GRASS3 if j % 4 == 0 else T.SNOW) | prop
+		T.FOREST, T.TREE_EDGE, T.ROCK:
+			return t & 0xff | FROST << 8 | prop
+	return t
+
+
+## The terrain rules below the coast and the snow (_terrain).
+func _ground(cell: Vector2i, h: float, j: int, reg: int) -> int:
 	if reg == R.HIGHLAND:
 		h = h * 1.3 + 0.06 # rugged: rock ridges, few lakes
 	var wh: float = WATER_H[reg]
@@ -391,6 +472,8 @@ func _terrain(cell: Vector2i) -> int:
 			return T.GRASS2 if k > -0.1 else T.GRASS
 		R.HIGHLAND:
 			return T.GRASS3 if k < 0.05 else T.GRASS | (PROP_TREE << 16 if j % 97 == 0 else 0)
+		R.COAST: # dry, windswept grass behind the dunes
+			return T.GRASS3 if k < 0.0 else T.GRASS | (PROP_TREE << 16 if j % 151 == 0 else 0)
 	if k > 0.12:
 		return T.GRASS2
 	if k < -0.2:
@@ -565,21 +648,25 @@ func _settle(s: Dictionary, rng: RandomNumberGenerator) -> void:
 	var best := [-1, c0]
 	for i in 10: # the driest of a few spots (by the water for fishing villages)
 		var center := c0 if i == 0 else c0 + Vector2i(rng.randi_range(-SETTLE, SETTLE), rng.randi_range(-SETTLE, SETTLE))
-		if _terrain(center) & 0xff in [T.WATER, T.SAND, T.MARSH, T.ROCK] or s.m == Vector2i.ZERO and Vector2(center - START).length() > 72.0:
+		if _terrain(center) & 0xff in [T.WATER, T.SAND, T.MARSH, T.ROCK, T.ICE] or s.m == Vector2i.ZERO and Vector2(center - START).length() > 72.0:
 			continue
 		var dry := 0
 		for k in 25:
-			dry += int(not _terrain(center + Vector2i(k % 5 - 2, k / 5 - 2) * 6) & 0xff in [T.WATER, T.MARSH, T.ROCK])
-		if s.kind == "fishing" and _water_dir(center, 9) == Vector2i.ZERO:
+			dry += int(not _terrain(center + Vector2i(k % 5 - 2, k / 5 - 2) * 6) & 0xff in [T.WATER, T.MARSH, T.ROCK, T.ICE])
+		if s.kind in ["fishing", "harbour"] and _water_dir(center, 9) == Vector2i.ZERO:
 			dry -= 10
+		if s.kind == "harbour" and _water_dir(center, 9, true) != Vector2i.ZERO:
+			dry += HARBOUR_SEA # on the sea rather than a river
 		if dry > best[0]:
 			best = [dry, center]
-		if dry == 25:
+		if dry == 25 + (HARBOUR_SEA if s.kind == "harbour" else 0):
 			break
 	if best[0] >= 0 or s.m == Vector2i.ZERO:
 		s.center = best[1]
 	else:
 		s.kind = ""
+	if s.kind == "harbour" and _water_dir(s.center, HARBOUR_REACH) == Vector2i.ZERO:
+		s.kind = "gas_station" # no water in reach after all
 	s.town = s.kind in TOWN_SIZE
 
 
@@ -766,7 +853,7 @@ func _route(a: Vector2i, b: Vector2i, layers: Array, boxes: Array) -> Array:
 				t = _tile(cc)
 			match t:
 				T.WATER:
-					grid.set_point_weight_scale(nd, 5.0)
+					grid.set_point_weight_scale(nd, SEA_COST if _terrain(cc) & 0xff00 == SEA << 8 else 5.0)
 				T.ROCK:
 					grid.set_point_weight_scale(nd, 4.0)
 				T.FOREST, T.TREE_EDGE, T.MARSH, T.HEDGE:
@@ -1574,16 +1661,24 @@ func _jetty(cell: Vector2i) -> bool:
 		return false
 	for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
 		if _tile(cell + dir) == T.WATER and _tile(cell + dir * 2) == T.WATER:
-			_prop("jetty", (Vector2(cell) + Vector2(0.5, 0.5) + Vector2(dir) * 1.25) * TILE, Vector2(dir).angle() + PI / 2)
+			_pier(cell, dir, hash(cell) % 3 == 0)
 			return true
 	return false
 
 
-## First direction with water 2..r cells away, or ZERO.
-func _water_dir(cell: Vector2i, r: int) -> Vector2i:
+## Jetty prop off land cell `cell` into the water along `dir`, a boat moored beside it if `boat`.
+func _pier(cell: Vector2i, dir: Vector2i, boat: bool) -> void:
+	_prop("jetty", (Vector2(cell) + Vector2(0.5, 0.5) + Vector2(dir) * 1.25) * TILE, Vector2(dir).angle() + PI / 2)
+	if boat:
+		var side := Vector2(dir.y, dir.x) * (0.9 if hash(cell) % 2 == 0 else -0.9)
+		_prop("boat", (Vector2(cell) + Vector2(0.5, 0.5) + Vector2(dir) * 1.7 + side) * TILE, Vector2(dir).angle(), CARS[hash(cell) % CARS.size()])
+
+
+## First direction with water (`sea`: the sea) 2..r cells away, or ZERO.
+func _water_dir(cell: Vector2i, r: int, sea := false) -> Vector2i:
 	for k in range(2, r + 1):
 		for dir in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
-			if _tile(cell + dir * k) == T.WATER:
+			if _tile(cell + dir * k) == T.WATER and (not sea or _terrain(cell + dir * k) & 0xff00 == SEA << 8):
 				return dir
 	return Vector2i.ZERO
 
@@ -1622,7 +1717,10 @@ func _homestead(cell: Vector2i, rng: RandomNumberGenerator, reg: int) -> Vector2
 	match reg:
 		R.FOREST:
 			return _cabin(cell, rng, st)
-		R.LAKE:
+		R.WINTER:
+			st.yard = T.SNOW
+			return _cabin(cell, rng, st, true)
+		R.LAKE, R.COAST:
 			var dir := _water_dir(cell, 5)
 			if dir == Vector2i.ZERO:
 				return Vector2.INF
@@ -1672,15 +1770,18 @@ func _homestead(cell: Vector2i, rng: RandomNumberGenerator, reg: int) -> Vector2
 	return c
 
 
-## Cabin in a forest clearing with a woodpile by the door.
-func _cabin(cell: Vector2i, rng: RandomNumberGenerator, st: Dictionary) -> Vector2:
-	if not _tile(cell) in [T.FOREST, T.TREE_EDGE, T.GRASS, T.GRASS2, T.GRASS3]:
+## Cabin in a forest clearing with a woodpile by the door (`snow`: a hut in the winter highland).
+func _cabin(cell: Vector2i, rng: RandomNumberGenerator, st: Dictionary, snow := false) -> Vector2:
+	if not _tile(cell) in [T.FOREST, T.TREE_EDGE, T.GRASS, T.GRASS2, T.GRASS3, T.SNOW]:
 		return Vector2.INF
 	for x in range(-3, 4):
 		for y in range(-3, 4):
 			var c := cell + Vector2i(x, y)
 			if _tile(c) == T.FOREST and absi(x) + absi(y) <= 4:
-				_put(c, T.TREE_EDGE if absi(x) + absi(y) >= 3 else T.GRASS2)
+				if absi(x) + absi(y) >= 3:
+					_put(c, T.TREE_EDGE, FROST if snow else 0)
+				else:
+					_put(c, T.SNOW if snow else T.GRASS2)
 	st.roofs = [3, 4]
 	st.fence = 0.0
 	st.trees = 0.0
@@ -1773,7 +1874,7 @@ func _likes(kind: String, cell: Vector2i) -> bool:
 
 
 ## Dev hook for screenshots (SMOKE=shot): SHOT_AT="x,y" moves the heli to that world position on the first tick.
-## A region name ("farm", "forest", "lake", "suburb", "waste", "highland", "river") jumps 440 px west of the nearest
+## A region name ("farm", "forest", "lake", "suburb", "waste", "highland", "river", "coast", "winter") jumps 440 px west of the nearest
 ## site in that region (so the scripted eastward flight ends over it), "farm:village" also forces its town template or
 ## landmark, a landmark name alone ("airfield") finds the nearest one; a trailing "-" picks a macro cell without a site.
 func _shot_jump() -> void:
@@ -1811,7 +1912,7 @@ func _landmark(s: Dictionary, rng: RandomNumberGenerator) -> void:
 	var c: Vector2i = s.center
 	var d := _dir(rng.randf() < 0.5)
 	var o := Vector2i(d.y, d.x)
-	var g: int = [T.GRASS, T.GRASS, T.GRASS2, T.GRASS, T.ASH, T.GRASS3, T.GRASS2][s.reg] # cleared ground
+	var g: int = [T.GRASS, T.GRASS, T.GRASS2, T.GRASS, T.ASH, T.GRASS3, T.GRASS2, T.GRASS3, T.SNOW][s.reg] # cleared ground
 	var dash := ACROSS if d.x != 0 else 0 # roads and wheel tracks running along d
 	var far := _mid(c, c).distance_to(_mid(START, START)) > 1600.0
 	match s.kind:
@@ -2045,6 +2146,8 @@ func _landmark(s: Dictionary, rng: RandomNumberGenerator) -> void:
 			var at := c + d * rng.randi_range(-30, 30) - o * 2
 			_poi("crate", _mid(at, at))
 			_out.ports = [c - d * L, c + d * L]
+		"hospital", "stadium", "power_plant", "harbour", "ski_lift":
+			_landmark2(s, c, d, o, g, rng)
 
 
 ## Paints c + d * u + o * v for u in u0..u1 and v in v0..v1 (inclusive) with t, except over water.
@@ -2085,3 +2188,131 @@ func _cars(c: Vector2i, d: Vector2i, o: Vector2i, ru: int, rv: int, n: int, rng:
 		_taken[cell] = true
 		var rot := Vector2(d).angle() + (0.0 if lanes else rng.randf_range(-0.6, 0.6)) + (PI if rng.randf() < 0.5 else 0.0)
 		_prop("car", _mid(cell, cell), rot, tint if tint != Color.WHITE else CARS[rng.randi() % CARS.size()])
+
+
+# ---------------------------------------------------------------- Q10 landmarks
+
+## The Q10 landmarks (docs/ROADMAP2.md): what they do at runtime is scripts/landmarks.gd (medics at the hospital, the
+## stadium horde, the power plant's part), the rest is plain POIs.
+func _landmark2(s: Dictionary, c: Vector2i, d: Vector2i, o: Vector2i, g: int, rng: RandomNumberGenerator) -> void:
+	var dash := ACROSS if d.x != 0 else 0
+	var far := _mid(c, c).distance_to(_mid(START, START)) > 1600.0
+	match s.kind:
+		"hospital": # a white block with a wing, an ambulance bay, a car park and a helipad
+			_clear(c, 19, 15, g)
+			_street(c - d * 22, d, 45, T.ROAD)
+			_area(c, d, o, -12, 17, 1, 3, T.ASPHALT) # ambulance bay
+			_area(c, d, o, -9, 9, 4, 9, T.BUILDING, ROOF_ALT)
+			_area(c, d, o, -3, 3, 10, 13, T.BUILDING, ROOF_ALT)
+			for u in range(11, 18):
+				_put(c + d * u + o * 4, T.PARKING, _bay_alt(-o))
+				_put(c + d * u + o * 5, T.ASPHALT)
+				_put(c + d * u + o * 6, T.PARKING, _bay_alt(-o))
+			_cars(c + d * 14 + o * 5, d, o, 3, 1, rng.randi_range(2, 5), rng)
+			_area(c, d, o, -17, -13, 4, 8, T.PLAZA)
+			_prop("helipad", _mid(c - d * 16 + o * 5, c - d * 14 + o * 7))
+			_cars(c + o * 2, d, o, 10, 0, 2, rng, Color.WHITE, true) # ambulances
+			_poi("survivors", _mid(c + o * 2, c + o * 2), rng.randi_range(3, 5)) # nurses and doctors: medics (landmarks.gd)
+			for u: int in [-5, 5]:
+				_poi("pharmacy", _mid(c + d * u + o * 4, c + d * u + o * 4))
+			_town(_mid(c + o * 7, c + o * 7)) # the wards are full of the dead
+			_town(_mid(c + d * 14 + o * 5, c + d * 14 + o * 5))
+			if far and rng.randf() < 0.5:
+				_poi("nest", _mid(c + o * 12 - d * 10, c + o * 12 - d * 10))
+			_out.ports = [c - d * 22, c + d * 22]
+		"stadium": # an oval of stands round the pitch, gates at both ends, a car park along the road
+			_clear(c, 26, 21, g)
+			for u in range(-19, 20):
+				for v in range(-14, 15):
+					var k := Vector2(u / 19.0, v / 14.0).length()
+					var cell := c + d * u + o * v
+					if k > 1.0 or _tile(cell) == T.WATER:
+						continue
+					if k > 0.74:
+						_put(cell, T.PLAZA if absi(v) <= 1 else T.WAREHOUSE, dash) # stands, gates on the long axis
+					else:
+						_put(cell, T.SAND if k > 0.62 else T.GRASS2) # running track, pitch
+			_street(c - d * 28 + o * 18, d, 57, T.ROAD)
+			_area(c, d, o, -18, 18, 16, 16, T.ASPHALT)
+			for u in range(-18, 19):
+				_put(c + d * u + o * 17, T.PARKING, _bay_alt(-o))
+			_cars(c + o * 16, d, o, 17, 1, rng.randi_range(4, 8), rng)
+			for p: Vector2i in [c - d * 6, c + d * 6, c + o * 5]: # the relief stores left on the pitch
+				_poi("crate", _mid(p, p))
+			_poi("upgrade", _mid(c - o * 5, c - o * 5))
+			_poi("water_tower", _mid(c + d * 20 + o * 16, c + d * 20 + o * 16))
+			_town(_mid(c, c))
+			_town(_mid(c + o * 16, c + o * 16))
+			_out.ports = [c - d * 28 + o * 18, c + d * 28 + o * 18]
+		"power_plant": # turbine hall and boiler house on a yard, two cooling towers, a switchyard, pylons along the road
+			_clear(c, 24, 17, g)
+			_area(c, d, o, -18, 18, -9, 9, T.ASPHALT)
+			_area(c, d, o, -14, -2, -7, -3, T.WAREHOUSE, dash) # turbine hall
+			_area(c, d, o, -14, -9, 2, 7, T.WAREHOUSE, dash) # boiler house
+			for k in 2:
+				_area(c, d, o, 3 + k * 6, 5 + k * 6, 3, 5, T.PAD)
+				_prop("cooling_tower", _mid(c + d * (3 + k * 6) + o * 3, c + d * (5 + k * 6) + o * 5))
+			var arm := PI / 2 if d.x != 0 else 0.0 # cross arms across the lines
+			for u in range(3, 17, 4):
+				for v: int in [-7, -4]:
+					_put(c + d * u + o * v, T.PAD)
+					_prop("pylon", _mid(c + d * u + o * v, c + d * u + o * v), PI / 2 - arm)
+			for k in range(1, 4):
+				var p := c + o * (10 + k * 4) + d * 2
+				_put(p, T.PAD)
+				_prop("pylon", _mid(p, p), arm)
+			_cars(c - d * 6 + o * 1, d, o, 6, 0, rng.randi_range(1, 3), rng)
+			_poi("scrapyard", _mid(c, c)) # the spare parts store: the power part (landmarks.gd)
+			if rng.randf() < 0.6:
+				_poi("crate", _mid(c - d * 16 + o * 7, c - d * 16 + o * 7))
+			_street(c + o * 10, o, 13, T.ROAD)
+			_out.ports = [c + o * 22]
+		"harbour": # a quay down to the water with warehouses, fuel tanks, piers and boats, a road inland
+			var w := _water_dir(c, HARBOUR_REACH + 2) # towards the water
+			if w == Vector2i.ZERO:
+				w = o # forced onto dry land (SHOT_AT)
+			var sd := Vector2i(w.y, w.x)
+			_clear(c - w * 6, 16, 16, g)
+			for u in range(-13, 14):
+				for v in range(-4, HARBOUR_REACH + 3):
+					var cell := c + sd * u + w * v
+					if _tile(cell) == T.WATER:
+						if v > 0 and posmod(u, 4) == 1 and _tile(cell + w) == T.WATER:
+							_pier(cell - w, w, rng.randf() < 0.7)
+						break
+					_put(cell, T.ASPHALT)
+			_area(c, sd, w, -12, -6, -4, -2, T.WAREHOUSE, ACROSS if sd.x != 0 else 0)
+			_area(c, sd, w, 6, 12, -4, -2, T.WAREHOUSE, ACROSS if sd.x != 0 else 0)
+			for k in 3:
+				_put(c + sd * (k * 2 - 2) - w * 4, T.PAD)
+				_prop("fuel_tank", _mid(c + sd * (k * 2 - 2) - w * 4, c + sd * (k * 2 - 2) - w * 4))
+			_cars(c, sd, w, 10, 0, rng.randi_range(1, 3), rng)
+			_poi("fuel_station", _mid(c - w, c - w))
+			_poi("scrapyard", _mid(c + sd * 9, c + sd * 9))
+			_poi("hideout", _mid(c - sd * 9 - w, c - sd * 9 - w), rng.randi_range(1, 3)) # fishermen in the sheds
+			if rng.randf() < 0.6:
+				_poi("crate", _mid(c + sd * 4 + w, c + sd * 4 + w))
+			_street(c - w * 5, -w, 14, T.ROAD)
+			_out.ports = [c - w * 18]
+		"ski_lift": # a cleared piste with the lift's pylons up the slope (some fallen), ruined stations at both ends
+			_area(c, d, o, -26, 26, -3, 3, T.SNOW)
+			for u in range(-20, 21, 5):
+				var p := c + d * u
+				if rng.randf() < 0.3:
+					_put(p, T.RUIN)
+					_prop("pylon", _mid(p, p), rng.randf() * TAU, BURNT)
+				else:
+					_put(p, T.PAD)
+					_prop("pylon", _mid(p, p), PI / 2 if d.x != 0 else 0.0)
+			for _i in 4: # chairs strewn down the piste
+				var t := c + d * rng.randi_range(-18, 18) + o * rng.randi_range(-2, 2)
+				if not _taken.has(t) and _painted(t) == T.SNOW:
+					_taken[t] = true
+					_prop("fence", _mid(t, t), rng.randf() * TAU, Color(0.85, 0.3, 0.25))
+			_area(c, d, o, -30, -27, -3, 2, T.RUIN) # valley station
+			_block(c - d * 28 + o * 4, c - d * 27 + o * 5, 4) # the ticket hut still stands
+			_area(c, d, o, 27, 30, -2, 2, T.RUIN) # top station
+			_poi("hideout", _mid(c - d * 28 + o * 4, c - d * 28 + o * 4), rng.randi_range(1, 3))
+			_poi("crate", _mid(c + d * 26 + o * 4, c + d * 26 + o * 4))
+			_street(c - d * 37, d, 7, T.DIRT_ROAD)
+			_out.ports = [c - d * 37]

@@ -44,6 +44,10 @@ const LOOT := { # per trip, by site kind; towns use "town", other landmarks "lan
 	"checkpoint": {"ammo": 300.0, "rifles": 1.0, "metal": 10.0},
 	"airfield": {"fuel": 120.0, "electronics": 10.0, "parts": 10.0},
 	"highway": {"parts": 30.0, "metal": 30.0, "fuel": 40.0},
+	"hospital": {"medicine": 10.0, "parts": 5.0, "electronics": 5.0},
+	"harbour": {"fuel": 130.0, "food": 25.0, "metal": 15.0},
+	"stadium": {"food": 80.0, "water": 40.0, "medicine": 3.0, "ammo": 100.0},
+	"power_plant": {"electronics": 25.0, "parts": 15.0, "metal": 20.0},
 	"landmark": {"metal": 20.0, "parts": 10.0, "food": 10.0},
 }
 const DEPLETE := 0.75 # yield factor per earlier trip to the same site

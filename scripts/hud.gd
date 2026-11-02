@@ -30,6 +30,7 @@ const MAP_COLORS := {
 	7: Color(0.7, 0.7, 0.68), 22: Color(0.66, 0.64, 0.6), 23: Color(0.62, 0.62, 0.6), # base floor, plaza, pad
 	12: Color(0.5, 0.5, 0.48), 19: Color(0.36, 0.34, 0.32), 20: Color(0.2, 0.18, 0.17), # rock, ash, crater
 	27: Color(0.45, 0.36, 0.26), # bridge
+	28: Color(0.86, 0.88, 0.9), 29: Color(0.66, 0.78, 0.84), 30: Color(0.8, 0.74, 0.52), # snow, ice, dunes (Q10)
 }
 const POI_COLORS := {
 	"survivors": Color(0.4, 1, 0.5), "hideout": Color(0.6, 0.9, 0.6), "crate": Color(1, 0.85, 0.3), "upgrade": Color(0.5, 0.8, 1),
