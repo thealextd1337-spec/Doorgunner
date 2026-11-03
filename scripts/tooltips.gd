@@ -99,6 +99,9 @@ const TIPS := {
 	"keys_reset": "Every action back to its default key.",
 	"keys_back": "Back to the ESC menu.",
 	"codex_close": "Close the help screen.",
+	"trade_buy": "Pay scrap for one unit. Every purchase raises that price a little; it falls back over the days.",
+	"trade_sell": "Sell a batch of surplus. The rate is poor and drops with every sale. The base keeps a few days of supplies.",
+	"trade_close": "Leave the trade window. The village keeps today's offer.",
 	"codex_controls": "Every key as it is set right now.",
 	"codex_enemies": "What you met out there.",
 	"codex_buildings": "What you built and what it does.",
@@ -117,7 +120,7 @@ static func tip(id: String) -> String:
 
 ## Tooltip of a BUILD_INFO tool: the table entry, or the line a building file brings along.
 static func building(kind: String) -> String:
-	return Buildings2.TIPS.get(kind, TIPS.get("build_" + kind, ""))
+	return Buildings3.TIPS.get(kind, Buildings2.TIPS.get(kind, TIPS.get("build_" + kind, "")))
 
 
 ## "Slow heavy shells that punch through.\nLv 1: ...\nLv 5: ..."

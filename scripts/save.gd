@@ -77,7 +77,7 @@ func has_run(s := "") -> bool: # s: another slot than the active one
 ## Writes run.sav. False when nothing was written: no run or the tutorial running. `cloud`: also offer it to the cloud
 ## backup (CloudSave rate-limits to one upload per 5 minutes); base.gd passes true on landing.
 func autosave(cloud := false) -> bool:
-	if not Game.running or Game.world == null or not is_instance_valid(Game.world) or is_instance_valid(Game.world.tutorial):
+	if not Game.running or Perf.scenario != "" or Game.world == null or not is_instance_valid(Game.world) or is_instance_valid(Game.world.tutorial): # S4: a perf scenario never touches the saved run
 		return false
 	_t = AUTOSAVE_SECONDS
 	var systems := {}
@@ -160,6 +160,8 @@ func load_run() -> bool:
 ## `cloud`: death / abandon, the cloud copy goes FIRST (CloudSave.forget writes its retry marker before this deletes
 ## the local files), otherwise a restore could undo the death.
 func delete_run(cloud := false) -> void:
+	if Perf.scenario != "":
+		return
 	if cloud:
 		CloudSave.forget(slot)
 	for p in [path(), path() + ".bak", path() + ".tmp"]:

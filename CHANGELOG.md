@@ -4,6 +4,30 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## 1.2.0 - 2026-11-03
+Something to spend scrap on late in a run, trade with your allied villages, and a performance readout for phones.
+- **Late buildings** (from day 20, or earlier once the perimeter is at level 2): the **Fortress Wall** (400 scrap)
+  turns your sandbags into walls with double hit points; up to two **Flak Emplacements** (500 each) shoot down RPG
+  and gunship rockets, hurt the gunship and burst on big waves; the **Command Post** (600) makes missions pay 25 %
+  more, lets one more mission be open and radios rival attacks shortly before they come; the **Supply Vault** (300)
+  stores 50 % more fuel and ammo and halves what a breach of the base costs. Flak (24 scrap a day each) and the
+  Command Post (16 a day) need upkeep; unpaid, they stand idle until the next morning that finds the scrap.
+- **Village trade:** land beside an allied village and press **T** (touch: TRADE). Each village has a small offer a
+  day: a recruit with a skill, electronics, medicine, rifles and food. Prices rise with each purchase and fall back
+  over the days. Spare food and water sell too, at poor rates, and the base always keeps three days of supplies.
+- **Performance on phones:** open the game with `?perf=1` and the frame-time readout stays on screen without a
+  keyboard; **COPY** puts the last readings on the clipboard so you can send them. `docs/PERF_TEST.md` describes
+  a fixed route to fly (in German); `&scenario=city` or `&scenario=bloodmoon` jumps straight to a busy situation
+  (never ranked, never saved).
+- **Balance** (a bot played 40-day runs in normal and evacuation mode, now building the late buildings and trading):
+  the scrap pile in the last ten days of a run is now about 300-1,300, and up to 2,200 in a rich run that lost its
+  villages (was 4,000-5,000 in 1.1.0). About as many people die as before, the evacuation succeeds on day 20 (19 in
+  1.1.0) and every run reached day 40. The Flak and Command Post upkeep was set to 24 and 16 scrap a day after these
+  runs: at half that, a run that finished its late buildings early still sat on nearly 2,000 scrap.
+- Fixes: the Command Post bonus counts when a mission pays out, so missions taken before it was built (or while it
+  stood idle) pay what the post shows at that moment. The Command Post only warns of the Alpha's assault when she
+  really joins it. Selling water keeps back enough for people sleeping outside, who drink twice as much.
+
 ## 1.1.0 - 2026-11-03
 The 1.1.0 release: everything from 1.0.0-beta.2 to beta.4 (details below), named rivals, and a balance pass over
 long runs.

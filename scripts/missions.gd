@@ -93,7 +93,7 @@ func available_types() -> Array:
 
 ## A new mission of `type` ("" = a random available type not open yet). {} if full or no target. `args` is for _make_<type>.
 func offer(type := "", args := {}) -> Dictionary:
-	if open.size() >= MAX_OPEN:
+	if open.size() >= MAX_OPEN + Buildings3.extra_missions():
 		return {}
 	var types: Array = [type] if type != "" else available_types().filter(func(t): return not open.any(func(m): return m["type"] == t))
 	types.shuffle()
@@ -128,8 +128,15 @@ func _reward(type: String) -> Dictionary:
 	return r
 
 
+## The reward as paid now: the Command Post bonus counts at payout, not when the mission was offered.
+func paid(r: Dictionary) -> Dictionary:
+	var f := Buildings3.reward_factor()
+	return r.merged({"scrap": roundi(r["scrap"] * f), "xp": roundi(r["xp"] * f)}, true)
+
+
 ## "55 scrap, 60 XP, +3 morale, an engineer, 6 parts, a key part"
-func reward_text(r: Dictionary) -> String:
+func reward_text(base: Dictionary) -> String:
+	var r := paid(base)
 	var parts := ["%d scrap" % r["scrap"], "%d XP" % r["xp"]]
 	if r["morale"] > 0.0:
 		parts.append("+%d morale" % r["morale"])
@@ -148,7 +155,7 @@ func _finish(m: Dictionary, ok: bool, expired := false) -> void:
 	_seen.erase(m["id"])
 	if ok:
 		completed += 1
-		var r: Dictionary = m["reward"]
+		var r := paid(m["reward"])
 		Game.scrap += r["scrap"]
 		Game.add_xp(r["xp"])
 		if r["morale"] > 0.0:
@@ -160,7 +167,7 @@ func _finish(m: Dictionary, ok: bool, expired := false) -> void:
 			Game.world.wrecks.add_key()
 		if r.has("person"):
 			_recruit(r["person"])
-		Game.radio("Command: %s complete. %s." % [m["title"], reward_text(r)])
+		Game.radio("Command: %s complete. %s." % [m["title"], reward_text(m["reward"])])
 	else:
 		Game.radio("Command: %s %s." % [m["title"], "window closed, we lost it" if expired else "failed"])
 	changed.emit()

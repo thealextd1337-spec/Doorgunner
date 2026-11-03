@@ -64,7 +64,7 @@ gemeinsamen Einhängepunkte vorher an (nur Gerüst, kein Feature):
 - **Einstellungen** nur über `Settings.register_*` (Q0), nie `settings_ui.gd` oder `SETTINGS_KEYS` direkt.
 - **Server-Stub/Tests:** eigene Funktion + eine Zeile in `RPCS` (Q0), eigene `server/test_0NN.sql`.
 - **Migrationsnummern fest vergeben:** Q2 `008_errors.sql`, Q3 `009_cloud_save.sql`, Q14 `010_daily_season.sql`.
-- **Tasten** (belegt: WASD/Pfeile, SPACE, Q, E, X, B, R, F, M, G, J, O, P, TAB, ESC, H und L im Titel, 1–9 im
+- **Tasten** (belegt: WASD/Pfeile, SPACE, Q, E, X, B, R, F, M, G, J, O, P, T (S2 Handel), TAB, ESC, H und L im Titel, 1–9 im
   Bau-Modus): Q6b **F1** (Hilfe/Codex), Q1 **F3** (Performance-Anzeige), Q13 **1–3** nur solange ein
   Entscheidungs-Dialog offen ist. Alle Tasten werden ab Q6b frei belegbar; die Defaults bleiben wie hier.
 

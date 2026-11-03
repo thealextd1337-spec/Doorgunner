@@ -14,7 +14,7 @@ const DANGER_PER_DAY := 0.08
 const ATTACK_EVERY_DAYS := 3
 const META_PATH := "user://meta.json" # before profiles: migrated into the first profile, kept as a backup
 const PROFILES_DIR := "user://profiles/"
-const SMOKE_NS := "_smoke" # headless tests (env SMOKE) get their own profiles.json and profile folders in PROFILES_DIR/_smoke/
+const SMOKE_NS := "_smoke" # headless tests (env SMOKE) get their own profiles.json and profile folders in PROFILES_DIR/_smoke/<process id>/ (parallel test runs must not share saves)
 const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
 const People := preload("res://scripts/people.gd")
@@ -107,7 +107,9 @@ const BUILDINGS := {"barracks": ["Barracks", 40, 90.0, 2], "clinic": ["Field Cli
 	"well": ["Well", 30, 60.0, 1], "watchtower": ["Watchtower", 35, 45.0, 1], "motor_pool": ["Motor Pool", 80, 90.0, 2], "perimeter": ["Perimeter", 60, 60.0, 0],
 	"radio": ["Radio Station", 90, 90.0, 2], "airstrip": ["Airstrip", 150, 120.0, 0], # radio / airstrip: evac.gd (airstrip: 4x24 cells, stored with "rot")
 	"hospital": ["Field Hospital", 110, 120.0, 2], "greenhouse": ["Greenhouse", 70, 75.0, 2], "forge": ["Forge", 100, 100.0, 2],
-	"bunker": ["Bunker", 130, 120.0, 2], "relay": ["Radio Relay", 100, 90.0, 1]} # the last five: buildings2.gd (mouse / touch only in the build bar)
+	"bunker": ["Bunker", 130, 120.0, 2], "relay": ["Radio Relay", 100, 90.0, 1], # buildings2.gd (mouse / touch only in the build bar)
+	"fortress": ["Fortress Wall", 400, 150.0, 2], "flak": ["Flak Emplacement", 500, 150.0, 2], "command": ["Command Post", 600, 180.0, 2],
+	"vault": ["Supply Vault", 300, 100.0, 2]} # the last four: buildings3.gd (late game, from day 20 or perimeter level 2)
 const BASE_RADIUS := 160.0
 const PERIMETER_STEP := 60.0
 const PERIMETER_MAX := 5
@@ -339,6 +341,11 @@ func food_eaters() -> float:
 	return n + campers()
 
 
+## Who drinks base water a day: everyone, campers double (they drink outside the shelters).
+func water_drinkers() -> int:
+	return rescued + campers()
+
+
 ## 4 beds per built barracks + 2 in the hangar.
 func housing() -> int:
 	return 4 * built("barracks") + 2
@@ -506,7 +513,7 @@ func _process(delta: float) -> void:
 	base_fuel = minf(base_fuel_cap, base_fuel + crew("fuel") * WORKER_RATE["fuel"] * w)
 	base_ammo = minf(base_ammo_cap, base_ammo + crew("ammo") * WORKER_RATE["ammo"] * w)
 	base_hp = minf(max_base_hp, base_hp + crew("repair") * WORKER_RATE["repair"] * w)
-	var eaters: int = rescued + campers() # campers eat and drink double
+	var eaters: int = water_drinkers()
 	base_food = maxf(0.0, base_food + crew("farm") * WORKER_RATE["farm"] * w - food_eaters() * FOOD_PER_PERSON * d)
 	base_water = maxf(0.0, base_water + crew("water") * WORKER_RATE["water"] * w + (built("well") * WELL_WATER * wells() - eaters * WATER_PER_PERSON) * d)
 	workshop_progress += crew("workshop") * WORKSHOP_RATE * w
@@ -641,6 +648,9 @@ func end_run(reason: String, victory := false) -> void:
 	if not running:
 		return
 	running = false
+	if Perf.scenario != "": # S4 perf scenario: no saved run to lose, no meta progress, nothing for the board
+		run_ended.emit(reason)
+		return
 	Save.delete_run(true) # Ironman: gone before the game-over screen shows (cloud copy first)
 	record_run(day, saved_count(), kills, victory or Evac.won()) # a death after STAY BEHIND still carries the victory
 	run_ended.emit(reason)
@@ -713,7 +723,7 @@ func _load_profiles() -> void:
 
 ## profiles.json missing or corrupt but profile folders exist: list them again instead of starting over.
 func _rebuild_profiles() -> bool:
-	var ids := DirAccess.get_directories_at(profiles_root())
+	var ids := DirAccess.get_directories_at(profiles_root()) if DirAccess.dir_exists_absolute(profiles_root()) else PackedStringArray() # a fresh smoke folder does not exist yet
 	for id in ids:
 		if id != SMOKE_NS:
 			profiles["list"].append({"id": id, "name": "Gunner %d" % profiles["list"].size(), "avatar": 0, "created": ""})
@@ -730,7 +740,21 @@ func smoke() -> bool:
 
 ## Folder holding the profile folders: a separate one under SMOKE, so no test can touch a player's profiles.
 func profiles_root() -> String:
-	return PROFILES_DIR + SMOKE_NS + "/" if smoke() else PROFILES_DIR
+	return "%s%s/%d/" % [PROFILES_DIR, SMOKE_NS, OS.get_process_id()] if smoke() else PROFILES_DIR
+
+
+## A test process removes its own profile folder on exit (it is never reused: the next process has another id).
+func _exit_tree() -> void:
+	if smoke():
+		_remove_dir(profiles_root())
+
+
+func _remove_dir(dir: String) -> void:
+	for d in DirAccess.get_directories_at(dir):
+		_remove_dir(dir + d + "/")
+	for f in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir + f)
+	DirAccess.remove_absolute(dir)
 
 
 ## {"list": [{id, name, avatar, created}], "last": id}
@@ -778,9 +802,10 @@ func version_text() -> String:
 ## meta["version"] holds the version that wrote the save until the next save (hook for migrating old saves).
 ## Also writes the global settings.json.
 func _save_meta() -> void:
-	meta["version"] = ProjectSettings.get_setting("application/config/version", "0.0.0")
-	DirAccess.make_dir_recursive_absolute(profile_dir())
-	FileAccess.open(profile_dir() + "meta.json", FileAccess.WRITE).store_string(JSON.stringify(meta))
+	if Perf.scenario == "": # S4 perf scenario: its codex / onboarding unlocks never reach the profile
+		meta["version"] = ProjectSettings.get_setting("application/config/version", "0.0.0")
+		DirAccess.make_dir_recursive_absolute(profile_dir())
+		FileAccess.open(profile_dir() + "meta.json", FileAccess.WRITE).store_string(JSON.stringify(meta))
 	Settings.save()
 
 
@@ -788,7 +813,7 @@ func _setup_input() -> void:
 	var keys := {
 		"move_up": [KEY_W, KEY_UP], "move_down": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
-		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R], "missions": [KEY_J], "outpost": [KEY_O], "protect": [KEY_P], "hook": [KEY_G],
+		"land": [KEY_SPACE], "restart": [KEY_R], "weapon_swap": [KEY_X], "menu": [KEY_ESCAPE], "yaw_left": [KEY_Q], "yaw_right": [KEY_E], "found": [KEY_B], "rotate": [KEY_R], "missions": [KEY_J], "outpost": [KEY_O], "protect": [KEY_P], "trade": [KEY_T], "hook": [KEY_G],
 		"perf": [KEY_F3], # Q1 performance overlay
 		"help": [KEY_F1], # Q6b help and codex (codex_ui.gd)
 		"system": [KEY_F], # loudspeaker

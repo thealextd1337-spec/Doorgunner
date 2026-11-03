@@ -6,6 +6,10 @@ extends CanvasLayer
 ## In the web build `?perf=1` in the URL (desktop: env PERF=1) prints the same numbers as one line every LOG_EVERY s,
 ## which ends up in the browser console and in `window.doorgunnerPerf`. "work" is the frame time without the idle wait
 ## (physics, process, redraws). The static helpers also pace the zombie AI (stride/skip) and the hit effects (fx_cap).
+## S4 (phones): with the perf flag the overlay is always on (top centre, clear of the touch pads) and has a COPY button that
+## puts the last COPY_LINES PERF lines plus build / user agent / screen / pixel ratio on the clipboard; if the browser refuses,
+## the same text shows in a selectable box. `?perf=1&scenario=bloodmoon|city` (desktop: env PERF_SCENARIO) makes main.gd start
+## a run straight in that situation: unranked, never saved (Save.autosave / delete_run and Game.end_run check `scenario`).
 
 const WINDOW_MS := 10000
 const LOG_EVERY := 10.0
@@ -16,13 +20,23 @@ const AI_CROWD := 100 # more enemies than this: the near ones think every 2nd fr
 const AI_FAR_STRIDE := 4 # off-screen enemies think every 4th frame (with the banked time)
 const SLOW_MS := 33.0 # p95 frame time above this shrinks the particle and corpse caps
 const FX_MIN := 0.25 # the caps never go below this share
+const COPY_LINES := 20
+const SCENARIOS := ["bloodmoon", "city"]
 
 static var acc := {"chunk": 0, "path": 0, "spawn": 0} # usec spent this frame
 static var fx := 1.0 # 1 while frames are fast, down to FX_MIN as p95 passes SLOW_MS (HitFx caps scale with it)
 static var _frame := -1
 static var _count := 0
+static var scenario := "" ## S4: "bloodmoon" / "city" while the URL (or env) asks for it under the perf flag, else ""
 
 var label: Label
+var box: VBoxContainer
+var copy_text_box: TextEdit # fallback when the clipboard is refused
+var copy_status: Label
+var lines: Array[String] = [] # the last COPY_LINES PERF lines
+var web := OS.has_feature("web") # tests/perfphone_test.gd flips these two to run the JS path headless
+var js := func(code: String) -> Variant: return JavaScriptBridge.eval(code)
+var _copy_wait := false
 var log_on := false
 var _times := PackedInt64Array() # ticks_msec per sampled frame
 var _ms := PackedFloat32Array() # frame time
@@ -65,21 +79,50 @@ func _ready() -> void:
 	visible = false
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	process_priority = 1000 # after every other node, so its deferred call closes the frame's work time
+	log_on = OS.get_environment("PERF") == "1" or web and str(js.call("new URLSearchParams(location.search).get('perf')")) == "1"
+	var want := ""
+	if log_on:
+		want = OS.get_environment("PERF_SCENARIO") if not web else str(js.call("new URLSearchParams(location.search).get('scenario')"))
+	scenario = want if want in SCENARIOS else ""
+	box = VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label = Label.new()
-	label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	label.offset_right = -UiTheme.MARGIN
-	label.offset_bottom = -UiTheme.MARGIN
-	label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	label.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	label.add_theme_color_override("font_color", UiTheme.SAND)
 	label.add_theme_color_override("font_outline_color", UiTheme.DARK_TEXT)
 	label.add_theme_constant_override("outline_size", 4)
-	UiTheme.attach(self).add_child(label)
+	box.add_child(label)
+	UiTheme.attach(self).add_child(box)
+	if log_on: # top centre, right of the status zone and under the alert line: the touch pads sit at the bottom and right
+		visible = true
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		label.add_theme_font_size_override("font_size", UiTheme.FONT_XS)
+		box.position = Vector2(320, 76)
+		var row := HBoxContainer.new()
+		row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(row)
+		var copy := Button.new()
+		copy.text = "COPY"
+		copy.custom_minimum_size = Vector2(UiTheme.TOUCH_MIN * 2, UiTheme.TOUCH_MIN)
+		copy.pressed.connect(copy_lines)
+		row.add_child(copy)
+		copy_status = Label.new()
+		copy_status.add_theme_color_override("font_outline_color", UiTheme.DARK_TEXT)
+		copy_status.add_theme_constant_override("outline_size", 4)
+		row.add_child(copy_status)
+		copy_text_box = TextEdit.new()
+		copy_text_box.editable = false
+		copy_text_box.custom_minimum_size = Vector2(560, 150)
+		copy_text_box.visible = false
+		box.add_child(copy_text_box)
+	else: # F3 overlay, bottom right
+		box.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+		box.offset_right = -UiTheme.MARGIN
+		box.offset_bottom = -UiTheme.MARGIN
+		box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		box.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	for k in KEYS:
 		_sys[k] = PackedFloat32Array()
-	log_on = OS.get_environment("PERF") == "1" or OS.has_feature("web") \
-		and str(JavaScriptBridge.eval("new URLSearchParams(location.search).get('perf')")) == "1"
 	if log_on: # Q14: compare with tests/daily_test.gd WORLD_HASH (the daily promises the same world on every platform)
 		var cm: GDScript = load("res://scripts/chunk_manager.gd")
 		print("WORLDHASH seed %d: %d" % [cm.HASH_SEED, cm.world_hash(cm.HASH_SEED)])
@@ -99,7 +142,7 @@ func _close_work() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("perf"):
+	if event.is_action_pressed("perf") and not log_on: # with the perf flag the overlay stays
 		visible = not visible
 		get_viewport().set_input_as_handled()
 
@@ -124,10 +167,55 @@ func _process(delta: float) -> void:
 	_log_t -= delta
 	if log_on and _log_t <= 0.0:
 		_log_t = LOG_EVERY
-		var line := "PERF " + text(stats()).replace("\n", " | ")
+		var line := perf_line()
 		print(line)
-		if OS.has_feature("web"): # also readable from the page: window.doorgunnerPerf (array of lines)
-			JavaScriptBridge.eval("(window.doorgunnerPerf = window.doorgunnerPerf || []).push(%s)" % JSON.stringify(line))
+		lines.append(line)
+		if lines.size() > COPY_LINES:
+			lines.pop_front()
+		if web: # also readable from the page: window.doorgunnerPerf (array of lines)
+			js.call("(window.doorgunnerPerf = window.doorgunnerPerf || []).push(%s)" % JSON.stringify(line))
+	if _copy_wait:
+		_poll_copy()
+
+
+func perf_line() -> String:
+	return "PERF " + text(stats()).replace("\n", " | ")
+
+
+## Header (build, scenario, browser) + the last PERF lines + one with the numbers right now.
+func copy_payload() -> String:
+	var env := {}
+	if web:
+		var r = js.call("JSON.stringify({ua: navigator.userAgent, screen: screen.width + 'x' + screen.height, window: innerWidth + 'x' + innerHeight, dpr: window.devicePixelRatio})")
+		var parsed = JSON.parse_string(str(r)) if r != null else null
+		env = parsed if parsed is Dictionary else {} # a browser answer is untrusted: anything but an object reads as n/a
+	var head := "Doorgunner %s | scenario %s | UA %s | screen %s | window %s | pixel ratio %s" % [
+		Game.version_text(), scenario if scenario != "" else "none",
+		env.get("ua", "n/a"), env.get("screen", "n/a"), env.get("window", "n/a"), env.get("dpr", "n/a")]
+	return "\n".join([head] + lines + [perf_line() + " (now)"])
+
+
+## COPY button: clipboard through the browser; refused or unavailable -> selectable text box (see _poll_copy).
+func copy_lines() -> void:
+	var t := copy_payload()
+	print(t)
+	copy_text_box.text = t
+	if not web:
+		DisplayServer.clipboard_set(t)
+		copy_status.text = " copied"
+		return
+	js.call("window.doorgunnerCopy = ''; (navigator.clipboard ? navigator.clipboard.writeText(%s) : Promise.reject()).then(function() { window.doorgunnerCopy = 'ok'; }, function() { window.doorgunnerCopy = 'fail'; })" % JSON.stringify(t))
+	_copy_wait = true
+	copy_status.text = " ..."
+
+
+func _poll_copy() -> void:
+	var r := str(js.call("window.doorgunnerCopy"))
+	if r == "":
+		return
+	_copy_wait = false
+	copy_status.text = " copied" if r == "ok" else " clipboard refused: select the text below and copy it"
+	copy_text_box.visible = r != "ok"
 
 
 ## Starts a fresh window (tests/perf_test.gd between scenarios).

@@ -47,24 +47,23 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	var from := position
 	position += dir * speed * delta
 	life -= delta
 	_travel += speed * delta
 	if lob_dist > 0.0:
 		_lob()
 		return
-	if life <= 0.0:
-		queue_free()
-		return
+	var last := life <= 0.0 # the step that ends the flight still hits what lies on it
 	if art != "bullet":
 		_sprite.modulate.a = clampf(life / life0 * 1.6, 0.0, 1.0) # flames and waves fade out
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e in hit_list:
 			continue
 		var r: float = e.radius + reach
-		if position.distance_squared_to(e.global_position) <= r * r:
+		if Geometry2D.get_closest_point_to_segment(e.global_position, from, position).distance_squared_to(e.global_position) <= r * r: # swept: a slow frame must not step over the target
 			var head := randf() < HEAD_CHANCE + HEAD_PER_OPTICS * Progression.level("optics") + head_bonus
-			e.hit(damage * (1.5 if life < life0 / 3.0 and Progression.level("optics") >= 5 else 1.0) * (1.0 - falloff * (1.0 - life / life0)), dir, head)
+			e.hit(damage * (1.5 if life < life0 / 3.0 and Progression.level("optics") >= 5 else 1.0) * (1.0 - falloff * (1.0 - maxf(life, 0.0) / life0)), dir, head)
 			_affect(e)
 			hit_list.append(e)
 			if chain > 0:
@@ -84,6 +83,8 @@ func _process(delta: float) -> void:
 				pierce += 1
 				dir = (next.global_position - position).normalized()
 				rotation = dir.angle()
+	if last:
+		queue_free()
 
 
 ## Status effects of a hit on `e`: fire, stun (not on bosses), shove.

@@ -61,7 +61,7 @@ func _run() -> void:
 	get_tree().quit(0)
 
 
-## The build bar with all 16 tools (radio, airstrip and the five Q9 buildings shown) stays clear of the minimap at 1280x720.
+## The build bar with all 20 tools (radio, airstrip, the five Q9 and the four S1 buildings shown) stays clear of the minimap at 1280x720.
 func _build_bar_clear() -> void:
 	var base: Node2D = Game.world.base
 	base.ui.open()
@@ -72,7 +72,7 @@ func _build_bar_clear() -> void:
 	await get_tree().process_frame
 	var bar: Rect2 = base.ui.build_bar.get_global_rect()
 	var map: Rect2 = Game.world.hud.minimap.get_global_rect()
-	assert(base.ui.build_bar.visible and base.ui.bar_btns.size() == 16, "build bar shown with 16 tools")
+	assert(base.ui.build_bar.visible and base.ui.bar_btns.size() == 20, "build bar shown with 20 tools")
 	assert(not bar.intersects(map) and bar.position.x >= 0.0, "build bar %s clear of the minimap %s" % [bar, map])
 	base.placing = false
 	base.ui.close()

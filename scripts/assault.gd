@@ -140,8 +140,8 @@ static func ram(e: Node2D, delta: float) -> bool:
 	var before: Vector2 = e.position
 	e._face(to)
 	e._step(to, delta, RAM_SPEED)
-	if e.position == before and _wall_ahead(e.position, to.normalized()):
-		e.state["detour"] = true # nothing to smash: a ram stuck there kept the assault going for ever (P18 long run)
+	if (e.position - before).dot(to.normalized()) < e.speed * RAM_SPEED * delta * 0.25 and _wall_ahead(e.position, to.normalized()):
+		e.state["detour"] = true # nothing to smash: a ram stuck there, or only sliding along it, kept the assault going for ever (P18 long run)
 	return true
 
 

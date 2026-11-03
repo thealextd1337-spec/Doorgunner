@@ -19,11 +19,14 @@ var wear: Node # wear.gd
 var missions: Node # missions.gd (radio missions, J)
 var events: Node # events.gd: radio events with choices (Q13)
 var outposts: Node2D # outposts.gd: outposts and allied villages
+var trade: Node # trade.gd: buying and selling at allied villages (S2)
+var trade_ui: CanvasLayer # T: the trade window
 var wrecks: Node2D # wrecks.gd: heli wrecks, sling hook, repairs, fleet (P15)
 var modifiers: Node # modifiers.gd: run modifiers (P15)
 var convoys: Node2D # convoys.gd: trucks on the road network (CONVOY tab)
 var evac: Node # evac.gd: radio contact, airstrip, final siege, optional victory
 var buildings2: Node # buildings2.gd: Field Hospital, Greenhouse, Forge, Bunker, Radio Relay
+var buildings3: Node # buildings3.gd: S1 Fortress Wall, Flak Emplacement, Command Post, Supply Vault
 var landmarks: Node # landmarks.gd: what the Q10 hospital, stadium and power plant do
 var bosses: Node # bosses.gd: Q12 matriarch, juggernaut, hive, warlord
 var nemesis: Node # nemesis.gd: Q15 named rivals and the gunship
@@ -39,13 +42,24 @@ const NAV_TTL_MS := Vector2i(1000, 1500) # a cached nav grid is rebuilt after a 
 const PATH_CACHE_MAX := 1024 # cached paths (a horde from the same cells to the same goal shares them)
 
 
+## A test that names `const SEED` runs in that world with that RNG state, not a random one (its scenario needs open ground, camps or terrain); RUN_SEED still overrides.
+func _smoke_seed() -> int:
+	var path := "res://tests/%s_test.gd" % OS.get_environment("SMOKE")
+	if not Game.smoke() or OS.get_environment("RUN_SEED") != "" or not ResourceLoader.exists(path):
+		return -1
+	var s: int = load(path).get_script_constant_map().get("SEED", -1)
+	if s >= 0:
+		seed(s) # the global RNG too: random spawns and AI rolls repeat
+	return s
+
+
 func _ready() -> void:
 	Game.world = self
 	var daily: Dictionary = Online.daily_run # DAILY on the title (Q14): this reload starts it, in the save slot "daily"
 	var loaded := Save.pending and Save.load_run() # CONTINUE (the title set Save.slot); each hook below loads as it registers
 	if not loaded:
 		Save.slot = "run" if daily.is_empty() else "daily" # the title and NEW RUN use the normal slot
-		Game.new_run(daily.get("seed", -1), daily.get("modifiers", []), "normal" if daily.is_empty() else "daily")
+		Game.new_run(daily.get("seed", _smoke_seed()), daily.get("modifiers", []), "normal" if daily.is_empty() else "daily")
 	Save.register("game", Game.save_state, Game.load_state) # before chunks: the replay needs Game.seed
 	chunks = preload("res://scripts/chunk_manager.gd").new()
 	add_child(chunks)
@@ -81,6 +95,8 @@ func _ready() -> void:
 	add_child(wear)
 	outposts = preload("res://scripts/outposts.gd").new() # registers its own save hook
 	add_child(outposts)
+	trade = preload("res://scripts/trade.gd").new() # S2, after outposts; registers its own save hook
+	add_child(trade)
 	wrecks = preload("res://scripts/wrecks.gd").new() # registers its own save hook
 	add_child(wrecks)
 	modifiers = preload("res://scripts/modifiers.gd").new() # registers its own save hook
@@ -91,6 +107,8 @@ func _ready() -> void:
 	add_child(evac)
 	buildings2 = preload("res://scripts/buildings2.gd").new() # registers its own save hook
 	add_child(buildings2)
+	buildings3 = preload("res://scripts/buildings3.gd").new() # registers its own save hook
+	add_child(buildings3)
 	landmarks = preload("res://scripts/landmarks.gd").new() # registers its own save hook
 	add_child(landmarks)
 	bosses = preload("res://scripts/bosses.gd").new() # registers its own save hook
@@ -113,7 +131,7 @@ func _ready() -> void:
 	var test: String = {"1": "smoke", "poi": "poi_test", "ui": "ui_test", "shot": "shot", "prog": "progression_test", "tut": "tutorial_test"}.get(smoke, "")
 	if test == "" and smoke != "" and ResourceLoader.exists("res://tests/%s_test.gd" % smoke): # SMOKE=<name> runs tests/<name>_test.gd
 		test = smoke + "_test"
-	if test != "" and not test in ["found_test", "shot", "save_test"] and not loaded: # the older tests expect a founded, empty base at the start site
+	if test != "" and not test in ["found_test", "shot", "save_test", "perfphone_test"] and not loaded: # the older tests expect a founded, empty base at the start site
 		Game.passengers = 0
 		found_base(BASE_POS)
 		base.ui.close()
@@ -121,6 +139,8 @@ func _ready() -> void:
 		add_child(load("res://tests/%s.gd" % test).new())
 	elif not loaded and Game.mode == "daily":
 		start_run(Game.start_mods, daily.get("heli", "huey"), "daily")
+	elif not loaded and Perf.scenario != "":
+		_perf_scenario(Perf.scenario)
 	elif not loaded:
 		_show_title()
 	if loaded:
@@ -143,8 +163,34 @@ func _add_ui_layers() -> void:
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	add_child(preload("res://scripts/perf.gd").new()) # Q1: F3 performance overlay, ?perf=1 console log
 	add_child(preload("res://scripts/touch_ui.gd").new()) # Q5: sticks and buttons while Controls.touch is on
+	trade_ui = preload("res://scripts/trade_ui.gd").new() # S2: T beside an allied village (under the help screen)
+	add_child(trade_ui)
 	codex_ui = preload("res://scripts/codex_ui.gd").new() # Q6b: F1 help and codex
 	add_child(codex_ui)
+
+
+## S4: `?perf=1&scenario=...` (Perf.scenario) skips the title and starts a run in the situation to measure. No
+## Online.begin_run (the run stays unranked), no tutorial; Save and Game.end_run leave the profile alone while it is set.
+func _perf_scenario(name: String) -> void:
+	Game.running = true
+	ui_open = false
+	hud.visible = true
+	modifiers.start([], false)
+	wrecks.set_start_type("huey", false)
+	Game.radio("PERF TEST: %s - unranked, not saved." % name)
+	if name == "bloodmoon":
+		found_base(BASE_POS)
+		base.ui.close()
+		heli.landed = false
+		Game.day = Game.first_assault_day + 6 # Assault.blood_moon(day): the 9th night from founding
+		Game.time = 0.78
+		Game.attack_pending = true # Game._process starts the assault at 0.8
+	else:
+		var sites: Array = chunks.sites_near(BASE_POS, 40000.0, "city")
+		if sites.is_empty():
+			sites = chunks.sites_near(BASE_POS, 40000.0).filter(func(s): return s.kind in chunks.TOWN_SIZE)
+		heli.position = sites[0].pos - Vector2.RIGHT.rotated(randf() * TAU) * 1500.0
+		heli.landed = false
 
 
 func _show_title() -> void:

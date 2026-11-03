@@ -44,7 +44,7 @@ func _ready() -> void:
 ## The base was breached and the bunker held the survivors: the assault is over but not held.
 func breached() -> void:
 	_in_attack = false
-	add(BREACH, "base breached")
+	add(BREACH * Buildings3.breach_factor(), "base breached")
 
 
 ## Work rate factor for Game.work_eff.
