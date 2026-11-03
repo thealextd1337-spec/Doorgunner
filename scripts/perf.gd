@@ -187,7 +187,8 @@ func copy_payload() -> String:
 	var env := {}
 	if web:
 		var r = js.call("JSON.stringify({ua: navigator.userAgent, screen: screen.width + 'x' + screen.height, window: innerWidth + 'x' + innerHeight, dpr: window.devicePixelRatio})")
-		env = JSON.parse_string(str(r)) if r != null else {}
+		var parsed = JSON.parse_string(str(r)) if r != null else null
+		env = parsed if parsed is Dictionary else {} # a browser answer is untrusted: anything but an object reads as n/a
 	var head := "Doorgunner %s | scenario %s | UA %s | screen %s | window %s | pixel ratio %s" % [
 		Game.version_text(), scenario if scenario != "" else "none",
 		env.get("ua", "n/a"), env.get("screen", "n/a"), env.get("window", "n/a"), env.get("dpr", "n/a")]

@@ -171,8 +171,8 @@ func buy(id: String, i: int) -> bool:
 ## The part of `good` that may be sold: what the base holds beyond `keep_days` days of use.
 func spare(good: String) -> float:
 	var have: float = Game.base_food if good == "food" else Game.base_water
-	var per: float = Game.FOOD_PER_PERSON if good == "food" else Game.WATER_PER_PERSON
-	return have - Game.food_eaters() * per * SELL[good]["keep_days"]
+	var use: float = Game.food_eaters() * Game.FOOD_PER_PERSON if good == "food" else Game.water_drinkers() * Game.WATER_PER_PERSON # same formulas as the daily tick
+	return have - use * SELL[good]["keep_days"]
 
 
 func sell_problem(id: String, good: String) -> String:

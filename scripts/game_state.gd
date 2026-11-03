@@ -341,6 +341,11 @@ func food_eaters() -> float:
 	return n + campers()
 
 
+## Who drinks base water a day: everyone, campers double (they drink outside the shelters).
+func water_drinkers() -> int:
+	return rescued + campers()
+
+
 ## 4 beds per built barracks + 2 in the hangar.
 func housing() -> int:
 	return 4 * built("barracks") + 2
@@ -508,7 +513,7 @@ func _process(delta: float) -> void:
 	base_fuel = minf(base_fuel_cap, base_fuel + crew("fuel") * WORKER_RATE["fuel"] * w)
 	base_ammo = minf(base_ammo_cap, base_ammo + crew("ammo") * WORKER_RATE["ammo"] * w)
 	base_hp = minf(max_base_hp, base_hp + crew("repair") * WORKER_RATE["repair"] * w)
-	var eaters: int = rescued + campers() # campers eat and drink double
+	var eaters: int = water_drinkers()
 	base_food = maxf(0.0, base_food + crew("farm") * WORKER_RATE["farm"] * w - food_eaters() * FOOD_PER_PERSON * d)
 	base_water = maxf(0.0, base_water + crew("water") * WORKER_RATE["water"] * w + (built("well") * WELL_WATER * wells() - eaters * WATER_PER_PERSON) * d)
 	workshop_progress += crew("workshop") * WORKSHOP_RATE * w
@@ -797,9 +802,10 @@ func version_text() -> String:
 ## meta["version"] holds the version that wrote the save until the next save (hook for migrating old saves).
 ## Also writes the global settings.json.
 func _save_meta() -> void:
-	meta["version"] = ProjectSettings.get_setting("application/config/version", "0.0.0")
-	DirAccess.make_dir_recursive_absolute(profile_dir())
-	FileAccess.open(profile_dir() + "meta.json", FileAccess.WRITE).store_string(JSON.stringify(meta))
+	if Perf.scenario == "": # S4 perf scenario: its codex / onboarding unlocks never reach the profile
+		meta["version"] = ProjectSettings.get_setting("application/config/version", "0.0.0")
+		DirAccess.make_dir_recursive_absolute(profile_dir())
+		FileAccess.open(profile_dir() + "meta.json", FileAccess.WRITE).store_string(JSON.stringify(meta))
 	Settings.save()
 
 

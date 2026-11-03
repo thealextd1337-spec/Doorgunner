@@ -138,6 +138,12 @@ func _run() -> void:
 	Game.base_water = 500.0
 	var w0: int = Game.scrap
 	check(tr.sell(id, "water") and Game.scrap == w0 + 3 and tr.sell_problem(id, "gold") != "", "water sells for 3, they do not buy gold")
+	# the water reserve counts campers double, like the daily water tick
+	var r0: int = Game.rescued
+	Game.rescued = Game.housing() + 4
+	check(Game.campers() == 4, "4 campers")
+	check(is_equal_approx(tr.spare("water"), Game.base_water - (Game.rescued + 4) * Game.WATER_PER_PERSON * tr.SELL["water"]["keep_days"]), "campers drink double in the reserve: %.1f" % tr.spare("water"))
+	Game.rescued = r0
 	Game.day += 15
 	check(tr.payout(id, "food") == 4, "the market recovers: %d" % tr.payout(id, "food"))
 	# --- save and load: offer, stock and heat of each village; old saves have none

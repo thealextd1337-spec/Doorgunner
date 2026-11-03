@@ -77,6 +77,12 @@ func _run() -> void:
 		check(want in rows[0], "header has '%s': %s" % [want, rows[0]])
 	check(rows[1].begins_with("PERF FPS") and rows[-1].ends_with("(now)"), "lines then the live line")
 	check(sent.size() == 1 and "writeText" in sent[0] and JSON.stringify(rows[1]).trim_prefix('"').trim_suffix('"') in sent[0], "clipboard call carries the text")
+	var real_js: Callable = perf.js
+	for odd in ["[1, 2]", "42", "null"]:
+		perf.js = func(_code: String) -> Variant: return odd
+		check("UA n/a" in perf.copy_payload().split("
+")[0], "an odd browser answer reads as n/a: %s" % odd)
+	perf.js = real_js
 	await get_tree().process_frame
 	check(perf.copy_status.text == " copied" and not perf.copy_text_box.visible, "clipboard ok: '%s'" % perf.copy_status.text)
 	answer[0] = "fail"
@@ -127,6 +133,10 @@ func _run() -> void:
 	Game.end_run("test")
 	check(FileAccess.file_exists(Save.path()) and Game.meta["runs"] == runs, "death in a scenario keeps the saved run and the meta")
 	DirAccess.remove_absolute(Save.path())
+	Game.meta["perfphone_marker"] = true # an unlock inside the scenario (codex, onboarding) must not be written
+	Game._save_meta()
+	var mf := Game.profile_dir() + "meta.json"
+	check(not FileAccess.file_exists(mf) or not "perfphone_marker" in FileAccess.get_file_as_string(mf), "a scenario never writes the meta")
 	Perf.scenario = ""
 	Game.meta = keep_meta
 	_finish()

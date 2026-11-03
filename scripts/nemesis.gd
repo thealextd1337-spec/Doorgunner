@@ -503,7 +503,7 @@ func _attack_due() -> void:
 	var r: Dictionary = rivals.get("warlord", {})
 	_command_ahead(r, "warlord", r.get("attack_day", -1) == Game.day, "Command Post: radar shows %s's gunship lifting off. It comes for the base within the hour.")
 	var a: Dictionary = rivals.get("alpha", {})
-	_command_ahead(a, "alpha", not a.is_empty() and Game.day >= a["next_raid"] and Assault.night_taken(Game.day), "Command Post: the horde is massing, and %s walks in front of it. The assault comes within the hour.")
+	_command_ahead(a, "alpha", _alpha_joins(Game.day) and Assault.night_taken(Game.day), "Command Post: the horde is massing, and %s walks in front of it. The assault comes within the hour.")
 	if not r.is_empty() and is_instance_valid(gunship) and not gunship.fleeing and gunship.day < Game.day and Game.time >= Assault.DAWN and Game.time < ATTACK_AT:
 		gunship.fleeing = true # daylight: he gives up (no escape counted, he keeps his damage)
 		say(r, "dawn")
@@ -552,10 +552,16 @@ func spawn_gunship(r: Dictionary, at := Vector2.INF) -> Node2D:
 
 
 ## The Alpha leads the assault that just began (stage 3, once every ATTACK_GAP days): she and her push join the wave.
-func _on_assault(day: int) -> void:
+## True if the Alpha's push joins the assault of `day` (the Command Post warns only then).
+func _alpha_joins(day: int) -> bool:
 	var r: Dictionary = rivals.get("alpha", {})
-	if r.is_empty() or r["stage"] < 3 or r["away"] >= 0 or day < r["next_raid"] or not Game.base_founded:
+	return not r.is_empty() and r["stage"] >= 3 and r["away"] < 0 and day >= r["next_raid"] and Game.base_founded
+
+
+func _on_assault(day: int) -> void:
+	if not _alpha_joins(day):
 		return
+	var r: Dictionary = rivals["alpha"]
 	r["next_raid"] = day + ATTACK_GAP
 	var e := body_of(r)
 	if e == null:

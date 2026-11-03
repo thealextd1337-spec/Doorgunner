@@ -297,7 +297,7 @@ func _command() -> void:
 	var lo := 1000
 	var hi := 0
 	for i in 60:
-		var r: Dictionary = m._reward("camp")
+		var r: Dictionary = m.paid(m._reward("camp"))
 		lo = mini(lo, r["scrap"])
 		hi = maxi(hi, r["scrap"])
 		assert(r["xp"] == roundi(150 * 1.25), "xp +25 %%: %d" % r["xp"])
@@ -317,7 +317,25 @@ func _command() -> void:
 	var fourth: Dictionary = m.offer("camp")
 	assert(not fourth.is_empty() and m.open.size() == m.MAX_OPEN + 1, "command post: a fourth mission")
 	assert(m.offer("rooftop").is_empty(), "but not a fifth")
-	assert(fourth["reward"]["scrap"] >= 75, "and it pays more: %s" % [fourth["reward"]])
+	assert(m.paid(fourth["reward"])["scrap"] >= 75, "and it pays more: %s" % [fourth["reward"]])
+	# the bonus counts at payout: an offer taken while the post was idle still pays +25 %, and the other way round
+	var base_scrap: int = fourth["reward"]["scrap"]
+	assert(base_scrap <= 100 and "%d scrap" % roundi(base_scrap * 1.25) in m.reward_text(fourth["reward"]), "text shows the bonus")
+	b3.unpaid["command"] = true
+	assert(("%d scrap" % base_scrap) in m.reward_text(fourth["reward"]), "idle post: text without the bonus")
+	var gain: float = Game.stats["xp_gain"]
+	Game.stats["xp_gain"] = 0.0 # at the level cap XP turns into scrap: keep it out of the count
+	var s0 := Game.scrap
+	fourth["reward"].erase("person")
+	m._finish(fourth, true)
+	assert(Game.scrap == s0 + base_scrap, "idle post at payout: no bonus")
+	b3.unpaid.erase("command")
+	var fifth: Dictionary = m._add("rooftop", {"pos": Vector2(900, 0), "text": "x", "state": {}})
+	fifth["reward"].erase("person")
+	s0 = Game.scrap
+	m._finish(fifth, true)
+	assert(Game.scrap == s0 + roundi(fifth["reward"]["scrap"] * 1.25), "active post at payout: bonus")
+	Game.stats["xp_gain"] = gain
 	m.open.clear()
 	bandits.camps.erase(site.uid)
 	# radio ahead
@@ -346,6 +364,23 @@ func _command() -> void:
 	nem.rivals["warlord"]["attack_day"] = day + 2
 	nem._attack_due()
 	assert(not _logged("Command Post"), "not on another day")
+	# the Alpha: warned only when her push will really join tonight's assault (same rule as _on_assault)
+	nem.rivals.clear()
+	nem.rivals["alpha"] = {"kind": "alpha", "name": "Test Mother", "trait": "brutal", "gen": 1, "stage": 3, "since": 1, "met": true, "escapes": 0, "away": -1, "raids": 2,
+		"next_raid": day + 1, "attack_day": -1, "hp": 1.0, "camp": "", "engaged": false, "spawn": false}
+	var pending: bool = Game.attack_pending
+	Game.attack_pending = true # an assault tonight
+	b3.warned = {}
+	nem._attack_due()
+	assert(not _logged("Command Post"), "her next push is not due yet: no warning")
+	nem.rivals["alpha"]["next_raid"] = day
+	Game.base_founded = false
+	nem._attack_due()
+	Game.base_founded = true
+	assert(not _logged("Command Post"), "no base, no push: no warning")
+	nem._attack_due()
+	assert(_logged("Command Post: the horde is massing, and Test Mother"), "her push joins: warned: %s" % [radio_log])
+	Game.attack_pending = pending
 	nem.rivals.clear()
 	Game.time = 0.25
 	b3.warned = {}

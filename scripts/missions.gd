@@ -119,8 +119,7 @@ func _add(type: String, m: Dictionary) -> Dictionary:
 
 func _reward(type: String) -> Dictionary:
 	var t: Dictionary = TYPES[type]
-	var f := Buildings3.reward_factor() # Command Post
-	var r := {"scrap": roundi(randi_range(t["scrap"].x, t["scrap"].y) * f), "xp": roundi(t["xp"] * f), "morale": t["morale"]}
+	var r := {"scrap": randi_range(t["scrap"].x, t["scrap"].y), "xp": t["xp"], "morale": t["morale"]}
 	if randf() < t["person"]:
 		r["person"] = PERSON_SKILLS.pick_random()
 	if type == "blackbox":
@@ -129,8 +128,15 @@ func _reward(type: String) -> Dictionary:
 	return r
 
 
+## The reward as paid now: the Command Post bonus counts at payout, not when the mission was offered.
+func paid(r: Dictionary) -> Dictionary:
+	var f := Buildings3.reward_factor()
+	return r.merged({"scrap": roundi(r["scrap"] * f), "xp": roundi(r["xp"] * f)}, true)
+
+
 ## "55 scrap, 60 XP, +3 morale, an engineer, 6 parts, a key part"
-func reward_text(r: Dictionary) -> String:
+func reward_text(base: Dictionary) -> String:
+	var r := paid(base)
 	var parts := ["%d scrap" % r["scrap"], "%d XP" % r["xp"]]
 	if r["morale"] > 0.0:
 		parts.append("+%d morale" % r["morale"])
@@ -149,7 +155,7 @@ func _finish(m: Dictionary, ok: bool, expired := false) -> void:
 	_seen.erase(m["id"])
 	if ok:
 		completed += 1
-		var r: Dictionary = m["reward"]
+		var r := paid(m["reward"])
 		Game.scrap += r["scrap"]
 		Game.add_xp(r["xp"])
 		if r["morale"] > 0.0:
@@ -161,7 +167,7 @@ func _finish(m: Dictionary, ok: bool, expired := false) -> void:
 			Game.world.wrecks.add_key()
 		if r.has("person"):
 			_recruit(r["person"])
-		Game.radio("Command: %s complete. %s." % [m["title"], reward_text(r)])
+		Game.radio("Command: %s complete. %s." % [m["title"], reward_text(m["reward"])])
 	else:
 		Game.radio("Command: %s %s." % [m["title"], "window closed, we lost it" if expired else "failed"])
 	changed.emit()
