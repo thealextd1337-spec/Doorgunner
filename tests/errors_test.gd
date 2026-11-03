@@ -8,8 +8,8 @@ extends Node
 ##   grep "SCRIPT ERROR" | grep -v ERRORS-TEST
 ## must stay empty (the full-suite loop of docs/ROADMAP2.md).
 
-const PORT := 18766
-const BASE := "http://127.0.0.1:18766"
+var PORT := 20000 + OS.get_process_id() % 20000 # one stub per test process: parallel runs must not share a server
+var BASE := "http://127.0.0.1:%d" % PORT
 
 var _bad: PackedStringArray = []
 var _pid := -1

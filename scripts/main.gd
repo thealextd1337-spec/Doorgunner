@@ -39,13 +39,24 @@ const NAV_TTL_MS := Vector2i(1000, 1500) # a cached nav grid is rebuilt after a 
 const PATH_CACHE_MAX := 1024 # cached paths (a horde from the same cells to the same goal shares them)
 
 
+## A test that names `const SEED` runs in that world with that RNG state, not a random one (its scenario needs open ground, camps or terrain); RUN_SEED still overrides.
+func _smoke_seed() -> int:
+	var path := "res://tests/%s_test.gd" % OS.get_environment("SMOKE")
+	if not Game.smoke() or OS.get_environment("RUN_SEED") != "" or not ResourceLoader.exists(path):
+		return -1
+	var s: int = load(path).get_script_constant_map().get("SEED", -1)
+	if s >= 0:
+		seed(s) # the global RNG too: random spawns and AI rolls repeat
+	return s
+
+
 func _ready() -> void:
 	Game.world = self
 	var daily: Dictionary = Online.daily_run # DAILY on the title (Q14): this reload starts it, in the save slot "daily"
 	var loaded := Save.pending and Save.load_run() # CONTINUE (the title set Save.slot); each hook below loads as it registers
 	if not loaded:
 		Save.slot = "run" if daily.is_empty() else "daily" # the title and NEW RUN use the normal slot
-		Game.new_run(daily.get("seed", -1), daily.get("modifiers", []), "normal" if daily.is_empty() else "daily")
+		Game.new_run(daily.get("seed", _smoke_seed()), daily.get("modifiers", []), "normal" if daily.is_empty() else "daily")
 	Save.register("game", Game.save_state, Game.load_state) # before chunks: the replay needs Game.seed
 	chunks = preload("res://scripts/chunk_manager.gd").new()
 	add_child(chunks)
