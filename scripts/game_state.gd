@@ -641,6 +641,9 @@ func end_run(reason: String, victory := false) -> void:
 	if not running:
 		return
 	running = false
+	if Perf.scenario != "": # S4 perf scenario: no saved run to lose, no meta progress, nothing for the board
+		run_ended.emit(reason)
+		return
 	Save.delete_run(true) # Ironman: gone before the game-over screen shows (cloud copy first)
 	record_run(day, saved_count(), kills, victory or Evac.won()) # a death after STAY BEHIND still carries the victory
 	run_ended.emit(reason)

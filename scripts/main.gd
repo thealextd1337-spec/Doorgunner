@@ -113,7 +113,7 @@ func _ready() -> void:
 	var test: String = {"1": "smoke", "poi": "poi_test", "ui": "ui_test", "shot": "shot", "prog": "progression_test", "tut": "tutorial_test"}.get(smoke, "")
 	if test == "" and smoke != "" and ResourceLoader.exists("res://tests/%s_test.gd" % smoke): # SMOKE=<name> runs tests/<name>_test.gd
 		test = smoke + "_test"
-	if test != "" and not test in ["found_test", "shot", "save_test"] and not loaded: # the older tests expect a founded, empty base at the start site
+	if test != "" and not test in ["found_test", "shot", "save_test", "perfphone_test"] and not loaded: # the older tests expect a founded, empty base at the start site
 		Game.passengers = 0
 		found_base(BASE_POS)
 		base.ui.close()
@@ -121,6 +121,8 @@ func _ready() -> void:
 		add_child(load("res://tests/%s.gd" % test).new())
 	elif not loaded and Game.mode == "daily":
 		start_run(Game.start_mods, daily.get("heli", "huey"), "daily")
+	elif not loaded and Perf.scenario != "":
+		_perf_scenario(Perf.scenario)
 	elif not loaded:
 		_show_title()
 	if loaded:
@@ -145,6 +147,30 @@ func _add_ui_layers() -> void:
 	add_child(preload("res://scripts/touch_ui.gd").new()) # Q5: sticks and buttons while Controls.touch is on
 	codex_ui = preload("res://scripts/codex_ui.gd").new() # Q6b: F1 help and codex
 	add_child(codex_ui)
+
+
+## S4: `?perf=1&scenario=...` (Perf.scenario) skips the title and starts a run in the situation to measure. No
+## Online.begin_run (the run stays unranked), no tutorial; Save and Game.end_run leave the profile alone while it is set.
+func _perf_scenario(name: String) -> void:
+	Game.running = true
+	ui_open = false
+	hud.visible = true
+	modifiers.start([], false)
+	wrecks.set_start_type("huey", false)
+	Game.radio("PERF TEST: %s - unranked, not saved." % name)
+	if name == "bloodmoon":
+		found_base(BASE_POS)
+		base.ui.close()
+		heli.landed = false
+		Game.day = Game.first_assault_day + 6 # Assault.blood_moon(day): the 9th night from founding
+		Game.time = 0.78
+		Game.attack_pending = true # Game._process starts the assault at 0.8
+	else:
+		var sites: Array = chunks.sites_near(BASE_POS, 40000.0, "city")
+		if sites.is_empty():
+			sites = chunks.sites_near(BASE_POS, 40000.0).filter(func(s): return s.kind in chunks.TOWN_SIZE)
+		heli.position = sites[0].pos - Vector2.RIGHT.rotated(randf() * TAU) * 1500.0
+		heli.landed = false
 
 
 func _show_title() -> void:
