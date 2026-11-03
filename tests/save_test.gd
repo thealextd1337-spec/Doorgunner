@@ -9,6 +9,7 @@ extends Node
 
 const T := preload("res://scripts/chunk_manager.gd").T
 const NAME := "SaveTest"
+const SEED := 3 # main.gd _smoke_seed: the 10 chunks around the base must hold a POI to land at (not every random world does)
 
 
 func _ready() -> void:

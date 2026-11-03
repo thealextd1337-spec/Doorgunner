@@ -6,8 +6,8 @@ extends Node
 ## reconnect). Profiles live in the SMOKE namespace (Game.profiles_path), never in the player's profiles.
 ## Failures are collected so one run lists all of them.
 
-const PORT := 18766
-const BASE := "http://127.0.0.1:18766"
+var PORT: int = preload("res://tests/stub_port.gd").free_port() # a free port per process: parallel runs and stale stubs must not collide
+var BASE := "http://127.0.0.1:%d" % PORT
 
 var _bad: PackedStringArray = []
 var _pid := -1

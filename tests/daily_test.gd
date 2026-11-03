@@ -9,8 +9,8 @@ extends Node
 ## Web check of the world hash: open the web build with ?perf=1, the console prints "WORLDHASH seed 20261102: <n>" once;
 ## <n> must equal WORLD_HASH below (FastNoiseLite and hash() give the same numbers in wasm as on desktop).
 
-const PORT := 18767
-const BASE := "http://127.0.0.1:18767"
+var PORT: int = preload("res://tests/stub_port.gd").free_port() # a free port per process: parallel runs and stale stubs must not collide
+var BASE := "http://127.0.0.1:%d" % PORT
 const CM := preload("res://scripts/chunk_manager.gd")
 const WORLD_HASH := 1761177401 # world_hash(CM.HASH_SEED); changes only when the world generator changes (then bump Save.SAVE_FORMAT too)
 

@@ -5,6 +5,8 @@ extends Node
 
 const KINDS := preload("res://scripts/enemy.gd").KINDS
 const R := preload("res://scripts/chunk_manager.gd").R
+const T := preload("res://scripts/chunk_manager.gd").T
+const SEED := 7 # main.gd _smoke_seed: fixed world and RNG; the scenes below also lay their own grass
 
 var main: Node2D
 var frame: Signal
@@ -56,8 +58,19 @@ func _spot(center: Vector2, dist: float, min_heli := 0.0) -> Vector2:
 	return center
 
 
+## Grass over the cells between `a` and `b` and 6 cells round them (the scene needs open ground, whatever the world).
+func _grass(a: Vector2, b: Vector2) -> void:
+	var lo := Vector2i((Vector2(minf(a.x, b.x), minf(a.y, b.y)) / 16.0).floor()) - Vector2i(6, 6)
+	var hi := Vector2i((Vector2(maxf(a.x, b.x), maxf(a.y, b.y)) / 16.0).floor()) + Vector2i(6, 6)
+	for x in range(lo.x, hi.x + 1):
+		for y in range(lo.y, hi.y + 1):
+			main.chunks.edit(Vector2i(x, y), T.GRASS)
+	main.nav_dirty()
+
+
 ## A walkable spot near `at` with 32 px of walkable ground to its east (a knockback to the right has room).
 func _clear_right(at: Vector2) -> Vector2:
+	_grass(at, at + Vector2(48, 128))
 	for i in 64:
 		var p := at + Vector2(16 * (i % 8), 16 * (i / 8))
 		if range(0, 33, 4).all(func(k): return main.is_walkable(p + Vector2(k, 0))):
@@ -103,7 +116,9 @@ func _screamer() -> void:
 	var heli: Node2D = Game.heli
 	var pos := _spot(heli.position, 200.0)
 	var e := _spawn("screamer", pos)
-	var mate := _spawn("shambler", _spot(pos, 550.0, 420.0))
+	var mate_at := _spot(pos, 550.0, 420.0)
+	_grass(pos, mate_at) # no lake or wood between the two: the walk to the scream needs a way
+	var mate := _spawn("shambler", mate_at)
 	Game.noise_level = 0.0
 	_step(e, 0.5)
 	assert(e.state["wind"] > 2.0 and e.get_node_or_null("Ring") != null, "wind-up started, with a ring: %s" % [e.state])

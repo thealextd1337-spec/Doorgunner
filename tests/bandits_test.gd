@@ -5,6 +5,7 @@ extends Node
 
 const ROADS := preload("res://scripts/chunk_manager.gd").ROADS
 const T := preload("res://scripts/chunk_manager.gd").T
+const SEED := 12 # a fixed world (main.gd _smoke_seed): camp counts, open ground and woods vary by seed
 
 var main: Node2D
 var sys: Node

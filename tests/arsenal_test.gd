@@ -7,6 +7,7 @@ extends Node
 const NAME := "ArsenalTest"
 const Weapons := preload("res://scripts/weapons.gd")
 const BulletScript := preload("res://scripts/bullet.gd")
+const SEED := 1 # main.gd _smoke_seed: the RNG starts fixed; _scatter and _flamer reseed it (pellet jitter, flame spread)
 const NEW_GUNS := ["scatter", "flamer", "grenade", "marksman", "sonic", "net"]
 const NEW_ITEMS := ["thermal", "smoke", "extratank", "heavyplates"]
 
@@ -122,6 +123,7 @@ func _run() -> void:
 	await _marksman()
 	await _sonic()
 	await _net()
+	await _sweep()
 	# --- items
 	await _thermal()
 	await _smoke()
@@ -201,6 +203,7 @@ func _tables() -> void:
 
 
 func _scatter() -> void:
+	seed(SEED)
 	_equip("scatter", 1)
 	var z := _z(60)
 	heli._fire()
@@ -243,7 +246,31 @@ func _scatter() -> void:
 	_clear_bullets()
 
 
+## One slow frame must not step a bullet over a zombie (the test frames slow down under CPU load).
+func _sweep() -> void:
+	_equip("mg", 1)
+	var z := _z(50)
+	var b: Node2D = BulletScript.new()
+	b.setup(heli.global_position, Vector2.RIGHT, 10.0, 0, 560.0, 1.0)
+	b.process_mode = Node.PROCESS_MODE_DISABLED
+	main.add_child(b)
+	b._process(0.3) # 168 px in one step, the zombie is 50 px away
+	assert(_lost(z) > 0.0, "a bullet hits what lies on its path within one frame")
+	b.queue_free()
+	var z2 := _z(50, 40) # the frame that ends the flight counts too (life 0.05 s, step 0.1 s)
+	var b2: Node2D = BulletScript.new()
+	b2.setup(heli.global_position + Vector2(0, 40), Vector2.RIGHT, 10.0, 0, 560.0, 0.05)
+	b2.process_mode = Node.PROCESS_MODE_DISABLED
+	main.add_child(b2)
+	b2._process(0.1)
+	assert(_lost(z2) > 0.0, "the last step of a bullet's flight still hits")
+	z.queue_free()
+	z2.queue_free()
+	b2.queue_free()
+
+
 func _flamer() -> void:
+	seed(SEED)
 	_equip("flamer", 1)
 	var near := _z(80)
 	var far := _z(170)

@@ -127,27 +127,18 @@ func _themes() -> void:
 	ram.process_mode = Node.PROCESS_MODE_DISABLED
 	var spot := _open_spot(main.base.global_position, 260.0)
 	ram.position = spot
+	var ground := _grassed(spot, main.base.global_position) # a lake or woods between spot and base (random worlds) would block the walk
 	var d0 := ram.position.distance_to(main.base.global_position)
 	for i in 20:
 		ram._process(0.1)
 	assert(ram.position.distance_to(main.base.global_position) < d0 - 10.0, "the ram brute closes in: %.1f -> %.1f" % [d0, ram.position.distance_to(main.base.global_position)])
-	# rock in the way (nothing to smash): it walks around instead of pushing at it for ever
-	var to_base: Vector2 = (main.base.global_position - ram.position).normalized()
-	var wall := Vector2i(((ram.position + to_base * 40.0) / 16.0).floor())
-	var side := Vector2i(roundi(-to_base.y), roundi(to_base.x))
-	var rocks := []
-	for k in range(-2, 3):
-		var c: Vector2i = wall + side * k
-		rocks.append([c, main.chunks.get_cell_atlas_coords(c).x])
-		main.chunks.edit(c, main.T.ROCK)
-	main.nav_dirty()
-	var d1 := ram.position.distance_to(main.base.global_position)
-	for i in 400:
-		ram._process(0.1)
-		if ram.position.distance_to(main.base.global_position) < d1 - 70.0:
-			break # past the wall; on at the base it would wreck the run
-	assert(ram.position.distance_to(main.base.global_position) < d1 - 70.0, "the ram gets round the rock: %.1f -> %.1f" % [d1, ram.position.distance_to(main.base.global_position)])
-	for r in rocks:
+	var rocks := _rock_walk(ram, "ahead")
+	# the same wall met at a slant slides the ram along it, always moving, never getting past (it crept for ever)
+	ram.position = main.base.global_position + Vector2(230.0, 40.0)
+	ground += _grassed(ram.position, main.base.global_position)
+	ram.state.erase("detour")
+	rocks += _rock_walk(ram, "slanted")
+	for r in rocks + ground:
 		main.chunks.edit(r[0], r[1])
 	main.nav_dirty()
 	# an early ram wave has no armored brutes (day 3)
@@ -189,6 +180,43 @@ func _themes() -> void:
 	a._on_attack(1)
 	assert(a.queued() == 8 and a.theme == "" and not a.blood and a.surges.is_empty(), "tutorial wave: %d" % a.queued())
 	print("ASSAULT themes ok")
+
+
+## Grass over the cells within 8 of the line `a`..`b`; returns [[cell, old tile]] for putting them back (after the rocks, which stand on it).
+## Rock in the way (nothing to smash): the ram `e` walks around it instead of pushing at it for ever. Returns [[cell, old tile]].
+func _rock_walk(e: Node2D, what: String) -> Array:
+	var to_base: Vector2 = (main.base.global_position - e.position).normalized()
+	var wall := Vector2i(((e.position + to_base * 40.0) / 16.0).floor())
+	var side := Vector2i(roundi(-to_base.y), roundi(to_base.x))
+	var rocks := []
+	for k in range(-2, 3):
+		var c: Vector2i = wall + side * k
+		rocks.append([c, main.chunks.get_cell_atlas_coords(c).x])
+		main.chunks.edit(c, main.T.ROCK)
+	main.nav_dirty()
+	var d1 := e.position.distance_to(main.base.global_position)
+	for i in 400:
+		e._process(0.1)
+		if e.position.distance_to(main.base.global_position) < d1 - 70.0:
+			break # past the wall; on at the base it would wreck the run
+	assert(e.position.distance_to(main.base.global_position) < d1 - 70.0, "the ram gets round the rock, %s (seed %d): %.1f -> %.1f" % [what, Game.seed, d1, e.position.distance_to(main.base.global_position)])
+	return rocks
+
+
+func _grassed(a: Vector2, b: Vector2) -> Array:
+	var old := []
+	var seen := {}
+	for i in 41:
+		var mid := Vector2i((a.lerp(b, i / 40.0) / 16.0).floor())
+		for dx in range(-8, 9):
+			for dy in range(-8, 9):
+				var c := mid + Vector2i(dx, dy)
+				if not seen.has(c):
+					seen[c] = true
+					old.append([c, main.chunks.get_cell_atlas_coords(c).x])
+					main.chunks.edit(c, main.T.GRASS)
+	main.nav_dirty()
+	return old
 
 
 func _open_spot(center: Vector2, dist: float) -> Vector2:

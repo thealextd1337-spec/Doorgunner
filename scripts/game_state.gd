@@ -14,7 +14,7 @@ const DANGER_PER_DAY := 0.08
 const ATTACK_EVERY_DAYS := 3
 const META_PATH := "user://meta.json" # before profiles: migrated into the first profile, kept as a backup
 const PROFILES_DIR := "user://profiles/"
-const SMOKE_NS := "_smoke" # headless tests (env SMOKE) get their own profiles.json and profile folders in PROFILES_DIR/_smoke/
+const SMOKE_NS := "_smoke" # headless tests (env SMOKE) get their own profiles.json and profile folders in PROFILES_DIR/_smoke/<process id>/ (parallel test runs must not share saves)
 const ART_VARIANTS := ["b"] # Field Map only
 const Weapons := preload("res://scripts/weapons.gd")
 const People := preload("res://scripts/people.gd")
@@ -713,7 +713,7 @@ func _load_profiles() -> void:
 
 ## profiles.json missing or corrupt but profile folders exist: list them again instead of starting over.
 func _rebuild_profiles() -> bool:
-	var ids := DirAccess.get_directories_at(profiles_root())
+	var ids := DirAccess.get_directories_at(profiles_root()) if DirAccess.dir_exists_absolute(profiles_root()) else PackedStringArray() # a fresh smoke folder does not exist yet
 	for id in ids:
 		if id != SMOKE_NS:
 			profiles["list"].append({"id": id, "name": "Gunner %d" % profiles["list"].size(), "avatar": 0, "created": ""})
@@ -730,7 +730,21 @@ func smoke() -> bool:
 
 ## Folder holding the profile folders: a separate one under SMOKE, so no test can touch a player's profiles.
 func profiles_root() -> String:
-	return PROFILES_DIR + SMOKE_NS + "/" if smoke() else PROFILES_DIR
+	return "%s%s/%d/" % [PROFILES_DIR, SMOKE_NS, OS.get_process_id()] if smoke() else PROFILES_DIR
+
+
+## A test process removes its own profile folder on exit (it is never reused: the next process has another id).
+func _exit_tree() -> void:
+	if smoke():
+		_remove_dir(profiles_root())
+
+
+func _remove_dir(dir: String) -> void:
+	for d in DirAccess.get_directories_at(dir):
+		_remove_dir(dir + d + "/")
+	for f in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir + f)
+	DirAccess.remove_absolute(dir)
 
 
 ## {"list": [{id, name, avatar, created}], "last": id}
