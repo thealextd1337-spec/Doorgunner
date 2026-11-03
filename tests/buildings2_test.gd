@@ -88,10 +88,10 @@ func _table() -> void:
 		var row: Array = Game.BUILDINGS[k]
 		assert(row[1] == want[k][0] and row[2] == want[k][1] and row[3] == want[k][2], "%s costs %s" % [k, row])
 		assert(Art.tex(k) != null and Buildings2.TIPS.has(k) and main.base.ui.BUILD_INFO.has(k), "%s has a sprite, a tooltip and a build entry" % k)
-	assert(Buildings2.KINDS.size() == 5 and Game.BUILDINGS.size() == 14, "5 new kinds")
+	assert(Buildings2.KINDS.size() == 5 and Game.BUILDINGS.size() == 18, "5 new kinds + 4 late kinds")
 	var keys: Array = main.base.ui.BUILD_INFO.keys()
 	assert(keys.slice(0, 9) == ["sandbag", "wire", "barracks", "clinic", "generator", "well", "watchtower", "motor_pool", "demolish"], "keys 1-9 are unchanged: %s" % [keys.slice(0, 9)])
-	assert(keys.size() == 16 and main.base.ui.bar_btns.size() == 16 and main.base.ui.place_btns.size() == 16, "16 tools")
+	assert(keys.size() == 20 and main.base.ui.bar_btns.size() == 20 and main.base.ui.place_btns.size() == 20, "20 tools")
 	assert(Game.workers.has("forge") and main.base.ui.JOBS.has("forge") and "forge" in Game.People.SKILL_JOBS["mechanic"] and "forge" in Game.People.SKILL_JOBS["engineer"], "the forge job")
 
 

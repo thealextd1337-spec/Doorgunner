@@ -1216,6 +1216,7 @@ def main():
         images.update(world2_sprites())
         images.update(bosses_sprites())
         images.update(nemesis_sprites())
+        images.update(buildings3_sprites())
         for name, im in images.items():
             w, h = SIZES[name]
             assert im.size == (w * OUT, h * OUT), (name, im.size)
@@ -1962,6 +1963,87 @@ def nemesis_sprites():
 
 
 SIZES.update({"gunship": (32, 32)})
+
+
+# ---------------------------------------------------------------- S1 late buildings (scripts/buildings3.gd)
+
+def fortress():
+    """Fortress Wall, 32x32: a thick concrete wall seen from above with crenellations, a gate gap and a sandbag foot."""
+    s = Spr(32, 32)
+    conc = mix(P["pave"][0], P["bwall"], 0.5)
+    s.paint(s.m().rect(1.5, 8, 30.5, 24, 1.2), conc, sh=1.4)
+    s.paint(s.m().rect(3, 10, 29, 19, 0.8), mix(conc, P["white"], 0.2), sh=0.8)  # walkway
+    cren = s.m()
+    for x in (2.5, 8.5, 14.5, 20.5, 26.5):
+        cren.rect(x, 5, x + 3.5, 10, 0.5)
+    s.paint(cren, dk(conc, 0.85), sh=0.8)
+    s.paint(s.m().rect(12.5, 12, 19.5, 24, 0.4), (36, 38, 34), sh=0)  # gate gap
+    bags = s.m()
+    for x in (2, 7, 12, 19.5, 24.5):
+        bags.rect(x, 25, x + 4.5, 29, 1.4)
+    s.paint(bags, P["tan"], sh=0.5)
+    return s.drop()
+
+
+def flak():
+    """Flak Emplacement, 32x32: sandbag ring around a round pad with a twin barrel pointing up and an ammo crate."""
+    s = Spr(32, 32)
+    s.paint(s.m().rect(1.5, 1.5, 30.5, 30.5, 3.0), P["pad"], sh=0.8)
+    ring = s.m()
+    ring.ell(16, 16, 14.2, 14.2)
+    s.paint(ring, P["tan"], sh=0.8)
+    s.paint(s.m().ell(16, 16, 11.2, 11.2), dk(P["pad"], 0.8), sh=0, edge=False)
+    s.paint(s.m().ell(16, 17, 6.0, 6.0), P["metal"], sh=1.0)  # mount
+    barrels = s.m()
+    barrels.rect(12.6, 2.5, 14.6, 15).rect(17.4, 2.5, 19.4, 15)
+    s.paint(barrels, dk(P["metal"], 0.7), sh=0.6)
+    s.paint(s.m().rect(12, 1.5, 15, 4, 0.2).rect(17, 1.5, 20, 4, 0.2), P["fire"], sh=0, edge=False)
+    s.paint(s.m().rect(22, 22, 28, 27, 0.4), P["crate"], sh=0.5)  # ammo crate
+    return s.drop()
+
+
+def command():
+    """Command Post, 32x32: a flat roof with a map table skylight, an antenna mast and a red beacon."""
+    s = Spr(32, 32)
+    s.paint(s.m().rect(1.5, 3, 30.5, 29.5, 1.6), dk(P["bwall"], 0.85), sh=1.2)
+    s.paint(s.m().rect(3, 5, 29, 27.5, 0.8), dk(P["roof"], 0.9), sh=0)
+    s.paint(s.m().rect(5, 8, 20, 20, 0.5), mix(P["glass"], P["skylight"], 0.55), sh=0.6)  # skylight
+    grid = s.m()
+    grid.line([(12.5, 8), (12.5, 20)], 0.25).line([(5, 14), (20, 14)], 0.25)
+    fill(s.img, grid.im, P["white"] + (150,))
+    s.paint(s.m().rect(5, 22, 14, 26, 0.4), P["crate"], sh=0.4)  # equipment
+    mast = s.m()
+    mast.line([(25, 5), (25, 22)], 0.6).line([(21.5, 9), (28.5, 9)], 0.4).line([(22.5, 14), (27.5, 14)], 0.4)
+    s.paint(mast, P["metal"], sh=0)
+    s.paint(s.m().ell(25, 4.5, 1.3), P["red"], sh=0)
+    s.paint(s.m().rect(17, 22, 22, 28, 0.3), dk(P["wood"], 0.6), sh=0)  # door
+    return s.drop()
+
+
+def vault():
+    """Supply Vault, 32x32: a steel-banded storehouse with a heavy round door and stacked crates on top."""
+    s = Spr(32, 32)
+    s.paint(s.m().rect(1.5, 3, 30.5, 29.5, 1.6), P["metal"], sh=1.2)
+    s.paint(s.m().rect(3, 5, 29, 27.5, 0.8), mix(P["metal"], P["white"], 0.15), sh=0.6)
+    bands = s.m()
+    for x in (8, 24):
+        bands.rect(x - 0.7, 3.5, x + 0.7, 29)
+    s.paint(bands, dk(P["metal"], 0.6), sh=0)
+    s.paint(s.m().ell(16, 17, 7.0, 7.0), dk(P["metal"], 0.75), sh=1.0)  # door
+    s.paint(s.m().ell(16, 17, 4.5, 4.5), mix(P["metal"], P["white"], 0.25), sh=0.8)
+    spokes = s.m()
+    spokes.line([(16, 12), (16, 22)], 0.4).line([(11, 17), (21, 17)], 0.4)
+    s.paint(spokes, dk(P["metal"], 0.6), sh=0, edge=False)
+    s.paint(s.m().rect(4, 6, 10, 11, 0.3), P["crate"], sh=0.4)
+    s.paint(s.m().rect(22, 6, 28, 11, 0.3), P["crate"], sh=0.4)
+    return s.drop()
+
+
+def buildings3_sprites():
+    return {n: f().out() for n, f in (("fortress", fortress), ("flak", flak), ("command", command), ("vault", vault))}
+
+
+SIZES.update({"fortress": (32, 32), "flak": (32, 32), "command": (32, 32), "vault": (32, 32)})
 
 
 if __name__ == "__main__":

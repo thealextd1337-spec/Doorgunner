@@ -48,6 +48,10 @@ const ROWS := [
 	["Buildings", "bld_forge", "Forge", "Mechanics turn scrap into metal and metal into parts. Never spends your last scrap."],
 	["Buildings", "bld_bunker", "Bunker", "Saves the survivors once when the base is breached, then it is spent."],
 	["Buildings", "bld_relay", "Radio Relay", "Reveals more of the map and warns of bandit raids a day early."],
+	["Buildings", "bld_fortress", "Fortress Wall", "Late game. Sandbags become walls with double hit points. One per base."],
+	["Buildings", "bld_flak", "Flak Emplacement", "Late game. Shoots down rockets, hurts the gunship and bursts on big waves. Eats ammo and 12 scrap a day."],
+	["Buildings", "bld_command", "Command Post", "Late game. Missions pay more, one more can be open, and rival attacks are radioed ahead. 8 scrap a day."],
+	["Buildings", "bld_vault", "Supply Vault", "Late game. Fuel and ammo stores hold half as much again, and a base breach costs half as much."],
 	# --- Items: door guns and hardpoints
 	["Items", "item_mg", "Door MG", "Reliable all-rounder. At level 5 it fires twin tracers."],
 	["Items", "item_minigun", "Minigun", "A hose of lead. Spread grows while you hold the trigger, and it eats ammo."],

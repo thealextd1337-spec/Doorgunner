@@ -501,6 +501,9 @@ func _plan_attack(r: Dictionary) -> void:
 
 func _attack_due() -> void:
 	var r: Dictionary = rivals.get("warlord", {})
+	_command_ahead(r, "warlord", r.get("attack_day", -1) == Game.day, "Command Post: radar shows %s's gunship lifting off. It comes for the base within the hour.")
+	var a: Dictionary = rivals.get("alpha", {})
+	_command_ahead(a, "alpha", not a.is_empty() and Game.day >= a["next_raid"] and Assault.night_taken(Game.day), "Command Post: the horde is massing, and %s walks in front of it. The assault comes within the hour.")
 	if not r.is_empty() and is_instance_valid(gunship) and not gunship.fleeing and gunship.day < Game.day and Game.time >= Assault.DAWN and Game.time < ATTACK_AT:
 		gunship.fleeing = true # daylight: he gives up (no escape counted, he keeps his damage)
 		say(r, "dawn")
@@ -512,6 +515,12 @@ func _attack_due() -> void:
 		r["attack_day"] = free_night(Game.day + 1)
 		return
 	big_attack(r)
+
+
+## Command Post (buildings3.gd): a rival's attack tonight is radioed shortly before it comes (stage 3, not away).
+func _command_ahead(r: Dictionary, kind: String, tonight: bool, text: String) -> void:
+	if not r.is_empty() and tonight and r["stage"] >= 3 and r["away"] < 0:
+		Game.world.buildings3.radio_ahead(kind, Game.day, ATTACK_AT, text % r["name"])
 
 
 ## The Warlord's big attack: his gunship, and a bandit raid on the base (RPG men too against a fast flyer).

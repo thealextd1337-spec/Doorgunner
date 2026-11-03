@@ -117,7 +117,7 @@ static func tip(id: String) -> String:
 
 ## Tooltip of a BUILD_INFO tool: the table entry, or the line a building file brings along.
 static func building(kind: String) -> String:
-	return Buildings2.TIPS.get(kind, TIPS.get("build_" + kind, ""))
+	return Buildings3.TIPS.get(kind, Buildings2.TIPS.get(kind, TIPS.get("build_" + kind, "")))
 
 
 ## "Slow heavy shells that punch through.\nLv 1: ...\nLv 5: ..."

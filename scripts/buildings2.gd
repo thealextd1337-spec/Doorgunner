@@ -114,6 +114,8 @@ static func greenhouse_water() -> float:
 
 ## Why `kind` cannot be placed right now, "" if it can (base.gd can_place, the ghost and the tooltips).
 static func refusal(kind: String) -> String:
+	if kind in Buildings3.KINDS:
+		return Buildings3.refusal(kind)
 	if not kind in KINDS:
 		return ""
 	var have: int = Game.buildings.filter(func(b): return b["kind"] == kind).size()
@@ -143,10 +145,10 @@ static func shelter() -> bool:
 	world.base.site_nodes.erase(b["cell"])
 	world.nav_dirty() # the bunker footprint is walkable again
 	Game.base_hp = Game.max_base_hp * BUNKER_HULL
-	Game.injure(BUNKER_INJURED)
+	Game.injure(maxi(1, roundi(BUNKER_INJURED * Buildings3.breach_factor()))) # a Supply Vault halves it
 	world.assault.abort()
 	world.morale.breached()
-	Game.radio("Base: the line broke, everyone is in the bunker! The wave pulled back. The bunker is spent, %d hurt." % BUNKER_INJURED)
+	Game.radio("Base: the line broke, everyone is in the bunker! The wave pulled back. The bunker is spent, %d hurt." % maxi(1, roundi(BUNKER_INJURED * Buildings3.breach_factor())))
 	return true
 
 

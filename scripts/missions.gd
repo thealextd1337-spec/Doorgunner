@@ -93,7 +93,7 @@ func available_types() -> Array:
 
 ## A new mission of `type` ("" = a random available type not open yet). {} if full or no target. `args` is for _make_<type>.
 func offer(type := "", args := {}) -> Dictionary:
-	if open.size() >= MAX_OPEN:
+	if open.size() >= MAX_OPEN + Buildings3.extra_missions():
 		return {}
 	var types: Array = [type] if type != "" else available_types().filter(func(t): return not open.any(func(m): return m["type"] == t))
 	types.shuffle()
@@ -119,7 +119,8 @@ func _add(type: String, m: Dictionary) -> Dictionary:
 
 func _reward(type: String) -> Dictionary:
 	var t: Dictionary = TYPES[type]
-	var r := {"scrap": randi_range(t["scrap"].x, t["scrap"].y), "xp": t["xp"], "morale": t["morale"]}
+	var f := Buildings3.reward_factor() # Command Post
+	var r := {"scrap": roundi(randi_range(t["scrap"].x, t["scrap"].y) * f), "xp": roundi(t["xp"] * f), "morale": t["morale"]}
 	if randf() < t["person"]:
 		r["person"] = PERSON_SKILLS.pick_random()
 	if type == "blackbox":

@@ -107,7 +107,9 @@ const BUILDINGS := {"barracks": ["Barracks", 40, 90.0, 2], "clinic": ["Field Cli
 	"well": ["Well", 30, 60.0, 1], "watchtower": ["Watchtower", 35, 45.0, 1], "motor_pool": ["Motor Pool", 80, 90.0, 2], "perimeter": ["Perimeter", 60, 60.0, 0],
 	"radio": ["Radio Station", 90, 90.0, 2], "airstrip": ["Airstrip", 150, 120.0, 0], # radio / airstrip: evac.gd (airstrip: 4x24 cells, stored with "rot")
 	"hospital": ["Field Hospital", 110, 120.0, 2], "greenhouse": ["Greenhouse", 70, 75.0, 2], "forge": ["Forge", 100, 100.0, 2],
-	"bunker": ["Bunker", 130, 120.0, 2], "relay": ["Radio Relay", 100, 90.0, 1]} # the last five: buildings2.gd (mouse / touch only in the build bar)
+	"bunker": ["Bunker", 130, 120.0, 2], "relay": ["Radio Relay", 100, 90.0, 1], # buildings2.gd (mouse / touch only in the build bar)
+	"fortress": ["Fortress Wall", 400, 150.0, 2], "flak": ["Flak Emplacement", 500, 150.0, 2], "command": ["Command Post", 600, 180.0, 2],
+	"vault": ["Supply Vault", 300, 100.0, 2]} # the last four: buildings3.gd (late game, from day 20 or perimeter level 2)
 const BASE_RADIUS := 160.0
 const PERIMETER_STEP := 60.0
 const PERIMETER_MAX := 5
