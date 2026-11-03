@@ -8,7 +8,7 @@ extends Node
 ##   grep "SCRIPT ERROR" | grep -v ERRORS-TEST
 ## must stay empty (the full-suite loop of docs/ROADMAP2.md).
 
-var PORT := 20000 + OS.get_process_id() % 20000 # one stub per test process: parallel runs must not share a server
+var PORT: int = preload("res://tests/stub_port.gd").free_port() # a free port per process: parallel runs and stale stubs must not collide
 var BASE := "http://127.0.0.1:%d" % PORT
 
 var _bad: PackedStringArray = []
