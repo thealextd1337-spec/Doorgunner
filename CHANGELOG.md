@@ -20,9 +20,9 @@ Something to spend scrap on late in a run, trade with your allied villages, and 
   a fixed route to fly (in German); `&scenario=city` or `&scenario=bloodmoon` jumps straight to a busy situation
   (never ranked, never saved).
 - **Balance** (a bot played 40-day runs in normal and evacuation mode, now building the late buildings and trading):
-  the scrap pile in the last ten days of a run is now about 300-1,300, and up to 2,200 in a rich run that lost
-  its villages (was 4,000-5,000 in 1.1.0). About as many people die as before, the evacuation succeeds on day
-  20 (19 in 1.1.0) and every run reached day 40. The Flak and Command Post upkeep was set to 24 and 16 scrap a day after these
+  the scrap pile in the last ten days of a run is now about 300-1,300, and up to 2,200 in a rich run that lost its
+  villages (was 4,000-5,000 in 1.1.0). About as many people die as before, the evacuation succeeds on day 20 (19 in
+  1.1.0) and every run reached day 40. The Flak and Command Post upkeep was set to 24 and 16 scrap a day after these
   runs: at half that, a run that finished its late buildings early still sat on nearly 2,000 scrap.
 - Fixes: the Command Post bonus counts when a mission pays out, so missions taken before it was built (or while it
   stood idle) pay what the post shows at that moment. The Command Post only warns of the Alpha's assault when she
