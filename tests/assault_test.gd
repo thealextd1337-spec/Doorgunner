@@ -38,6 +38,7 @@ func _run() -> void:
 	_pushes()
 	_screamer_chain()
 	_dawn()
+	_late_scrap()
 	_announcement()
 	await _blood_moon()
 	await _save_mid_assault()
@@ -260,6 +261,22 @@ func _dawn() -> void:
 		e.free()
 	Game.time = 0.5
 	print("ASSAULT dawn ok")
+
+
+## From LATE_FROM on an assault attacker strips no scrap; a stray zombie still does.
+func _late_scrap() -> void:
+	var at: Vector2 = main.base.global_position + Vector2(900, 0)
+	var gain: float = Game.stats["xp_gain"]
+	Game.stats["xp_gain"] = 0.0 # at the level cap XP turns into scrap too
+	for c in [[a.LATE_FROM - 1, true, 1], [a.LATE_FROM, true, 0], [a.LATE_FROM, false, 1]]:
+		Game.day = c[0]
+		var e: Node2D = main.spawn_enemy("shambler", at, c[1])
+		var s0: int = Game.scrap
+		e._die()
+		assert(Game.scrap - s0 == c[2], "kill scrap day %d, assault %s: %d" % [c[0], c[1], Game.scrap - s0])
+	Game.stats["xp_gain"] = gain
+	Game.day = 12
+	print("ASSAULT late kill scrap ok")
 
 
 func _screamer_chain() -> void:

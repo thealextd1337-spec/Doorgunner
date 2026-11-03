@@ -95,6 +95,8 @@ const HINTS := {
 	"hungry": {"when": "hungry", "t": "The base is out of food or water. Put workers on Farm and Water, and build a Well."},
 	"cards": {"when": "cards", "t": "Level-up cards: {reroll} rerolls, {skip} skips for scrap, {banish} banishes a card for good.",
 		"touch": "Level-up cards: tap one to take it. REROLL, SKIP and BANISH sit under the cards."},
+	"rival": {"when": "rival", "t": "A rival. Named enemies remember how you fight and adapt to it. Hurt, they escape and return stronger: finish them for a big reward."},
+	"gunship": {"when": "gunship", "t": "Gunship. It keeps its distance and fires rockets after a red aim line: flares pull them off, and it shies away from them."},
 	"base_hurt": {"when": "base_hurt", "t": "The base hull is low. Shoot from the pad and rebuild sandbags in the BUILD tab."},
 }
 
@@ -321,6 +323,8 @@ func _h_low_ammo() -> bool: return Game.ammo < Game.max_ammo * 0.15 and not Game
 func _h_low_hull() -> bool: return Game.hp < Game.max_hp * 0.3
 func _h_hungry() -> bool: return Game.short_days > 0
 func _h_cards() -> bool: return Game.level >= 2
+func _h_rival() -> bool: return Game.world.nemesis.met()
+func _h_gunship() -> bool: return is_instance_valid(Game.world.nemesis.gunship)
 func _h_base_hurt() -> bool: return Game.attack_active and Game.base_hp < Game.max_base_hp * 0.4
 
 

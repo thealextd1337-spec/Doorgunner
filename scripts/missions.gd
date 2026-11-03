@@ -25,7 +25,7 @@ const MAX_OPEN := 3
 const FIRST_DAY := 2
 const OFFER_EVERY := 150.0 # seconds between offers
 const MIN_DIST := 900.0 # px from the base: nearer sites are not offered
-const MAX_DIST := 2600.0
+const MAX_DIST := 4000.0 # 1.1.0: was 2600, which held only ~4 sites (one per 2.5 km cell), used up by day 2
 const ACTIVATE_DIST := 700.0 # px from the heli: the roof, nest or refugees appear (chunks within ~1000 px are loaded)
 const TARGET_DIST := 64.0 # landing this close to a black box or village counts
 const FOLLOW_DIST := 450.0 # refugees only walk while the heli is this close
@@ -182,10 +182,13 @@ func _origin() -> Vector2:
 	return Game.world.base.global_position if Game.base_founded else Game.heli.global_position
 
 
-## A random unused site of `kinds` MIN_DIST..MAX_DIST px from the base, {} if none.
-func _site(kinds: Array) -> Dictionary:
+## A random site of `kinds` MIN_DIST..MAX_DIST px from the base, one not offered yet while there is one (`again`: else any), {} if none.
+func _site(kinds: Array, again := true) -> Dictionary:
 	var from := _origin()
-	var list: Array = Game.world.chunks.sites_near(from, MAX_DIST * Buildings2.reach()).filter(func(s): return s.kind in kinds and s.pos.distance_to(from) >= MIN_DIST and not s.uid in used)
+	var near: Array = Game.world.chunks.sites_near(from, MAX_DIST * Buildings2.reach()).filter(func(s): return s.kind in kinds and s.pos.distance_to(from) >= MIN_DIST)
+	var list: Array = near.filter(func(s): return not s.uid in used)
+	if list.is_empty() and again:
+		list = near # all offered once: a town can have another family on a roof
 	return list.pick_random() if not list.is_empty() else {}
 
 
@@ -230,7 +233,7 @@ func _spawn_poi(m: Dictionary, pos: Vector2, n: int) -> Node2D:
 # --- rooftop rescue
 
 func _make_rooftop(_args: Dictionary) -> Dictionary:
-	var s := _site(["city"])
+	var s := _site(["city"], false) # a new city first, else any town
 	if s.is_empty():
 		s = _site(Chunks.TOWN_SIZE.keys() + ROOF_SITES)
 	if s.is_empty():

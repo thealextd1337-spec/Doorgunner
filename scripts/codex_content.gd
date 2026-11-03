@@ -26,6 +26,9 @@ const ROWS := [
 	["Enemies", "b_mg", "MG Nest", "Does not move, fires long bursts. Come from the side and keep your speed up."],
 	["Enemies", "b_rpg", "RPG Gunner", "Aims for a second and a half, a red line shows it. Turn hard, or drop flares and smoke."],
 	["Enemies", "b_technical", "Technical", "A pickup with a mounted gun that hunts on the roads. Fast, sturdy, and it brings friends."],
+	["Enemies", "b_rival", "Rival Warlord", "A named bandit leader who remembers you: cleared camps, fast flying, your favourite gun. He raids convoys and outposts, escapes when hurt, returns stronger, and ends in a captured gunship."],
+	["Enemies", "b_gunship", "Gunship", "The rival warlord's captured heli. It circles at the edge of your favourite gun's reach and fires bursts and rockets. Flares pull the rockets off, and it shies away from them."],
+	["Enemies", "z_alpha", "The Alpha", "A named matriarch that learned. She hunts the heli, raids convoys and outposts, then leads an assault; against much wire she brings crawlers and spitters. Hurt, she escapes and returns stronger."],
 	["Enemies", "b_warlord", "The Warlord", "He holds the big bandit camps, with bodyguards. His mortar shells a LANDED heli: a red circle shows where, lift off before it lands. Kill him and the bodyguards scatter."],
 	# --- Buildings
 	["Buildings", "bld_pad", "Landing Pad", "Your home plate. Land here to unload, refuel, rearm and open the base menu."],

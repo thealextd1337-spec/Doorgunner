@@ -100,6 +100,13 @@ func _offers() -> void:
 	for m: Dictionary in missions.open:
 		assert(m["pos"].distance_to(from) <= M.MAX_DIST + 400.0 and m["left"] > 100.0 and m["reward"]["scrap"] > 0, "target, time and reward: %s" % [m])
 		assert(log.any(func(l): return l.contains(m["title"])), "the radio line names the mission")
+	# every site in range offered once: they come round again
+	_reset()
+	var kinds: Array = preload("res://scripts/chunk_manager.gd").TOWN_SIZE.keys()
+	var towns: Array = main.chunks.sites_near(from, M.MAX_DIST).filter(func(s): return s.kind in kinds and s.pos.distance_to(from) >= M.MIN_DIST)
+	missions.used = towns.map(func(s): return s.uid)
+	assert(towns.is_empty() or not missions._site(kinds).is_empty(), "a used town is offered again once all are used")
+	assert(missions._site(kinds, false).is_empty(), "but not when asked for a new one")
 	# day 1 offers nothing by itself
 	_reset()
 	Game.day = 1

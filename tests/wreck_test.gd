@@ -211,7 +211,7 @@ func _repair(uid: String) -> void:
 	Game.salvage = {"metal": 300.0, "parts": 200.0, "electronics": 100.0}
 	w.keys = {"rotor_head": 0, "turbine": 1, "avionics": 0}
 	assert(w.start_repair(uid).contains("avionics"), "the key parts are needed")
-	w.add_key("avionics")
+	assert(w.add_key() == "avionics", "a mission's key part is the one the wreck in the fence lacks")
 	assert(w.start_repair(uid) == "" and r["state"] == "repair", "project started")
 	assert(Game.salvage["metal"] == 100.0 and w.keys["turbine"] == 0 and w.keys["avionics"] == 0, "salvage and key parts paid up front")
 	# no mechanics: no progress

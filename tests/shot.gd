@@ -1,6 +1,6 @@
 extends Node
 ## Visual check: SMOKE=shot godot --path . -> flies a bit, saves screenshots (no base at the start, then founds it at the start site; flight, combat, bandits, level-up cards, base BUILD / WORKERS / HANGAR,
-## base pawns after delivering 6, settings, key bindings, F1 help, a boss under a chapter card, an event card over it, title hangar), quits.
+## base pawns after delivering 6, settings, key bindings, F1 help, a boss under a chapter card, an event card over it, the Q15 gunship, title hangar), quits.
 ## Time-based so it works at any refresh rate. UI_SCALE=90..150 takes them at that UI scale.
 
 var t := 0.0
@@ -363,6 +363,19 @@ func _process(delta: float) -> void:
 				_save("shot_chapter_event.png")
 				Game.world.choice_ui.pick_event(Game.world.choice_ui.ev["view"]["default"])
 				_onboarding().skip_chapter()
+				# Q15: a rival warlord's gunship next to the heli, his line on the radio
+				var nem: Node = Game.world.nemesis
+				var rival: Dictionary = nem._name("warlord")
+				var cam2: Vector2 = get_viewport().get_camera_2d().get_screen_center_position()
+				nem.spawn_gunship(rival, cam2 + Vector2(110, -50)).process_mode = Node.PROCESS_MODE_DISABLED
+				nem.gunship.sprite.rotation = (cam2 - nem.gunship.position).angle() + PI / 2
+				nem.say(rival, "attack_warn", {"when": "Tonight"})
+				step = 99
+		99:
+			if t > 21.65:
+				_save("shot_gunship.png")
+				Game.world.nemesis.gunship.free()
+				Game.world.nemesis.rivals.clear()
 				Profiles.active()["enlisted"] = true # in memory only: no ENLIST pop-up over the hangar shot
 				Game.meta["total_kills"] = maxi(Game.meta["total_kills"], 500) # in memory: two modifiers unlocked for the title shot
 				Game.meta["runs"] = maxi(Game.meta["runs"], 3)

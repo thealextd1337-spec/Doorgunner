@@ -12,9 +12,9 @@ import statistics
 import sys
 
 PHASES = [("1-10", 1, 10), ("11-30", 11, 30), ("31-40", 31, 40)]
-MEAN = ["scrap", "food", "water", "fuel", "ammo", "people", "injured", "morale", "base_hp", "outposts", "garrison", "villages", "trucks"]
+MEAN = ["scrap", "metal", "parts", "electronics", "food", "water", "fuel", "ammo", "people", "injured", "morale", "base_hp", "outposts", "garrison", "villages", "trucks"]
 DELTA = ["deaths", "kills", "points", "delivered", "village_supply", "convoys_sent", "convoys_back", "convoys_lost", "wrecks_hooked",
-         "repaired", "missions_done", "missions_failed", "outposts_fell", "villages_fell"]
+         "repaired", "missions_done", "missions_failed", "outposts_fell", "villages_fell", "events", "boss_kills"]
 ZERO = ["food", "water", "fuel", "ammo"]
 SPIKE_MIN = 3  # deaths in one day below this are never a spike
 

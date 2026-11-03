@@ -26,6 +26,7 @@ var evac: Node # evac.gd: radio contact, airstrip, final siege, optional victory
 var buildings2: Node # buildings2.gd: Field Hospital, Greenhouse, Forge, Bunker, Radio Relay
 var landmarks: Node # landmarks.gd: what the Q10 hospital, stadium and power plant do
 var bosses: Node # bosses.gd: Q12 matriarch, juggernaut, hive, warlord
+var nemesis: Node # nemesis.gd: Q15 named rivals and the gunship
 var pois := []
 var _nav_cache := {} # Rect2i region -> [AStarGrid2D, ticks_msec it expires]
 var _path_cache := {} # [from cell, to cell, max_cells] -> [nav_path result, ticks_msec it expires (its grid's)]
@@ -103,6 +104,8 @@ func _ready() -> void:
 	add_child(missions)
 	events = preload("res://scripts/events.gd").new() # registers its own save hook
 	add_child(events)
+	nemesis = preload("res://scripts/nemesis.gd").new() # Q15 rivals, after bosses, bandits and events; registers its own save hook
+	add_child(nemesis)
 	_add_ui_layers()
 	Game.level_up.connect(func(lvl: int): offer_upgrades("Level %d reached" % lvl))
 	Game.day_changed.connect(_settlements_decline)

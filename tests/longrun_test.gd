@@ -5,8 +5,9 @@ extends Node
 ## from day 15, STAY BEHIND after the victory and play on), LONGRUN_MODS=dense,warlords (run modifiers, ids or their first word).
 ## A bot plays the real game: it flies the heli (input actions) to towns and landmarks, lands at settlements and loot,
 ## shoots what comes near (door gun, real bullets), delivers, keeps the workers on the jobs the stocks need, builds
-## barracks, sandbags, a watchtower, clinic, well, generator, perimeter stages and turrets, orders heli repairs, picks the
-## first level-up card, and hovers over the base shooting during assaults and bandit raids.
+## barracks, sandbags, a watchtower, clinic, well, generator, greenhouse, forge (staffed while scrap lasts), bunker, perimeter
+## stages and turrets, orders heli repairs, picks the first level-up card and every radio event's default answer, and hovers
+## over the base shooting during assaults and bandit raids (bosses, rivals and the gunship are just enemies to it).
 ## Through the systems' public APIs (what the keys and base-menu buttons call) it also: crews and founds outposts (O on the
 ## pad, O at a gas station / checkpoint / radio mast), reinforces thin garrisons and refuels at outposts; protects a
 ## settlement it cannot empty (P) and picks up the villages' food; builds a Motor Pool and trucks and sends convoys (CONVOY
@@ -35,7 +36,8 @@ const LOOT := ["survivors", "hideout", "crate", "upgrade", "wreck", "scrapyard",
 const COLS := ["day", "scrap", "metal", "parts", "electronics", "food", "water", "fuel", "ammo", "people", "injured", "deaths", "morale",
 	"kills", "base_hp", "assault", "wave", "bandit_raids", "points", "level", "sorties", "delivered", "heli_hp", "buildings", "sandbags",
 	"outposts", "garrison", "outposts_fell", "villages", "villages_fell", "village_supply", "convoys_sent", "convoys_back", "convoys_lost",
-	"trucks", "wrecks_hooked", "repairs", "repaired", "heli_type", "key_parts", "missions_done", "missions_failed", "evac", "victory", "save_bytes"]
+	"trucks", "wrecks_hooked", "repairs", "repaired", "heli_type", "key_parts", "missions_done", "missions_failed", "evac", "victory", "save_bytes",
+	"events", "boss_kills", "rivals"]
 const KEEP := 15 # scrap kept for hull repairs
 const CREW_HOME := 8 # healthy people that stay at the base before a crew leaves for an outpost
 const CONVOY_HOME := 10 # people at the base before a truck takes some of them away
@@ -45,6 +47,7 @@ const VILLAGES_MAX := 3
 const VILLAGE_KEEP := 3 # survivors left behind that make a settlement worth protecting
 const T := preload("res://scripts/chunk_manager.gd").T
 const DEMOLISH := [T.BUILDING, T.RUIN, T.HEDGE] # what the builders can clear off an airstrip lane
+const GUNSHIP_SHARE := 0.95 # of the gun's range: the Warlord's gunship keeps to the edge of it (nemesis.gd keep_band)
 const HOOK_WAIT := 30.0 # game s of hovering for the hook before giving up
 const MOD_ALIAS := {"dense": "dense_horde", "warlords": "warlords", "scarcity": "scarcity", "dry": "dry_season", "glass": "glass_cockpit", "blackout": "blackout"}
 
@@ -76,12 +79,13 @@ var frames := [0, 0, 0] # quiet, fly, fight frames today (runtime log)
 var DEBUG := OS.get_environment("LONGRUN_DEBUG") != ""
 var evac_mode := OS.get_environment("LONGRUN_EVAC") == "1"
 var mods: Array = []
-var n := {"outposts_fell": 0, "villages_fell": 0, "village_supply": 0, "convoys_back": 0, "convoys_lost": 0, "hooked": 0} # counted from signals / radio
+var n := {"outposts_fell": 0, "villages_fell": 0, "village_supply": 0, "convoys_back": 0, "convoys_lost": 0, "hooked": 0, "events": 0} # counted from signals / radio
 var no_road := {} # convoy destinations without a road
 var strip_day := -1 # last day find_spot found nothing
 var lane := Rect2i() # evac mode: the airstrip lane kept free (size 0: none fits)
 var lane_rot := 0
 var lane_r := 0.0 # fence radius the lane needs; 0: not picked yet
+var reach_extra := 0.0 # px added to _reach() each minute the bot idles at the base with nothing to fly to
 
 
 func _ready() -> void:
@@ -128,6 +132,7 @@ func _run() -> void:
 		main.modifiers.start(mods)
 		Game.meta = m0
 	main.outposts.fell.connect(_on_fell)
+	main.events.chosen.connect(func(_id, _o): n["events"] += 1)
 	Game.radio_message.connect(_on_radio)
 	Game.run_ended.connect(func(reason): _finish("ended day %d: %s" % [Game.day, reason]))
 	if DEBUG:
@@ -140,8 +145,8 @@ func _process(delta: float) -> void:
 	if finished or main == null:
 		return
 	var real := maxf(0.0001, delta / Engine.time_scale) # the engine's unscaled frame time (1/60 under --fixed-fps 60)
-	if main.choice_ui.visible:
-		main.choice_ui.pick(0)
+	if main.choice_ui.visible: # a radio event takes its default (always affordable), a level-up the first card
+		main.choice_ui.pick(main.choice_ui.ev["view"]["default"] if not main.choice_ui.ev.is_empty() else 0)
 		return
 	if main.evac.phase == "choice": # the victory screen (it pauses the tree): STAY BEHIND, the run goes on
 		for c in main.get_children():
@@ -172,10 +177,13 @@ func _bot(delta: float) -> void:
 	var base: Node2D = main.base
 	t_state += delta
 	var foe := _nearest_enemy(heli.global_position, HOT_RANGE)
+	var gs: Variant = main.nemesis.gunship # untyped: it may be freed
+	if is_instance_valid(gs) and not gs.is_queued_for_deletion() and gs.global_position.distance_to(heli.global_position) < heli.weapon_range() * GUNSHIP_SHARE:
+		foe = gs # it holds just inside the gun's reach: shoot back whatever the bot is doing
 	var base_foe := _nearest_enemy(base.global_position, Game.base_radius + BASE_HOT)
 	hot = foe != null or base_foe != null or Game.attack_active
 	var near_lz: bool = state == "out" and target != null and target["land"] and heli.global_position.distance_to(target["pos"]) < 350.0
-	_shoot(foe if state in ["defend", "loading", "landing", "landing_home", "takeoff", "base", "hook", "tow"] or near_lz or foe != null and (foe.global_position.distance_to(heli.global_position) < 140.0 or foe.is_in_group("bandits")) else null) # cruising past a horde: save the ammo
+	_shoot(foe if state in ["defend", "loading", "landing", "landing_home", "takeoff", "base", "hook", "tow"] or near_lz or foe != null and (foe.global_position.distance_to(heli.global_position) < 140.0 or foe.is_in_group("bandits") or foe.get("kind") == "gunship") else null) # cruising past a horde: save the ammo
 	var defend: bool = Game.attack_active or base_foe != null and base_foe.global_position.distance_to(base.global_position) < Game.base_radius + 160.0 \
 		or (Game.attack_pending and Game.time > 0.75)
 	if state in ["out", "home", "defend", "hook", "tow"] and heli.landed and heli.pending == 0: # put down by an engine failure (wear.gd)
@@ -192,12 +200,17 @@ func _bot(delta: float) -> void:
 				_manage()
 			if not heli.landed:
 				return
+			if DEBUG and int(t_state / 60.0) != int((t_state - delta) / 60.0):
+				print("BOT idle t%.0f hp %.0f grounded %s orders %s fuel %.0f pick %s" % [t_state, Game.hp, main.wear.grounded(), main.wear.orders, Game.fuel, _pick_target(heli.global_position)])
 			if defend:
 				_take_off("defend")
 			elif t_state > 8.0 and Game.hp > Game.max_hp * 0.6 and not main.wear.grounded() and main.wear.orders.is_empty():
 				target = _errand()
 				if target == null:
 					target = _pick_target(heli.global_position)
+				if target == null and t_state > 60.0: # nothing left in reach (a coast, or all of it visited): look farther, as a player would
+					reach_extra += 500.0
+					t_state = 8.0
 				if target != null:
 					sorties += 1
 					t_sortie = 0.0
@@ -208,11 +221,13 @@ func _bot(delta: float) -> void:
 					print("BOT stuck? %s %s hp %.0f tile %d state %s nav %s" % [e.kind, e.global_position.round(), e.hp, main.chunks.tile_at(e.global_position), e.state, e.nav.get("stuck", -1)])
 			if DEBUG and int(t_state / 3.0) != int((t_state - delta) / 3.0):
 				print("BOT defend t%.0f base_hp %.0f kills %d ammo %d foes %d heli %s nearest %s militia %d rifles %d defenders %d" % [t_state, Game.base_hp, Game.kills, Game.ammo,
-					main.assault.attackers(), heli.global_position.round(), _nearest_enemy(heli.global_position, 2000.0).global_position.round() if _nearest_enemy(heli.global_position, 2000.0) else null,
+					main.assault.attackers(), heli.global_position.round(), [_nearest_enemy(heli.global_position, 2000.0).get("kind"), _nearest_enemy(heli.global_position, 2000.0).global_position.round()] if _nearest_enemy(heli.global_position, 2000.0) else null,
 					Game.workers["militia"], int(Game.base_rifles), base.defenders.get_child_count()])
 			var aim: Vector2 = base.global_position
 			var f := _nearest_enemy(base.global_position, Game.base_radius + 420.0)
-			if f != null:
+			if f != null and not Game.attack_active and t_state > 10.0: # a slow one creeping about outside the fence: go and get it
+				aim = f.global_position + (heli.global_position - f.global_position).limit_length(200.0)
+			elif f != null:
 				aim = base.global_position + (f.global_position - base.global_position).limit_length(Game.base_radius * 0.9)
 			elif Game.attack_active:
 				f = _nearest_attacker()
@@ -250,9 +265,13 @@ func _bot(delta: float) -> void:
 							heli._toggle_landing()
 							state = "landing_home" if state == "home" else "landing"
 							t_state = 0.0
+						elif target.get("retried", false): # no landable cell around it (water, rock, a roof): skip it for good
+							visited[target["poi"].get_instance_id() if target["poi"] != null else target["site"]] = true
+							_next_or_home()
 						else: # an errand's site was not loaded when it was picked: look around it once, then around the heli
 							target["pos"] = _landing_spot(target.get("around", heli.position), target.get("reach", 48.0))
 							target.erase("around")
+							target["retried"] = true
 				else:
 					visited[target["site"]] = true
 					_next_or_home()
@@ -433,7 +452,12 @@ func _tasks() -> Array:
 		for uid in w.wrecks:
 			var x: Dictionary = w.wrecks[uid]
 			if x["state"] == "site" and x.get("spotted", false) and not visited.has("w" + uid):
-				out.append([1.0, {"pos": x["pos"], "poi": null, "site": "", "land": false, "hook": uid}])
+				var have: Dictionary = w.keys.duplicate()
+				var missing := 0
+				for k in x["keys"]: # a player hauls home the wreck whose key parts are on the shelf
+					have[k] -= 1
+					missing += int(have[k] < 0)
+				out.append([1.0 + 1.5 * missing, {"pos": x["pos"], "poi": null, "site": "", "land": false, "hook": uid}])
 	for kind in ["checkpoint", "airfield"]:
 		for s in main.chunks.sites_near(main.base.global_position, 6000.0, kind):
 			if not w.looted.has(s.uid) and not visited.has("k" + s.uid):
@@ -481,7 +505,7 @@ func _act(t: Variant) -> void:
 
 ## How far out the bot goes: farther each day, as a player learns the map (danger grows with distance, Game.danger_at).
 func _reach() -> float:
-	return REACH_START + REACH_PER_DAY * Game.day
+	return REACH_START + REACH_PER_DAY * Game.day + reach_extra
 
 
 func _poi_ok(p: Variant) -> bool:
@@ -561,7 +585,8 @@ func _nearest_enemy(pos: Vector2, r: float) -> Node2D:
 ## Door gun: turns the heli so the nearest enemy in range is out of the side door, and fires.
 func _shoot(foe: Node2D) -> void:
 	var heli: Node2D = Game.heli
-	if foe == null or foe.global_position.distance_to(heli.global_position) > heli.weapon_range() * 0.7: # closer in: fewer misses
+	var share := GUNSHIP_SHARE if foe != null and foe.get("kind") == "gunship" else 0.7
+	if foe == null or foe.global_position.distance_to(heli.global_position) > heli.weapon_range() * share: # closer in: fewer misses
 		Input.action_release("fire")
 		heli.aim_override = Vector2.ZERO
 		return
@@ -614,6 +639,11 @@ func _manage() -> void:
 		plans.append("generator")
 	if Game.day >= 6 and pop >= CONVOY_HOME and Game.built("motor_pool") + _queued("motor_pool") == 0:
 		plans.append("motor_pool")
+	for b in [["greenhouse", 4, 8], ["forge", 8, 12], ["bunker", 10, 12]]: # Q9 buildings: [kind, from day, from people]
+		if Game.day >= b[1] and pop >= b[2] and Game.built(b[0]) + _queued(b[0]) == 0:
+			plans.append(b[0])
+	if Game.scrap >= 1000 and Game.built("forge") + _queued("forge") == 1: # scrap piling up: a second forge turns it into metal and parts
+		plans.append("forge")
 	for kind in plans:
 		if Game.scrap >= Game.BUILDINGS[kind][1] + keep and base.next_site().is_empty():
 			_place(kind)
@@ -708,15 +738,17 @@ func _jobs() -> void:
 		w["medic"] = 1
 	w["militia"] = maxi(1, free / 4)
 	var goal := _salvage_goal()
-	if Game.salvage.keys().any(func(k): return Game.salvage[k] >= goal.get(k, 0.0) + 1.0):
+	if Game.scrap < 500 and Game.salvage.keys().any(func(k): return Game.salvage[k] >= goal.get(k, 0.0) + 1.0): # a player with scrap to spare keeps the salvage
 		w["workshop"] = 1 if free < 10 else 2
 	if Game.base_hp < Game.max_base_hp:
 		w["repair"] = 1
 	if main.wrecks.wrecks.values().any(func(x): return x["state"] == "repair"):
 		w["repair"] = w.get("repair", 0) + 2 # mechanics and engineers in the hangar
+	if Game.scrap >= 200: # metal and parts for trucks and wreck repairs; it stops by itself at its stock cap
+		w["forge"] = Buildings2.FORGE_SLOTS * Game.built("forge")
 	w["fuel"] = (1 + Game.rescued / 8) if Game.base_fuel < Game.base_fuel_cap * 0.6 else 0 # the heli burns ~250 a flying day
 	w["ammo"] = (1 + Game.rescued / 8) if Game.base_ammo < Game.base_ammo_cap * 0.7 else 0
-	for j in ["water", "farm", "build", "militia", "medic", "workshop", "repair", "fuel", "ammo"]:
+	for j in ["water", "farm", "build", "militia", "medic", "workshop", "repair", "forge", "fuel", "ammo"]:
 		var n := mini(w.get(j, 0), free)
 		Game.workers[j] = n
 		free -= n
@@ -737,6 +769,9 @@ func _salvage_goal() -> Dictionary:
 			for k in ["metal", "parts", "electronics"]:
 				goal[k] = goal.get(k, 0.0) + c[k]
 			break
+	if Game.built("forge") > 0: # the workshop must not break down what the forge makes
+		for k in ["metal", "parts"]:
+			goal[k] = maxf(goal.get(k, 0.0), Buildings2.FORGE_CAP)
 	if _radio_due():
 		goal["electronics"] = goal.get("electronics", 0.0) + main.evac.RADIO_ELECTRONICS
 	return goal
@@ -885,7 +920,8 @@ func _on_day(day: int) -> void:
 		n["village_supply"], cv.seq, n["convoys_back"], n["convoys_lost"], cv.trucks + cv.list.size(), n["hooked"],
 		states.count("repair"), states.count("parked") + states.count("active") - 1, w.type_id(), w.keys.values().reduce(func(a, b): return a + b, 0),
 		ms.completed, ms.seq - ms.completed - ms.open.size(), main.evac.phase if main.evac.phase != "" else ("contact" if main.evac.contact else "-"),
-		int(main.evac.victory), f.get_length() if f else 0]
+		int(main.evac.victory), f.get_length() if f else 0, n["events"], Game.meta["boss_kills"],
+		" ".join(main.nemesis.rivals.values().map(func(r): return "%s%d" % [r["kind"][0], r["stage"]])) + " x%d" % (main.nemesis.gens["warlord"] + main.nemesis.gens["alpha"] - main.nemesis.rivals.size())]
 	rows.append(",".join(vals.map(func(v): return str(v))))
 	printerr("LONGRUN ", rows[-1], "  (%.0f s real, frames quiet/fly/fight %s)" % [Time.get_ticks_msec() / 1000.0, frames])
 	frames = [0, 0, 0]

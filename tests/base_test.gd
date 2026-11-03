@@ -333,7 +333,7 @@ func _run() -> void:
 	Game.base_fuel = 100.0 # one generator burns 10/day
 	Game._process(Game.DAY_SECONDS * 0.01)
 	assert(is_equal_approx(Game.base_fuel, 100.0 + Game.crew("fuel") * 20.0 * 0.8 * 0.01 - 0.1), "fuel at 80 %%: %s (crew %s, skills count)" % [Game.base_fuel, Game.crew("fuel")])
-	# workshop job: needs the upgrade, breaks electronics down first (3 scrap each)
+	# workshop job: needs the upgrade, breaks the cheapest salvage down first (metal 1 scrap, electronics 3)
 	main.base.ui.unassign_all()
 	Game.base_level["workshop"] = 0
 	assert(not main.base.ui.set_worker("workshop", 1), "workshop refused without the upgrade")
@@ -343,7 +343,10 @@ func _run() -> void:
 	scrap0 = Game.scrap
 	Game.workshop_progress = 1.0
 	await process_frame
-	assert(Game.salvage["electronics"] == 0.0 and Game.salvage["metal"] >= 1.0 and Game.scrap == scrap0 + 3, "1 electronics -> 3 scrap")
+	assert(Game.salvage["metal"] == 0.0 and Game.salvage["electronics"] == 1.0 and Game.scrap == scrap0 + 1, "1 metal -> 1 scrap, the electronics stay")
+	Game.workshop_progress = 1.0
+	await process_frame
+	assert(Game.salvage["electronics"] == 0.0 and Game.scrap == scrap0 + 4, "then 1 electronics -> 3 scrap")
 	# scrap yard next to the heli: salvage on landing, once
 	var yard: Node2D = main.spawn_poi("scrapyard", Game.heli.position + Vector2(30, 0), RandomNumberGenerator.new())
 	var m0: float = Game.salvage["metal"] # kills may have dropped some
