@@ -4,6 +4,41 @@ The version lives in `project.godot` (`config/version`). Builds show it with com
 on the title screen and in the ESC menu. `tools/deploy_web.sh` tags the deployed commit `v<version>`: bump the version
 for a new release. Versions before 0.5.0 were assigned afterwards from the git history and are not tagged.
 
+## 1.1.0 - 2026-11-03
+The 1.1.0 release: everything from 1.0.0-beta.2 to beta.4 (details below), named rivals, and a balance pass over
+long runs.
+- **What is new since 1.0.0-beta:** six new door guns, Thermal Sight, Smoke Launcher, Extra Tank and Heavy Plates;
+  five new buildings (Field Hospital, Greenhouse, Forge, Bunker, Radio Relay); touch controls; music that follows the
+  action; cloud backup and crash reports; the coast and the winter highland with new landmarks; UI scale, key
+  bindings, help and a full codex (F1); onboarding chapters and hints; four new bosses; radio events with choices;
+  the daily seed and the weekly season.
+- **Rivals:** from day 8-10 a named bandit Warlord and an infected Alpha remember how you play and adapt to it. They
+  raid your convoys and outposts, offer a ransom, escape when hurt and come back stronger. The Warlord ends up in a
+  captured **gunship** that holds its distance and fires rockets (flares pull them off). Kill a rival for good for a
+  big reward; a new one comes later. The gunship never opens fire on a parked helicopter: it waits for you to take
+  off, and it gives up at dawn (keeping its damage). An escaped gunship comes back at full strength. A Warlord who
+  leaves his camp no longer counts as you clearing it.
+- **Balance** (a bot played 40-day runs on 3 worlds in normal, evacuation and Dense Horde + Warlords mode before and
+  after these changes):
+  - The Workshop now breaks the cheapest salvage down first (metal, then parts, then electronics). Before, it ate
+    the electronics first, so there were almost never enough for the Radio Station or a wreck repair.
+  - The Forge keeps working up to 260 metal and 260 parts (was 60, less than any wreck repair needs). It now turns
+    spare scrap into the metal and parts the HANGAR needs.
+  - A mission's key part is now the one the wreck inside your fence still lacks (random only when none waits).
+  - Radio missions reach up to 4 km from the base (was 2.6 km, which held only a few places), and once every place
+    in reach had a mission they are offered again. Missions no longer dry up after the first days.
+  - From day 25 the zombies of a base assault drop no scrap (the big late waves piled up thousands of scrap with
+    nothing left to buy). Other kills still give 1 scrap. A level-up with nothing left to fit pays 15 scrap (was 40).
+  - Result over 18 bot runs: every run reached day 40; the evacuation now succeeds on day 19 (was 21). Electronics
+    and parts finally pile up (about 55-60 electronics and 300 parts in the last ten days, was 0-3 and 30), a
+    wreck gets repaired in most runs (was never), twice as many missions get done, outposts fall less often, and
+    the scrap pile in the last ten days is about half what it was (still 4000-5000: something to spend it on late
+    is left for a later update).
+- Fix: the rival radio says "Tomorrow night" instead of "In 1 nights".
+- Dev: the long-run bot (`SMOKE=longrun`) answers radio events with their default, builds the new buildings, fights
+  the gunship, hunts zombies creeping about outside the fence, looks farther out when nothing is left in reach and
+  skips places it cannot land at; its CSV also logs events, boss kills and rivals.
+
 ## 1.0.0-beta.4 - 2026-11-02
 - Onboarding: short radio-guided chapters (first assault, base & workers, missions, outposts & villages, bandits,
   convoys, wrecks, evacuation) start the first time you meet each system and wait for you to do each step. Skip one
