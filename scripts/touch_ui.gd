@@ -18,7 +18,7 @@ var move_stick: Stick
 var aim_stick: Stick
 var flight: Control # sticks and strip, hidden while a menu is open
 var pads := {} # action -> Pad
-var context: Array[Pad] = [] # found / outpost / protect
+var context: Array[Pad] = [] # found / outpost / protect / trade
 var takeoff: Pad # LAND shown in the base menu gap while the menu is open
 var menu: Pad
 var restart: Pad
@@ -47,7 +47,7 @@ func _ready() -> void:
 		var p := Pad.new(strip[i][0], strip[i][1], Vector2.ZERO, BTN)
 		flight.add_child(p)
 		pads[strip[i][0]] = p
-	for a in ["found", "outpost", "protect"]:
+	for a in ["found", "outpost", "protect", "trade"]:
 		var p := Pad.new(a, a.to_upper(), Vector2.ZERO, Vector2(CONTEXT_W, BTN.y))
 		flight.add_child(p)
 		context.append(p)
@@ -103,7 +103,7 @@ func _process(_delta: float) -> void:
 	pads["system"].visible = Game.heli_items.has("loudspeaker")
 	pads["hook"].visible = Game.world.wrecks.slung() or Game.world.wrecks.wreck_below(heli.position) != ""
 	var ctx: Dictionary = Game.world.outposts._ctx # what [O] / [P] would do here, rescanned 4x a second
-	var on := [heli.can_found(), ctx.get("o", "") != "", ctx.get("p", false)]
+	var on := [heli.can_found(), ctx.get("o", "") != "", ctx.get("p", false), Game.world.trade.available]
 	for i in context.size():
 		context[i].visible = on[i]
 	_layout()

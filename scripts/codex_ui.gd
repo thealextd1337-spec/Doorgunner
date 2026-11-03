@@ -6,7 +6,7 @@ extends CanvasLayer
 const CONTROLS := "Controls"
 const TOUCH_LINES := [["Left stick", "fly"], ["Right stick", "aim; held out it fires the door gun"], ["LAND / TAKE OFF", "land or lift off"],
 	["GUN", "switch gun"], ["< YAW  YAW >", "turn the heli"], ["SPEAKER", "loudspeaker"], ["HOOK", "hook a wreck (when one is below)"],
-	["JOBS", "missions"], ["FOUND / OUTPOST / PROTECT", "appear when they apply"], ["MENU", "ESC menu"],
+	["JOBS", "missions"], ["FOUND / OUTPOST / PROTECT / TRADE", "appear when they apply"], ["MENU", "ESC menu"],
 	["Build mode", "tap the map to move the preview, then PLACE / REMOVE / ROTATE / DONE"]]
 
 var page := CONTROLS

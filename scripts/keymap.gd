@@ -13,7 +13,7 @@ const GROUPS := [
 	["Flying", [["move_up", "Fly up"], ["move_down", "Fly down"], ["move_left", "Fly left"], ["move_right", "Fly right"],
 		["yaw_left", "Yaw left"], ["yaw_right", "Yaw right"], ["land", "Land / take off"], ["weapon_swap", "Switch gun"],
 		["fire", "Fire door gun"], ["system", "Loudspeaker"], ["hook", "Hook a wreck"]]],
-	["Base & map", [["found", "Found the base"], ["outpost", "Outpost: found / help"], ["protect", "Protect a village"],
+	["Base & map", [["found", "Found the base"], ["outpost", "Outpost: found / help"], ["protect", "Protect a village"], ["trade", "Trade with a village"],
 		["base_menu", "Base menu"], ["missions", "Missions"], ["rotate", "Rotate blueprint"], ["place", "Place blueprint"],
 		["unplace", "Remove blueprint"]]],
 	["Build bar", [["slot_1", "Tool 1"], ["slot_2", "Tool 2"], ["slot_3", "Tool 3"], ["slot_4", "Tool 4"], ["slot_5", "Tool 5"],

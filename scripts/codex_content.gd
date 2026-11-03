@@ -107,7 +107,7 @@ const ROWS := [
 	["Systems", "sys_missions", "Radio missions", "Command offers jobs with a clock: rescues, escorts, camps. Open the list with J. They pay scrap, XP and sometimes a specialist."],
 	["Systems", "sys_bandits", "Bandits", "They hold camps, ride the roads and raid villages, outposts and your base. Their rifles end up in your armory."],
 	["Systems", "sys_outposts", "Outposts", "Hold a gas station, checkpoint or radio mast with a militia crew. Refuel and rearm in the field. Raiders will test it."],
-	["Systems", "sys_villages", "Villages", "Protect a survivor settlement and it becomes an ally that trades food and water. Neglect it and it falls."],
+	["Systems", "sys_villages", "Villages", "Protect a settlement and it becomes an ally that leaves food and water. Land beside it and press T to trade: scrap buys people, electronics, medicine, rifles and food. Prices rise with every purchase."],
 	["Systems", "sys_convoys", "Convoys", "Trucks from the motor pool loot far towns by road. A driver, optional escorts, a risk of ambush."],
 	["Systems", "sys_wrecks", "Wrecks", "Downed helis can be hooked, flown home and repaired in the hangar with parts, electronics and key parts."],
 	["Systems", "sys_evac", "Evacuation", "From day 15 the military answers. A radio station, an airstrip and one last siege get everybody out. It ends the run in victory."],

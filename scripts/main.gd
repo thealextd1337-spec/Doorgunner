@@ -19,6 +19,8 @@ var wear: Node # wear.gd
 var missions: Node # missions.gd (radio missions, J)
 var events: Node # events.gd: radio events with choices (Q13)
 var outposts: Node2D # outposts.gd: outposts and allied villages
+var trade: Node # trade.gd: buying and selling at allied villages (S2)
+var trade_ui: CanvasLayer # T: the trade window
 var wrecks: Node2D # wrecks.gd: heli wrecks, sling hook, repairs, fleet (P15)
 var modifiers: Node # modifiers.gd: run modifiers (P15)
 var convoys: Node2D # convoys.gd: trucks on the road network (CONVOY tab)
@@ -93,6 +95,8 @@ func _ready() -> void:
 	add_child(wear)
 	outposts = preload("res://scripts/outposts.gd").new() # registers its own save hook
 	add_child(outposts)
+	trade = preload("res://scripts/trade.gd").new() # S2, after outposts; registers its own save hook
+	add_child(trade)
 	wrecks = preload("res://scripts/wrecks.gd").new() # registers its own save hook
 	add_child(wrecks)
 	modifiers = preload("res://scripts/modifiers.gd").new() # registers its own save hook
@@ -157,6 +161,8 @@ func _add_ui_layers() -> void:
 	add_child(preload("res://scripts/settings_ui.gd").new())
 	add_child(preload("res://scripts/perf.gd").new()) # Q1: F3 performance overlay, ?perf=1 console log
 	add_child(preload("res://scripts/touch_ui.gd").new()) # Q5: sticks and buttons while Controls.touch is on
+	trade_ui = preload("res://scripts/trade_ui.gd").new() # S2: T beside an allied village (under the help screen)
+	add_child(trade_ui)
 	codex_ui = preload("res://scripts/codex_ui.gd").new() # Q6b: F1 help and codex
 	add_child(codex_ui)
 
