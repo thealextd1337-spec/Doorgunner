@@ -177,7 +177,7 @@ func _upkeep() -> void:
 	assert(Game.built("flak") == 1, "but it still stands")
 	Game.scrap = 500
 	b3.pay_upkeep(3)
-	assert(Buildings3.active("flak") and Buildings3.active("command") and Game.scrap == 500 - 20, "paid again, back at work")
+	assert(Buildings3.active("flak") and Buildings3.active("command") and Game.scrap == 500 - Buildings3.UPKEEP["flak"] - Buildings3.UPKEEP["command"], "paid again, back at work")
 	var two_flaks := Buildings3.UPKEEP["flak"] * 2
 	Game.scrap = 5000
 	_build("flak")
