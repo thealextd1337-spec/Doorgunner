@@ -34,7 +34,9 @@ const BUILD_INFO := {"sandbag": "militia posts", "wire": "slows and cuts zombies
 	"generator": "power, 10 fuel/day", "well": "+8 water/day", "watchtower": "post, +50 % reach", "motor_pool": "trucks for convoys (CONVOY tab)", "demolish": "houses, hedges, fences for scrap",
 	"radio": "military contact: needs an Engineer + electronics", "airstrip": "evacuation strip, 4x24 cells, R turns it", # radio / airstrip: evac.gd, shown when available
 	"hospital": "clinic add-on: +4 beds, heals 1.5x faster", "greenhouse": "+5 food/day, drinks 4 water", "forge": "scrap to metal to parts (Forge job)",
-	"bunker": "survive one base breach, calms assaults", "relay": "1.5x reveal and mission radius, early raid warning"} # the last five: buildings2.gd
+	"bunker": "survive one base breach, calms assaults", "relay": "1.5x reveal and mission radius, early raid warning", # buildings2.gd
+	"fortress": "sandbags become walls, double HP", "flak": "shoots down rockets, hurts gunships, bursts on waves", "command": "missions +25 %, one more open, rivals radioed ahead",
+	"vault": "stores +50 %, a breach costs half"} # the last four: buildings3.gd, from day 20 or perimeter level 2
 # loadout key -> [label, min, max]
 const LOADOUT := {
 	"seats": ["Seats (1 pt each)", 2, 8],
@@ -711,7 +713,7 @@ func refresh() -> void:
 			note = Buildings2.refusal(kind)
 		if note != "":
 			b.tooltip_text = note
-		b.visible = Game.world.evac.tool_visible(kind) or (base.placing and base.place_kind == kind)
+		b.visible = (Game.world.evac.tool_visible(kind) and (not kind in Buildings3.KINDS or Buildings3.unlocked() or Game.built(kind) > 0)) or (base.placing and base.place_kind == kind)
 		bar_btns[kind].visible = b.visible
 		bar_btns[kind].set_pressed_no_signal(base.place_kind == kind)
 		bar_btns[kind].disabled = Game.scrap < t[1] and base.place_kind != kind

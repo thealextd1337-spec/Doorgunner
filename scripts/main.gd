@@ -24,6 +24,7 @@ var modifiers: Node # modifiers.gd: run modifiers (P15)
 var convoys: Node2D # convoys.gd: trucks on the road network (CONVOY tab)
 var evac: Node # evac.gd: radio contact, airstrip, final siege, optional victory
 var buildings2: Node # buildings2.gd: Field Hospital, Greenhouse, Forge, Bunker, Radio Relay
+var buildings3: Node # buildings3.gd: S1 Fortress Wall, Flak Emplacement, Command Post, Supply Vault
 var landmarks: Node # landmarks.gd: what the Q10 hospital, stadium and power plant do
 var bosses: Node # bosses.gd: Q12 matriarch, juggernaut, hive, warlord
 var nemesis: Node # nemesis.gd: Q15 named rivals and the gunship
@@ -91,6 +92,8 @@ func _ready() -> void:
 	add_child(evac)
 	buildings2 = preload("res://scripts/buildings2.gd").new() # registers its own save hook
 	add_child(buildings2)
+	buildings3 = preload("res://scripts/buildings3.gd").new() # registers its own save hook
+	add_child(buildings3)
 	landmarks = preload("res://scripts/landmarks.gd").new() # registers its own save hook
 	add_child(landmarks)
 	bosses = preload("res://scripts/bosses.gd").new() # registers its own save hook

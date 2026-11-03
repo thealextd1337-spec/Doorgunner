@@ -298,7 +298,7 @@ func place_sandbag(cell: Vector2i, kind := "sandbag") -> bool:
 	if not can_place(kind, cell):
 		return false
 	Game.scrap -= piece_cost(kind)
-	Game.sandbags[cell] = {"kind": kind, "hp": Game.WIRE_HP if kind == "wire" else Game.SANDBAG_HP, "built": false, "rot": place_rot}
+	Game.sandbags[cell] = {"kind": kind, "hp": Game.WIRE_HP if kind == "wire" else Game.SANDBAG_HP * Buildings3.wall_factor(), "built": false, "rot": place_rot}
 	_bag_node(cell)
 	_join(cell)
 	ui.refresh()
@@ -311,6 +311,8 @@ func _bag_node(cell: Vector2i) -> void:
 	s.hframes = 16
 	s.position = cell_pos(cell) - global_position
 	s.modulate.a = 1.0 if Game.sandbags[cell]["built"] else 0.4
+	if Game.sandbags[cell]["kind"] == "sandbag" and Buildings3.wall_factor() > 1.0:
+		s.self_modulate = Buildings3.WALL_TINT # Fortress Wall: walls
 	sandbags.add_child(s)
 	bags[cell] = s
 
@@ -484,7 +486,7 @@ func _site_node(b: Dictionary) -> void:
 		pad.scale = Vector2.ONE * CELL / 192.0
 		node.add_child(pad)
 		node.add_child(Art.sprite("turret"))
-	elif b["kind"] in Buildings2.KINDS:
+	elif b["kind"] in Buildings2.KINDS or b["kind"] in Buildings3.KINDS:
 		node.add_child(Art.sprite(b["kind"]))
 	else:
 		var s := Art.sprite("hangar")
@@ -608,6 +610,7 @@ func _finish_site(b: Dictionary) -> void:
 	else:
 		site_nodes[b["cell"]].modulate.a = 1.0
 	Sfx.play("build_done", null, -4.0)
+	Buildings3.on_built(b["kind"])
 	Game.radio("Base: %s finished." % Game.BUILDINGS[b["kind"]][0])
 	if ui:
 		ui.refresh()
