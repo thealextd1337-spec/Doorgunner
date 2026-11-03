@@ -31,11 +31,11 @@ const MISSION_SLOTS := 1
 const COMMAND_WARN := 0.12 # of a day before the attack
 const VAULT_CAPS := 1.5
 const VAULT_BREACH := 0.5
-const UPKEEP := {"flak": 12, "command": 8}
+const UPKEEP := {"flak": 24, "command": 16} # S5: doubled (12, 8): a late scrap pile of ~1900 in the bot runs
 const TIPS := {
 	"fortress": "Fortress Wall (one): sandbags become walls with double hit points, the ones standing and every new one. Unlocks on day 20 or at perimeter level 2.",
-	"flak": "Flak Emplacement (two at most): shoots down RPG and gunship rockets, hurts the gunship and bursts on big waves. 3 ammo a shot, 12 scrap upkeep a day.",
-	"command": "Command Post (one): missions pay +25 %, one more mission open at a time, rival attacks are radioed ahead. 8 scrap upkeep a day.",
+	"flak": "Flak Emplacement (two at most): shoots down RPG and gunship rockets, hurts the gunship and bursts on big waves. 3 ammo a shot, 24 scrap upkeep a day.",
+	"command": "Command Post (one): missions pay +25 %, one more mission open at a time, rival attacks are radioed ahead. 16 scrap upkeep a day.",
 	"vault": "Supply Vault (one): fuel and ammo stores hold 50 % more, and a base breach costs half as much. No upkeep.",
 }
 

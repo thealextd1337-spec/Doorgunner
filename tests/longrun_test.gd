@@ -2,7 +2,8 @@ extends Node
 ## Long-run balance simulation (docs/ROADMAP.md P18). main.gd adds this node when env SMOKE=longrun:
 ##   SMOKE=longrun godot --headless --path . --fixed-fps 60 --quit-after 5000000
 ## Optional env: LONGRUN_DAYS (default 40), LONGRUN_OUT (default build/longrun.csv), LONGRUN_EVAC=1 (push for the evacuation
-## from day 15, STAY BEHIND after the victory and play on), LONGRUN_MODS=dense,warlords (run modifiers, ids or their first word).
+## from day 15, STAY BEHIND after the victory and play on), LONGRUN_MODS=dense,warlords (run modifiers, ids or their first word),
+## LONGRUN_NOSINK=1 (neither late buildings nor trading: the 1.1.0 bot, a baseline for the scrap sinks).
 ## A bot plays the real game: it flies the heli (input actions) to towns and landmarks, lands at settlements and loot,
 ## shoots what comes near (door gun, real bullets), delivers, keeps the workers on the jobs the stocks need, builds
 ## barracks, sandbags, a watchtower, clinic, well, generator, greenhouse, forge (staffed while scrap lasts), bunker, perimeter
@@ -83,6 +84,7 @@ var aim_last := Vector2.ZERO
 var frames := [0, 0, 0] # quiet, fly, fight frames today (runtime log)
 var DEBUG := OS.get_environment("LONGRUN_DEBUG") != ""
 var evac_mode := OS.get_environment("LONGRUN_EVAC") == "1"
+var no_sink := OS.get_environment("LONGRUN_NOSINK") == "1" # S5 baseline: no late buildings, no trading (the 1.1.0 bot)
 var mods: Array = []
 var n := {"outposts_fell": 0, "villages_fell": 0, "village_supply": 0, "convoys_back": 0, "convoys_lost": 0, "hooked": 0, "events": 0} # counted from signals / radio
 var no_road := {} # convoy destinations without a road
@@ -449,7 +451,7 @@ func _tasks() -> Array:
 			out.append([0.6, land.call(m["pos"], id, 40.0)])
 	var op: Node = main.outposts
 	for v in op.villages():
-		if v["stock"]["food"] + v["stock"]["water"] >= 10.0 or v["away_days"] >= op.NEGLECT_DAYS - 3 				or traded.get(v["id"], -1) != Game.day and Game.scrap >= TRADE_FROM and _wants_any(v["id"]):
+		if v["stock"]["food"] + v["stock"]["water"] >= 10.0 or v["away_days"] >= op.NEGLECT_DAYS - 3 				or not no_sink and traded.get(v["id"], -1) != Game.day and Game.scrap >= TRADE_FROM and _wants_any(v["id"]):
 			out.append([0.8, land.call(v["pos"], "", 40.0)])
 	if Game.fuel < Game.max_fuel * 0.5:
 		for o in op.list:
@@ -503,7 +505,8 @@ func _errand() -> Variant:
 ## Landed for an errand: O where it founds or reinforces; the rest (key parts, village pickup, black box, medicine, outpost
 ## refuel) happens on landing by itself. Each errand site is tried once.
 func _act(t: Variant) -> void:
-	_trade()
+	if not no_sink:
+		_trade()
 	if t == null:
 		return
 	if t.get("site", "") != "":
@@ -694,7 +697,7 @@ func _manage() -> void:
 	for b in [["greenhouse", 4, 8], ["forge", 8, 12], ["bunker", 10, 12]]: # Q9 buildings: [kind, from day, from people]
 		if Game.day >= b[1] and pop >= b[2] and Game.built(b[0]) + _queued(b[0]) == 0:
 			plans.append(b[0])
-	if Buildings3.unlocked(): # S1 late buildings, one site at a time (flak twice: refusal() counts the ones queued)
+	if Buildings3.unlocked() and not no_sink: # S1 late buildings, one site at a time (flak twice: refusal() counts the ones queued)
 		for kind in Buildings3.KINDS:
 			if Buildings3.refusal(kind) == "":
 				plans.append(kind)
