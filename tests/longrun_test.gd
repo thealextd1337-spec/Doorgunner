@@ -14,6 +14,8 @@ extends Node
 ## tab) to seen towns and landmarks; hooks spotted wrecks (G), tows them inside the fence, starts the HANGAR repair and
 ## switches to a repaired heli with more seats; lands at checkpoints and airfields for key parts; flies the missions it can
 ## do (rooftop rescue, black box, medicine run). In evac mode: Radio Station, Airstrip, the final siege, STAY BEHIND.
+## S5: builds the four late buildings once unlocked (buildings3.gd) and trades at allied villages (trade.gd): recruits while
+## beds are free, electronics while a goal lacks them, medicine, rifles and food when short; sells only a big food/water surplus.
 ## Time runs fast: Engine.time_scale is set every frame so a frame is QUIET_DT game seconds while nothing is near the heli
 ## or the base, FLY_DT while flying and FIGHT_DT (small enough for bullets) while enemies are close. One CSV row per day.
 ## The run counts as collapsed if it ends before the last day (exit 1). Runtime: ~30-40 min for 40 days (Q4, all systems on).
@@ -37,7 +39,7 @@ const COLS := ["day", "scrap", "metal", "parts", "electronics", "food", "water",
 	"kills", "base_hp", "assault", "wave", "bandit_raids", "points", "level", "sorties", "delivered", "heli_hp", "buildings", "sandbags",
 	"outposts", "garrison", "outposts_fell", "villages", "villages_fell", "village_supply", "convoys_sent", "convoys_back", "convoys_lost",
 	"trucks", "wrecks_hooked", "repairs", "repaired", "heli_type", "key_parts", "missions_done", "missions_failed", "evac", "victory", "save_bytes",
-	"events", "boss_kills", "rivals"]
+	"events", "boss_kills", "rivals", "late", "trade_spent", "trade_got"]
 const KEEP := 15 # scrap kept for hull repairs
 const CREW_HOME := 8 # healthy people that stay at the base before a crew leaves for an outpost
 const CONVOY_HOME := 10 # people at the base before a truck takes some of them away
@@ -49,6 +51,9 @@ const T := preload("res://scripts/chunk_manager.gd").T
 const DEMOLISH := [T.BUILDING, T.RUIN, T.HEDGE] # what the builders can clear off an airstrip lane
 const GUNSHIP_SHARE := 0.95 # of the gun's range: the Warlord's gunship keeps to the edge of it (nemesis.gd keep_band)
 const HOOK_WAIT := 30.0 # game s of hovering for the hook before giving up
+const TRADE_FROM := 150 # scrap before the bot flies to a village just to trade
+const TRADE_KEEP := 60 # scrap left after a purchase
+const SELL_DAYS := 12 # days of food / water the bot keeps before selling the rest
 const MOD_ALIAS := {"dense": "dense_horde", "warlords": "warlords", "scarcity": "scarcity", "dry": "dry_season", "glass": "glass_cockpit", "blackout": "blackout"}
 
 var main: Node2D
@@ -85,6 +90,9 @@ var strip_day := -1 # last day find_spot found nothing
 var lane := Rect2i() # evac mode: the airstrip lane kept free (size 0: none fits)
 var lane_rot := 0
 var lane_r := 0.0 # fence radius the lane needs; 0: not picked yet
+var traded := {} # village id -> day the bot last traded there
+var trade_spent := 0
+var trade_got := 0
 var reach_extra := 0.0 # px added to _reach() each minute the bot idles at the base with nothing to fly to
 
 
@@ -441,7 +449,7 @@ func _tasks() -> Array:
 			out.append([0.6, land.call(m["pos"], id, 40.0)])
 	var op: Node = main.outposts
 	for v in op.villages():
-		if v["stock"]["food"] + v["stock"]["water"] >= 10.0 or v["away_days"] >= op.NEGLECT_DAYS - 3:
+		if v["stock"]["food"] + v["stock"]["water"] >= 10.0 or v["away_days"] >= op.NEGLECT_DAYS - 3 				or traded.get(v["id"], -1) != Game.day and Game.scrap >= TRADE_FROM and _wants_any(v["id"]):
 			out.append([0.8, land.call(v["pos"], "", 40.0)])
 	if Game.fuel < Game.max_fuel * 0.5:
 		for o in op.list:
@@ -495,12 +503,56 @@ func _errand() -> Variant:
 ## Landed for an errand: O where it founds or reinforces; the rest (key parts, village pickup, black box, medicine, outpost
 ## refuel) happens on landing by itself. Each errand site is tried once.
 func _act(t: Variant) -> void:
+	_trade()
 	if t == null:
 		return
 	if t.get("site", "") != "":
 		visited[t["site"]] = true
 	if t.get("act", "") != "":
 		main.outposts.press_o()
+
+
+## Parked beside an allied village: buy what the base lacks (the window's BUY buttons), sell a big surplus (SELL).
+func _trade() -> void:
+	var tr: Node = main.trade
+	var id: String = tr.village_here().get("id", "")
+	if id == "":
+		return
+	traded[id] = Game.day
+	var list: Array = tr.offer(id)
+	for i in list.size():
+		while list[i]["left"] > 0 and _wants(list[i]) and Game.scrap >= tr.price(id, i) + TRADE_KEEP:
+			var cost: int = tr.price(id, i)
+			if not tr.buy(id, i):
+				break
+			trade_spent += cost
+	for good in tr.SELL:
+		var per: float = Game.food_eaters() * Game.FOOD_PER_PERSON if good == "food" else Game.water_drinkers() * Game.WATER_PER_PERSON
+		while tr.spare(good) > per * SELL_DAYS and tr.sell_problem(id, good) == "":
+			var pay: int = tr.payout(id, good)
+			tr.sell(id, good)
+			trade_got += pay
+
+
+func _wants_any(id: String) -> bool:
+	return main.trade.offer(id).any(func(e): return e["left"] > 0 and _wants(e))
+
+
+## What a player short of it would buy: a recruit while beds are free, electronics while a goal lacks them, medicine for the
+## injured and the medicine runs, rifles for the militia, food below a week's worth.
+func _wants(e: Dictionary) -> bool:
+	match e["good"]:
+		"person":
+			return Game.housing() > Game.rescued
+		"electronics":
+			return Game.salvage["electronics"] < _salvage_goal().get("electronics", 0.0)
+		"medicine":
+			return Game.base_medicine < Game.injured + main.missions.MEDICINE_COST + 2
+		"rifles":
+			return Game.base_rifles < Game.workers["militia"] + 2
+		"food":
+			return Game.base_food < Game.food_eaters() * Game.FOOD_PER_PERSON * 7.0
+	return false
 
 
 ## How far out the bot goes: farther each day, as a player learns the map (danger grows with distance, Game.danger_at).
@@ -642,6 +694,10 @@ func _manage() -> void:
 	for b in [["greenhouse", 4, 8], ["forge", 8, 12], ["bunker", 10, 12]]: # Q9 buildings: [kind, from day, from people]
 		if Game.day >= b[1] and pop >= b[2] and Game.built(b[0]) + _queued(b[0]) == 0:
 			plans.append(b[0])
+	if Buildings3.unlocked(): # S1 late buildings, one site at a time (flak twice: refusal() counts the ones queued)
+		for kind in Buildings3.KINDS:
+			if Buildings3.refusal(kind) == "":
+				plans.append(kind)
 	if Game.scrap >= 1000 and Game.built("forge") + _queued("forge") == 1: # scrap piling up: a second forge turns it into metal and parts
 		plans.append("forge")
 	for kind in plans:
@@ -921,7 +977,8 @@ func _on_day(day: int) -> void:
 		states.count("repair"), states.count("parked") + states.count("active") - 1, w.type_id(), w.keys.values().reduce(func(a, b): return a + b, 0),
 		ms.completed, ms.seq - ms.completed - ms.open.size(), main.evac.phase if main.evac.phase != "" else ("contact" if main.evac.contact else "-"),
 		int(main.evac.victory), f.get_length() if f else 0, n["events"], Game.meta["boss_kills"],
-		" ".join(main.nemesis.rivals.values().map(func(r): return "%s%d" % [r["kind"][0], r["stage"]])) + " x%d" % (main.nemesis.gens["warlord"] + main.nemesis.gens["alpha"] - main.nemesis.rivals.size())]
+		" ".join(main.nemesis.rivals.values().map(func(r): return "%s%d" % [r["kind"][0], r["stage"]])) + " x%d" % (main.nemesis.gens["warlord"] + main.nemesis.gens["alpha"] - main.nemesis.rivals.size()),
+		Buildings3.KINDS.reduce(func(a, k): return a + Game.built(k), 0), trade_spent, trade_got]
 	rows.append(",".join(vals.map(func(v): return str(v))))
 	printerr("LONGRUN ", rows[-1], "  (%.0f s real, frames quiet/fly/fight %s)" % [Time.get_ticks_msec() / 1000.0, frames])
 	frames = [0, 0, 0]
